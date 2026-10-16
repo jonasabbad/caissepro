@@ -11,6 +11,20 @@ import { routes } from './routes/index.js';
 export async function buildApp(opts: { logger?: boolean } = {}): Promise<FastifyInstance> {
   const app = Fastify({ logger: opts.logger ?? false, bodyLimit: 10 * 1024 * 1024 });
 
+  // Clients may POST action endpoints (submit, lock…) with a JSON content type and no body; treat that as {}.
+  app.removeContentTypeParser('application/json');
+  app.addContentTypeParser('application/json', { parseAs: 'string' }, (_req, body, done) => {
+    const text = typeof body === 'string' ? body : body.toString();
+    if (!text.trim()) return done(null, {});
+    try {
+      done(null, JSON.parse(text));
+    } catch {
+      const err = new Error('Invalid JSON body') as Error & { statusCode: number };
+      err.statusCode = 400;
+      done(err, undefined);
+    }
+  });
+
   await app.register(cors, { origin: true, credentials: true, exposedHeaders: ['x-cash-drawer', 'content-disposition'] });
 
   app.setErrorHandler((err, _req, reply) => {

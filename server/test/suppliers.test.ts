@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { newTenant } from './helpers.js';
+import { getApp, newTenant } from './helpers.js';
 
 describe('customers', () => {
   it('creates, searches, updates and deletes customers', async () => {
@@ -107,5 +107,16 @@ describe('suppliers & supplier orders', () => {
     ).body.data.order;
     expect((await api.post(`/supplier-orders/${order.id}/cancel`)).body.data.order.status).toBe('cancelled');
     expect((await api.post(`/supplier-orders/${order.id}/payment`, { amount: 1 })).status).toBe(400);
+  });
+});
+
+describe('http', () => {
+  it('accepts a JSON content type with an empty body', async () => {
+    const { token } = await newTenant();
+    const app = await getApp();
+    const res = await app.inject({ method: 'POST', url: '/api/v1/auth/lock', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, payload: '' });
+    expect(res.statusCode).toBe(200);
+    const bad = await app.inject({ method: 'POST', url: '/api/v1/customers', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, payload: '{oops' });
+    expect(bad.statusCode).toBe(400);
   });
 });
