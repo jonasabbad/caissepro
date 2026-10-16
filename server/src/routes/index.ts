@@ -12,6 +12,10 @@ import soldUnitRoutes from './soldUnits.js';
 import customerRoutes from './customers.js';
 import supplierRoutes from './suppliers.js';
 import supplierOrderRoutes from './supplierOrders.js';
+import checkoutRoutes from './checkout.js';
+import transactionRoutes from './transactions.js';
+import reservationRoutes from './reservations.js';
+import employeeRoutes from './employees.js';
 
 /** Every API module, mounted under /api/v1. Each module registers its own auth hook. */
 export async function routes(app: FastifyInstance) {
@@ -29,4 +33,8 @@ export async function routes(app: FastifyInstance) {
   await app.register(customerRoutes);
   await app.register(supplierRoutes);
   await app.register(supplierOrderRoutes);
+  await app.register(checkoutRoutes);
+  await app.register(transactionRoutes);
+  await app.register(reservationRoutes);
+  await app.register(employeeRoutes);
 }

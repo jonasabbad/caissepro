@@ -41,7 +41,8 @@ export async function customerStats(tenantId: string, ids: string[]) {
   const out = new Map<string, any>();
   for (const c of customers) {
     const mine = txs.filter((t) => t.customerId === c.id);
-    const sales = mine.filter((t) => t.type !== 'return');
+    // Reservations are deposits on items not handed over yet: their balance is not a debt.
+    const sales = mine.filter((t) => t.type !== 'return' && t.type !== 'reservation');
     const returns = mine.filter((t) => t.type === 'return');
     const debt = sales.reduce((s, t) => s + num(t.amountRemaining), 0);
     const credit = num(c.currentBalance);

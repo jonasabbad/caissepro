@@ -192,7 +192,37 @@ export default async function soldUnitRoutes(app: FastifyInstance) {
       prisma.soldUnit.count({ where }),
       prisma.soldUnit.findMany({ where, orderBy: { soldAt: 'desc' }, skip: p.skip, take: p.limit }),
     ]);
-    return ok({ units: serialize(await withUnitRelations(units)), meta: pageMeta(total, p) });
+    // What the customer actually paid for each phone (default refund amount in POS return mode).
+    const lines = await prisma.transactionItem.findMany({
+      where: { soldUnitId: { in: units.map((u) => u.id) }, transaction: { type: { not: 'return' } } },
+      orderBy: { transaction: { createdAt: 'desc' } },
+    });
+    const paid = new Map<string, number>();
+    for (const l of lines) if (l.soldUnitId && !paid.has(l.soldUnitId)) paid.set(l.soldUnitId, num(l.totalPrice));
+    const rows = (await withUnitRelations(units)).map((u) => ({ ...u, paidAmount: (paid.get(u.id) ?? num(u.salePrice)).toFixed(2) }));
+    return ok({ units: serialize(rows), meta: pageMeta(total, p) });
+  });
+
+  /** Completes a reservation whose balance has been paid: the phone is handed over. */
+  app.post(`${base}/:id/complete-reservation`, async (req: Req<unknown, unknown, { id: string }>) => {
+    const unit = await prisma.soldUnit.findFirst({ where: { id: req.params.id, tenantId: req.auth.tenantId } });
+    if (!unit) throw notFound('Sold unit', req.params.id);
+    if (!unit.reservedAt || !unit.reservationTransactionId) throw badRequest("Cet appareil n'est pas réservé");
+    const t = await prisma.transaction.findUniqueOrThrow({ where: { id: unit.reservationTransactionId } });
+    if (num(t.amountRemaining) > 0) throw badRequest(`Reste à payer sur la réservation : ${num(t.amountRemaining).toFixed(2)} DH`);
+    const updated = await prisma.soldUnit.update({
+      where: { id: unit.id },
+      data: {
+        soldAt: new Date(),
+        transactionId: t.id,
+        customerId: unit.reservedByCustomerId,
+        reservedAt: null,
+        reservedByCustomerId: null,
+        reservationDeposit: null,
+        reservationTransactionId: null,
+      },
+    });
+    return ok({ unit: serialize(updated) });
   });
 
   app.get(`${base}/available`, async (req: Req<unknown, Record<string, string>>) => {
