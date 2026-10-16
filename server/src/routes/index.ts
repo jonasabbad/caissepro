@@ -7,6 +7,8 @@ import subscriptionRoutes from './subscriptions.js';
 import platformRoutes from './platform.js';
 import productRoutes from './products.js';
 import inventoryRoutes from './inventory.js';
+import catalogRoutes from './catalog.js';
+import soldUnitRoutes from './soldUnits.js';
 
 /** Every API module, mounted under /api/v1. Each module registers its own auth hook. */
 export async function routes(app: FastifyInstance) {
@@ -19,4 +21,6 @@ export async function routes(app: FastifyInstance) {
   await app.register(platformRoutes);
   await app.register(productRoutes);
   await app.register(inventoryRoutes);
+  await app.register(catalogRoutes);
+  await app.register(soldUnitRoutes);
 }

@@ -37,7 +37,7 @@ export async function tenantUsage(tenantId: string) {
     prisma.user.count({ where: { tenantId, isActive: true } }),
     prisma.store.count({ where: { tenantId } }),
     prisma.product.count({ where: { tenantId, status: { not: 'archived' } } }),
-    prisma.soldUnit.count({ where: { tenantId, status: { in: ['in_stock', 'reserved'] } } }),
+    prisma.soldUnit.count({ where: { tenantId, soldAt: null } }),
   ]);
   return { users, stores, products, stockUnits };
 }

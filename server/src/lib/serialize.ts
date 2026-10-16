@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 // Columns stored as JSON text, decoded on the way out.
 const JSON_FIELDS = new Set([
   'variants',
+  'accessories',
   'extra',
   'roles',
   'enabledModules',

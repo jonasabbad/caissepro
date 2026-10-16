@@ -1,0 +1,700 @@
+# Device catalogue: one model per line.
+# [type] starts a device-type section; "Brand: " sets the current brand.
+# Line format: Model | year | storage, … | colour, … | ram, …   (trailing fields optional)
+[phone]
+Apple:
+iPhone 6 Plus|2014|16 GB,64 GB,128 GB|Space Gray,Silver,Gold
+iPhone 6|2014|16 GB,64 GB,128 GB|Space Gray,Silver,Gold
+iPhone 6s Plus|2015|16 GB,32 GB,64 GB,128 GB|Space Gray,Silver,Gold,Rose Gold
+iPhone 6s|2015|16 GB,32 GB,64 GB,128 GB|Space Gray,Silver,Gold,Rose Gold
+iPhone 7 Plus|2016|32 GB,128 GB,256 GB|Jet Black,Black,Silver,Gold,Rose Gold,Red
+iPhone 7|2016|32 GB,128 GB,256 GB|Jet Black,Black,Silver,Gold,Rose Gold,Red
+iPhone SE (2016)|2016|16 GB,32 GB,64 GB,128 GB|Space Gray,Silver,Gold,Rose Gold
+iPhone X|2017|64 GB,256 GB|Silver,Space Gray
+iPhone 8 Plus|2017|64 GB,128 GB,256 GB|Gold,Silver,Space Gray,Red
+iPhone 8|2017|64 GB,128 GB,256 GB|Gold,Silver,Space Gray,Red
+iPhone XS Max|2018|64 GB,256 GB,512 GB|Gold,Silver,Space Gray
+iPhone XS|2018|64 GB,256 GB,512 GB|Gold,Silver,Space Gray
+iPhone XR|2018|64 GB,128 GB,256 GB|Blue,White,Black,Yellow,Coral,Red
+iPhone 11 Pro Max|2019|64 GB,256 GB,512 GB|Space Gray,Gold,Silver,Midnight Green
+iPhone 11 Pro|2019|64 GB,256 GB,512 GB|Space Gray,Gold,Silver,Midnight Green
+iPhone 11|2019|64 GB,128 GB,256 GB|Purple,Yellow,Green,Black,White,Red
+iPhone 12 Pro Max|2020|128 GB,256 GB,512 GB|Graphite,Gold,Silver,Pacific Blue
+iPhone 12 Pro|2020|128 GB,256 GB,512 GB|Graphite,Gold,Silver,Pacific Blue
+iPhone 12|2020|64 GB,128 GB,256 GB|Blue,Green,Red,White,Black,Purple
+iPhone 12 Mini|2020|64 GB,128 GB,256 GB|Blue,Green,Red,White,Black,Purple
+iPhone SE (2020)|2020|64 GB,128 GB,256 GB|Black,White,Red
+iPhone 13 Pro Max|2021|128 GB,256 GB,512 GB,1 TB|Graphite,Gold,Silver,Sierra Blue,Alpine Green
+iPhone 13 Pro|2021|128 GB,256 GB,512 GB,1 TB|Graphite,Gold,Silver,Sierra Blue,Alpine Green
+iPhone 13|2021|128 GB,256 GB,512 GB|Blue,Pink,Green,Midnight,Starlight,Red
+iPhone 13 Mini|2021|128 GB,256 GB,512 GB|Blue,Pink,Green,Midnight,Starlight,Red
+iPhone 14 Pro Max|2022|128 GB,256 GB,512 GB,1 TB|Deep Purple,Gold,Silver,Space Black
+iPhone 14 Pro|2022|128 GB,256 GB,512 GB,1 TB|Deep Purple,Gold,Silver,Space Black
+iPhone 14 Plus|2022|128 GB,256 GB,512 GB|Blue,Purple,Yellow,Midnight,Starlight,Red
+iPhone 14|2022|128 GB,256 GB,512 GB|Blue,Purple,Yellow,Midnight,Starlight,Red
+iPhone SE (2022)|2022|64 GB,128 GB,256 GB|Midnight,Starlight,Red
+iPhone 15 Pro Max|2023|256 GB,512 GB,1 TB|Natural Titanium,Blue Titanium,White Titanium,Black Titanium
+iPhone 15 Pro|2023|128 GB,256 GB,512 GB,1 TB|Natural Titanium,Blue Titanium,White Titanium,Black Titanium
+iPhone 15 Plus|2023|128 GB,256 GB,512 GB|Blue,Pink,Yellow,Green,Black
+iPhone 15|2023|128 GB,256 GB,512 GB|Blue,Pink,Yellow,Green,Black
+iPhone 16 Pro Max|2024|256 GB,512 GB,1 TB|Desert Titanium,Natural Titanium,Black Titanium,White Titanium
+iPhone 16 Pro|2024|128 GB,256 GB,512 GB,1 TB|Desert Titanium,Natural Titanium,Black Titanium,White Titanium
+iPhone 16 Plus|2024|128 GB,256 GB,512 GB|Black,White,Pink,Teal,Ultramarine
+iPhone 16|2024|128 GB,256 GB,512 GB|Black,White,Pink,Teal,Ultramarine
+iPhone 17 Pro Max|2025|256 GB,512 GB,1 TB,2 TB|Cosmic Orange,Deep Blue,Silver
+iPhone 17 Pro|2025|128 GB,256 GB,512 GB,1 TB|Cosmic Orange,Deep Blue,Silver
+iPhone 17|2025|128 GB,256 GB,512 GB|Lavender,Sage,Mist Blue,White,Black
+iPhone Air|2025|128 GB,256 GB,512 GB|Space Black,Cloud White,Light Gold,Sky Blue
+iPhone 16e|2025|128 GB,256 GB,512 GB|Black,White,Pink,Ultramarine
+iPhone Ultra|2026|256 GB,512 GB,1 TB,2 TB|Black,White,Gold
+iPhone 18 Pro Max|2026|256 GB,512 GB,1 TB,2 TB|Titan Black,Titan White,Titan Gold,Titan Bronze
+iPhone 18 Pro|2026|256 GB,512 GB,1 TB|Titan Black,Titan White,Titan Gold,Titan Bronze
+iPhone 17e|2026|128 GB,256 GB,512 GB|Black,White,Blue,Pink
+iPhone Air 2|2027|256 GB,512 GB,1 TB|Space Black,Sky Blue,Cloud White,Light Gold
+iPhone 18e|2027|128 GB,256 GB,512 GB|Black,White,Blue,Pink
+iPhone 18|2027|128 GB,256 GB,512 GB|Black,White,Pink,Sage,Lavender
+Google:
+Pixel 7 Pro|2022|128 GB,256 GB,512 GB|Obsidian,Snow,Hazel
+Pixel 8 Pro|2023|128 GB,256 GB,512 GB,1 TB|Obsidian,Porcelain,Bay
+Pixel 8|2023|128 GB,256 GB|Obsidian,Hazel,Rose
+Pixel 7a|2023|128 GB|Charcoal,Snow,Sea,Coral
+Pixel 9 Pro XL|2024|128 GB,256 GB,512 GB,1 TB|Obsidian,Porcelain,Hazel,Rose Quartz
+Pixel 9 Pro|2024|128 GB,256 GB,512 GB,1 TB|Obsidian,Porcelain,Hazel,Rose Quartz
+Pixel 9|2024|128 GB,256 GB|Obsidian,Porcelain,Wintergreen,Peony
+Pixel 9 Pro Fold|2024|256 GB,512 GB|Obsidian,Porcelain
+Pixel 8a|2024|128 GB,256 GB|Obsidian,Porcelain,Bay,Aloe
+Pixel 10 Pro Fold|2025|256 GB,512 GB,1 TB|Obsidian,Porcelain,Moonstone
+Pixel 10 Pro XL|2025|256 GB,512 GB,1 TB|Obsidian,Porcelain,Moonstone,Jade
+Pixel 10 Pro|2025|128 GB,256 GB,512 GB,1 TB|Obsidian,Porcelain,Moonstone,Jade
+Pixel 10|2025|128 GB,256 GB|Obsidian,Frost,Indigo,Lemongrass
+Pixel 9a|2025|128 GB,256 GB|Obsidian,Porcelain,Iris,Peony
+Pixel 10a|2026|128 GB,256 GB|Obsidian,Porcelain,Iris,Coral
+Honor:
+Magic6 Pro|2024|256 GB,512 GB|Epic Black,Cloudy Blue
+Magic V3|2024|256 GB,512 GB|Reddish Brown,Black,Green
+200 Pro|2024|256 GB,512 GB|Black,Moonlight White,Ocean Cyan
+200|2024|256 GB,512 GB|Black,Moonlight White,Emerald Green
+Magic7 Pro|2025|256 GB,512 GB|Lunar Shadow Gray,Snow White,Black
+Magic7|2025|256 GB,512 GB|Lunar Shadow Gray,Snow White,Black
+300 Pro|2025|256 GB,512 GB|Midnight Black,Moonlight White,Cherry Blossom Pink
+300|2025|256 GB,512 GB|Midnight Black,Moonlight White,Peacock Blue
+Magic8 Pro|2026|256 GB,512 GB,1 TB|Lunar Shadow Gray,Snow White,Black,Sunrise Gold
+Magic8|2026|256 GB,512 GB|Lunar Shadow Gray,Snow White,Black
+Magic V Flip2|2026|256 GB,512 GB|Coral Pink,Black,Sunrise Gold
+400 Pro|2026|256 GB,512 GB|Midnight Black,Moonlight White,Cherry Blossom Pink
+400|2026|256 GB,512 GB|Midnight Black,Moonlight White,Peacock Blue
+Magic V6|2026|256 GB,512 GB,1 TB|Black,White,Gold|16 GB
+600 Pro|2026|256 GB,512 GB|Midnight Black,Moonlight White,Cherry Blossom Pink
+600|2026|256 GB,512 GB|Midnight Black,Moonlight White,Peacock Blue
+600 Lite|2026|256 GB|Midnight Black,Moonlight White|12 GB
+Magic8 Lite|2026|256 GB,512 GB|Midnight Black,Moonlight White,Titanium Blue|8 GB
+Power2|2026|256 GB,512 GB|Snowfield White,Sunrise Orange,Midnight Black|12 GB
+X6d|2026|256 GB|Ocean Cyan,Midnight Black|4 GB
+Huawei:
+Mate 60 Pro|2023|256 GB,512 GB|Black,White,Green,Purple
+Pura 70 Ultra|2024|256 GB,512 GB|Black,Green,Brown
+Pura 70 Pro|2024|256 GB,512 GB|Black,White,Green
+Nova 13 Pro|2024|256 GB,512 GB|Black,White,Green,Pink
+Nova 12 Pro|2024|256 GB,512 GB|Black,White,Green
+Mate 70 Pro+|2025|256 GB,512 GB,1 TB|Black,White,Gold
+Mate 70 Pro|2025|256 GB,512 GB|Black,White,Spruce Green
+Mate 70|2025|256 GB,512 GB|Black,White,Blue
+Pura 80 Ultra|2025|256 GB,512 GB,1 TB|Black,White,Purple
+Pura 80 Pro|2025|256 GB,512 GB|Black,White,Green
+Mate 80 Pro+|2026|512 GB,1 TB|Black,White,Gold,Forest Green
+Mate 80 Pro|2026|256 GB,512 GB,1 TB|Black,White,Spruce Green,Sand Gold
+Mate 80|2026|256 GB,512 GB|Black,White,Blue,Gold
+Pura 90 Ultra|2026|512 GB,1 TB|Black,White,Purple
+Pura 90 Pro|2026|256 GB,512 GB|Black,White,Green
+Nova 14 Pro|2026|256 GB,512 GB|Black,White,Green,Pink
+Infinix:
+Zero 30|2023|256 GB|Golden Hour,Fantasy Purple
+Zero 40|2024|256 GB,512 GB|Moving Titanium,Blossom Glow,Rock Black
+Note 40 Pro+ 5G|2024|256 GB|Vintage Green,Obsidian Black,Titan Gold
+Note 40 Pro|2024|256 GB|Vintage Green,Obsidian Black
+Hot 50 Pro+|2024|256 GB|Horizon Gold,Dreamy Purple,Sleek Black
+Hot 50 Pro|2024|128 GB,256 GB|Horizon Gold,Dreamy Purple,Sleek Black
+Zero 50 Ultra|2026|256 GB,512 GB|Moving Titanium,Blossom Glow,Rock Black
+Zero 50|2026|256 GB,512 GB|Moving Titanium,Blossom Glow,Rock Black
+Note 50 Pro+|2026|256 GB|Vintage Green,Obsidian Black,Titan Gold
+Hot 60 Pro+|2026|256 GB|Horizon Gold,Dreamy Purple,Sleek Black
+Note 60 Ultra|2026|256 GB|Mist Titanium,Torino Black,Mocha Brown|12 GB
+Note 60 Pro|2026|256 GB|Mist Titanium,Deep Ocean Blue,Solar Orange,Torino Black|8 GB,12 GB
+Note 60|2026|128 GB,256 GB|Midnight Black,Mist Titanium,Fizz Blue,Rose Gold,Mocha Brown|8 GB
+Smart 20|2026|64 GB,128 GB|Shadow Black,Cloudline Blue,Polaris Titanium,Sunlike Orange|4 GB
+Itel:
+S24|2024|128 GB,256 GB|Elegant Black,Glacier Blue,Aurora White
+P55+|2024|128 GB,256 GB|Nebula Green,Luxurious Gold,Dynamic Black
+A70|2024|64 GB,128 GB|Azure Blue,Field Green,Brilliant Black
+Motorola:
+Edge 50 Ultra|2024|256 GB,512 GB,1 TB|Forest Grey,Peach Fuzz,Nordic Wood
+Edge 50 Pro|2024|256 GB,512 GB|Black Beauty,Luxe Lavender,Vanilla Cream
+Edge 50 Fusion|2024|256 GB,512 GB|Forest Blue,Hot Pink,Marshmallow Blue
+Razr 50 Ultra|2024|256 GB,512 GB|Spring Green,Peach Fuzz,Midnight Blue
+Razr 50|2024|256 GB|Koala Grey,Spritz Orange,Beach Sand,Midnight Blue
+Moto G85|2024|128 GB,256 GB|Olive Green,Urban Grey,Cobalt Blue
+Edge 60 Ultra|2026|512 GB,1 TB|Forest Grey,Peach Fuzz,Nordic Wood
+Edge 60 Pro|2026|256 GB,512 GB|Black Beauty,Luxe Lavender,Vanilla Cream
+Razr 60 Ultra|2026|256 GB,512 GB|Spring Green,Peach Fuzz,Midnight Blue
+Nothing:
+Phone (1)|2022|128 GB,256 GB|White,Black
+Phone (2)|2023|128 GB,256 GB,512 GB|White,Dark Gray
+Phone (2a) Plus|2024|256 GB|Gray,Black
+Phone (2a)|2024|128 GB,256 GB|White,Black,Blue
+Phone (3)|2025|128 GB,256 GB,512 GB|White,Black
+Phone (3a) Pro|2026|128 GB,256 GB,512 GB|White,Black,Blue
+Phone (3a)|2026|128 GB,256 GB|White,Black,Blue
+OPPO:
+Find X7 Ultra|2024|256 GB,512 GB|Ocean Blue,Hasselblad Brown
+Reno 12 Pro|2024|256 GB,512 GB|Nebula Black,Sunset Gold
+Reno 12|2024|256 GB,512 GB|Astro Silver,Matte Brown,Sunset Peach
+Reno 11 Pro|2024|256 GB,512 GB|Pearl White,Rock Gray
+A80|2024|128 GB,256 GB|Moonlight Purple,Starry Black
+Find X8 Pro|2025|256 GB,512 GB|Space Black,Pearl White
+Find X8|2025|256 GB,512 GB|Space Black,Pearl White,Star Gray
+Reno 13 Pro|2025|256 GB,512 GB|Graphite Gray,Mist Lavender,Ivory White
+Reno 13|2025|256 GB,512 GB|Graphite Gray,Luminous Blue,Ivory White
+Find X9 Ultra|2026|512 GB,1 TB|Space Black,Pearl White,Titanium Gold
+Find X9 Pro|2026|256 GB,512 GB,1 TB|Space Black,Pearl White,Titanium Brown
+Find X9|2026|256 GB,512 GB|Space Black,Pearl White,Star Gray,Velvet Red
+Reno 14 Pro|2026|256 GB,512 GB|Graphite Gray,Mist Lavender,Ivory White
+Reno 14|2026|256 GB,512 GB|Graphite Gray,Luminous Blue,Ivory White
+Find N6|2026|256 GB,512 GB|Golden Orange,Original Titanium,Deep Black|12 GB,16 GB
+Reno 15 Pro|2026|256 GB,512 GB|Aurora Blue,Twilight Blue,Aurora White
+Reno 15|2026|256 GB,512 GB|Aurora Blue,Twilight Blue,Aurora White
+Reno 15 F|2026|128 GB,256 GB,512 GB|Afterglow Pink,Twilight Blue,Aurora Blue
+A6s|2026|128 GB,256 GB|Cappuccino Brown,Ice White
+A6|2026|128 GB,256 GB|Sapphire Blue,Aurora Gold,Pink
+OnePlus:
+Open|2023|256 GB,512 GB|Emerald Dusk,Voyager Black
+12|2024|256 GB,512 GB|Silky Black,Flowy Emerald
+12R|2024|128 GB,256 GB|Iron Gray,Cool Blue
+Nord 4|2024|256 GB,512 GB|Obsidian Midnight,Oasis Green,Mercurial Silver
+Nord CE 4|2024|128 GB,256 GB|Dark Chrome,Celadon Marble
+13|2025|256 GB,512 GB|Midnight Ocean,Black Eclipse,Arctic Dawn
+13R|2025|256 GB,512 GB|Nebula Noir,Astral Trail
+Open 2|2025|256 GB,512 GB|Crimson Shadow,Emerald Dusk
+14|2026|256 GB,512 GB,1 TB|Black Eclipse,Arctic Dawn,Emerald Wave
+14R|2026|256 GB,512 GB|Nebula Noir,Astral Trail
+Nord 5|2026|256 GB,512 GB|Obsidian Midnight,Oasis Green,Mercurial Silver
+Realme:
+GT 6|2024|256 GB,512 GB|Fluid Silver,Razor Green
+GT 5 Pro|2024|256 GB,512 GB|Moon White,Bright Galaxy
+12 Pro+|2024|256 GB,512 GB|Navigator Beige,Submarine Blue
+12 Pro|2024|128 GB,256 GB|Navigator Beige,Submarine Blue
+C67|2024|128 GB,256 GB|Dark Purple,Sunny Oasis
+GT 7 Pro|2025|256 GB,512 GB|Galaxy Grey,Mars Orange
+14 Pro+|2025|256 GB,512 GB|Bikaner Purple,Jaipur Pink,Pearl White
+14 Pro|2025|128 GB,256 GB|Bikaner Purple,Jaipur Pink,Suede Grey
+GT 8 Pro|2026|256 GB,512 GB,1 TB|Galaxy Grey,Mars Orange,Diamond White
+GT 8|2026|256 GB,512 GB|Cyber Black,Diamond White,Mars Orange
+15 Pro+|2026|256 GB,512 GB|Bikaner Purple,Jaipur Pink,Pearl White
+15 Pro|2026|128 GB,256 GB|Bikaner Purple,Jaipur Pink,Suede Grey
+16 Pro+|2026|128 GB,256 GB|Master Gold,Master Grey,Camellia Pink
+16 Pro|2026|128 GB,256 GB|Master Gold,Orchid Purple,Pebble Grey
+Samsung:
+Galaxy S8+|2017|64 GB,128 GB|Midnight Black,Orchid Gray,Arctic Silver,Coral Blue,Maple Gold
+Galaxy S8|2017|64 GB|Midnight Black,Orchid Gray,Arctic Silver,Coral Blue,Maple Gold
+Galaxy Note 8|2017|64 GB,128 GB,256 GB|Midnight Black,Orchid Gray,Maple Gold,Deep Sea Blue
+Galaxy S9+|2018|64 GB,128 GB,256 GB|Midnight Black,Coral Blue,Lilac Purple,Titanium Gray
+Galaxy S9|2018|64 GB,128 GB,256 GB|Midnight Black,Coral Blue,Lilac Purple,Titanium Gray
+Galaxy Note 9|2018|128 GB,512 GB|Ocean Blue,Lavender Purple,Midnight Black,Metallic Copper
+Galaxy S10+|2019|128 GB,512 GB,1 TB|Prism White,Prism Black,Prism Blue,Prism Green,Ceramic Black,Ceramic White
+Galaxy S10|2019|128 GB,512 GB|Prism White,Prism Black,Prism Blue,Prism Green,Flamingo Pink
+Galaxy S10e|2019|128 GB,256 GB|Prism White,Prism Black,Prism Blue,Prism Green,Canary Yellow,Flamingo Pink
+Galaxy Note 10+|2019|256 GB,512 GB|Aura Glow,Aura Black,Aura White,Aura Blue
+Galaxy Note 10|2019|256 GB|Aura Glow,Aura Black,Aura White,Aura Pink,Aura Red
+Galaxy A50|2019|64 GB,128 GB|Black,White,Blue,Coral
+Galaxy A70|2019|128 GB|Black,White,Blue,Coral
+Galaxy S20 Ultra|2020|128 GB,256 GB,512 GB|Cosmic Gray,Cosmic Black
+Galaxy S20+|2020|128 GB,256 GB,512 GB|Cosmic Gray,Cosmic Black,Cloud Blue,Cloud White
+Galaxy S20|2020|128 GB|Cosmic Gray,Cloud Blue,Cloud Pink,Cloud White
+Galaxy S20 FE|2020|128 GB,256 GB|Cloud Navy,Cloud Lavender,Cloud Mint,Cloud Red,Cloud Orange,Cloud White
+Galaxy Note 20 Ultra|2020|128 GB,256 GB,512 GB|Mystic Bronze,Mystic Black,Mystic White
+Galaxy Note 20|2020|128 GB,256 GB|Mystic Bronze,Mystic Green,Mystic Gray
+Galaxy A51|2020|64 GB,128 GB|Prism Crush Black,Prism Crush White,Prism Crush Blue,Prism Crush Pink
+Galaxy A71|2020|128 GB|Prism Crush Black,Prism Crush Silver,Prism Crush Blue,Prism Crush Pink
+Galaxy S21 Ultra|2021|128 GB,256 GB,512 GB|Phantom Black,Phantom Silver,Phantom Titanium,Phantom Navy
+Galaxy S21+|2021|128 GB,256 GB|Phantom Black,Phantom Silver,Phantom Violet
+Galaxy S21|2021|128 GB,256 GB|Phantom Gray,Phantom White,Phantom Violet,Phantom Pink
+Galaxy Z Fold3|2021|256 GB,512 GB|Phantom Black,Phantom Green,Phantom Silver
+Galaxy Z Flip3|2021|128 GB,256 GB|Cream,Green,Lavender,Phantom Black,White,Pink,Gray
+Galaxy A52s|2021|128 GB,256 GB|Awesome Black,Awesome White,Awesome Violet,Awesome Mint
+Galaxy A52|2021|128 GB,256 GB|Awesome Black,Awesome White,Awesome Violet,Awesome Blue
+Galaxy A32|2021|64 GB,128 GB|Awesome Black,Awesome White,Awesome Blue,Awesome Violet
+Galaxy S22 Ultra|2022|128 GB,256 GB,512 GB,1 TB|Phantom Black,Phantom White,Green,Burgundy
+Galaxy S22+|2022|128 GB,256 GB|Phantom Black,Phantom White,Green,Pink Gold
+Galaxy S22|2022|128 GB,256 GB|Phantom Black,Phantom White,Green,Pink Gold
+Galaxy S21 FE|2022|128 GB,256 GB|Graphite,Olive,Lavender,White
+Galaxy Z Fold4|2022|256 GB,512 GB,1 TB|Graygreen,Phantom Black,Beige
+Galaxy Z Flip4|2022|128 GB,256 GB,512 GB|Graphite,Bora Purple,Pink Gold,Blue
+Galaxy A53|2022|128 GB,256 GB|Awesome Black,Awesome White,Awesome Blue,Awesome Peach
+Galaxy A33|2022|128 GB,256 GB|Awesome Black,Awesome White,Awesome Blue,Awesome Peach
+Galaxy A25|2023|128 GB,256 GB|Blue Black,Blue,Light Blue,Yellow
+Galaxy A15|2023|128 GB,256 GB|Blue Black,Blue,Light Blue,Yellow
+Galaxy A05s|2023|64 GB,128 GB|Black,Silver,Light Green,Light Violet
+Galaxy S23 Ultra|2023|256 GB,512 GB,1 TB|Phantom Black,Green,Cream,Lavender
+Galaxy S23+|2023|256 GB,512 GB|Phantom Black,Green,Cream,Lavender
+Galaxy S23|2023|128 GB,256 GB|Phantom Black,Green,Cream,Lavender
+Galaxy S23 FE|2023|128 GB,256 GB|Graphite,Mint,Cream,Indigo
+Galaxy Z Fold5|2023|256 GB,512 GB,1 TB|Icy Blue,Phantom Black,Cream
+Galaxy Z Flip5|2023|256 GB,512 GB|Mint,Graphite,Cream,Lavender
+Galaxy A54|2023|128 GB,256 GB|Awesome Graphite,Awesome Violet,Awesome Lime,Awesome White
+Galaxy A34|2023|128 GB,256 GB|Awesome Graphite,Awesome Silver,Awesome Violet,Awesome Lime
+Galaxy Z Fold6|2024|256 GB,512 GB,1 TB|Silver Shadow,Navy,Pink,Crafted Black
+Galaxy Z Flip6|2024|256 GB,512 GB|Silver Shadow,Yellow,Blue,Mint,Crafted Black
+Galaxy S24 Ultra|2024|256 GB,512 GB,1 TB|Titanium Black,Titanium Gray,Titanium Violet,Titanium Yellow
+Galaxy S24+|2024|256 GB,512 GB|Onyx Black,Marble Gray,Cobalt Violet,Amber Yellow
+Galaxy S24|2024|128 GB,256 GB|Onyx Black,Marble Gray,Cobalt Violet,Amber Yellow
+Galaxy S24 FE|2024|128 GB,256 GB|Graphite,Blue,Mint,Yellow
+Galaxy A55|2024|128 GB,256 GB|Awesome Iceblue,Awesome Lilac,Awesome Lemon,Awesome Navy
+Galaxy A16|2024|128 GB,256 GB|Black,Gray,Light Green
+Galaxy A06|2024|64 GB,128 GB|Black,Light Blue,Gold
+Galaxy A35|2024|128 GB,256 GB|Awesome Iceblue,Awesome Lilac,Awesome Lemon,Awesome Navy
+Galaxy Z Fold7|2025|256 GB,512 GB,1 TB|Phantom Black,Silver Shadow,Coral Red,Forest Green
+Galaxy Z Flip7|2025|256 GB,512 GB|Phantom Black,Silver Shadow,Mint,Yellow,Coral
+Galaxy S25 Ultra|2025|256 GB,512 GB,1 TB|Titanium Black,Titanium Silver,Titanium Gray,Titanium Blue
+Galaxy S25+|2025|256 GB,512 GB|Navy,Icyblue,Silver Shadow,Mint
+Galaxy S25|2025|128 GB,256 GB,512 GB|Navy,Icyblue,Silver Shadow,Mint
+Galaxy A56|2025|128 GB,256 GB|Black,Light Blue,Light Green,Lavender
+Galaxy A36|2025|128 GB,256 GB|Black,Lavender,Mint,Silver
+Galaxy S25 Edge|2025|256 GB,512 GB|Titanium Silver,Titanium Jetblack,Titanium Icyblue
+Galaxy S25 FE|2025|128 GB,256 GB,512 GB|Navy,Icyblue,Jetblack,White
+Galaxy A26|2025|128 GB,256 GB|Black,White,Mint,Peach Pink
+Galaxy A17|2025|128 GB,256 GB|Black,Blue,Gray
+Galaxy S26 Ultra|2026|256 GB,512 GB,1 TB,2 TB|Titanium Black,Titanium Silver,Titanium White,Titanium Jade Green,Titanium Orange
+Galaxy S26+|2026|256 GB,512 GB,1 TB|Phantom Black,Silver Shadow,Sky Blue,Mint Green,Coral Pink
+Galaxy S26|2026|128 GB,256 GB,512 GB|Phantom Black,Silver Shadow,Sky Blue,Mint Green,Coral Pink
+Galaxy Z Fold8 Ultra|2026|256 GB,512 GB,1 TB|Phantom Black,Silver Shadow,Blue Shadow
+Galaxy Z Fold8|2026|256 GB,512 GB,1 TB|Phantom Black,Silver Shadow,Blue Shadow
+Galaxy Z Flip8|2026|256 GB,512 GB|Phantom Black,Silver Shadow,Mint,Coral
+Galaxy A57|2026|128 GB,256 GB|Black,Light Blue,Light Green,Lavender
+Galaxy A37|2026|128 GB,256 GB|Black,Lavender,Mint,Silver
+Galaxy M17e 5G|2026|128 GB|Blitz Blue,Vibe Violet|4 GB,6 GB
+Galaxy A07 5G|2026|64 GB,128 GB|Black,Light Violet|4 GB,6 GB
+Tecno:
+Phantom X2 Pro|2023|256 GB|Mars Orange,Stardust Gray
+Phantom V Fold2 5G|2024|256 GB,512 GB|Karst Green,Moondust Gray
+Phantom V Flip2 5G|2024|256 GB|Mystic Dawn,Moondust Gray
+Camon 30 Premier|2024|512 GB|Lava Grey,Alpine Snow
+Camon 30 Pro|2024|256 GB,512 GB|Lava Grey,Basaltic Dark
+Spark 30 Pro|2024|256 GB|Azure Sky,Midnight Shadow
+Pova 6 Pro|2024|256 GB|Comet Green,Meteorite Grey
+Phantom V Fold3 5G|2026|256 GB,512 GB,1 TB|Karst Green,Moondust Gray,Sand Gold
+Phantom V Flip3 5G|2026|256 GB,512 GB|Mystic Dawn,Moondust Gray
+Camon 40 Premier|2026|512 GB|Lava Grey,Alpine Snow
+Spark 40 Pro|2026|256 GB|Azure Sky,Midnight Shadow
+Spark Go 3|2026|64 GB,128 GB|Ink Black,Titanium Grey,Aurora Purple,Galaxy Blue|6 GB,8 GB
+Pop 20|2026|64 GB,128 GB|Black,Blue,Gold|8 GB
+Vivo:
+V40 Pro|2024|256 GB,512 GB|Nebula Purple,Titanium Grey
+V40|2024|256 GB|Nebula Purple,Lotus Purple,Ganges Blue
+X100 Pro|2024|256 GB,512 GB|Asteroid Black,Stardust Orange
+X100|2024|256 GB,512 GB|Asteroid Black,Stardust Orange
+Y300 Pro|2024|128 GB,256 GB|Magic Green,Titanium Gray
+X200 Pro|2025|256 GB,512 GB|Titanium Gray,Cosmos Black
+X200|2025|256 GB,512 GB|Titanium Gray,Cosmos Black,Natural Green
+X300 Pro+|2026|512 GB,1 TB|Titanium Gray,Cosmos Black,Sand Gold
+X300 Pro|2026|256 GB,512 GB,1 TB|Titanium Gray,Cosmos Black,Natural Green
+X300|2026|256 GB,512 GB|Titanium Gray,Cosmos Black,Mist Blue
+V50 Pro|2026|256 GB,512 GB|Nebula Purple,Titanium Grey,Phantom White
+X300 FE|2026|256 GB,512 GB|Moonlight White,Cool Purple,Graphite Black|12 GB
+V70|2026|256 GB|Passion Red,Lemon Yellow,Black|8 GB,12 GB
+V70 FE|2026|256 GB,512 GB|Black,Blue,Gold|12 GB
+Y37+|2026|256 GB|Azure Blue,Obsidian Black,Golden Mountain|8 GB
+Y21 5G|2026|128 GB|Black,Blue|6 GB
+Y05|2026|64 GB,128 GB|Summit Platinum,Haze Blue,Voyage Black|4 GB
+Xiaomi:
+13 Pro|2023|256 GB,512 GB|Ceramic Black,Ceramic White,Flora Green
+14 Ultra|2024|256 GB,512 GB|Black,White
+14 Pro|2024|256 GB,512 GB|Black,White,Green
+14|2024|256 GB,512 GB|Black,White,Green
+14T Pro|2024|256 GB,512 GB|Titan Black,Titan Gray,Titan Blue,Lemon Green
+14T|2024|256 GB,512 GB|Titan Black,Titan Gray,Titan Blue,Lemon Green
+POCO F6 Pro|2024|256 GB,512 GB|Black,White
+Redmi Note 13|2024|128 GB,256 GB|Midnight Black,Mint Green,Ice Blue,Ocean Sunset
+Redmi 14C|2024|128 GB,256 GB|Midnight Black,Sage Green,Dreamy Purple,Starry Blue
+Redmi 13|2024|128 GB,256 GB|Midnight Black,Sandy Gold,Ocean Blue,Pearl Pink
+Redmi A3|2024|64 GB,128 GB|Midnight Black,Star Blue,Olive Green
+POCO F6
+Redmi Note 13 Pro+
+Redmi Note 13 Pro
+POCO X6 Pro
+15 Ultra
+15 Pro
+15
+Redmi Note 14 Pro+
+Redmi Note 14 Pro
+Redmi Note 14
+POCO X7 Pro
+POCO X7
+POCO F7
+Redmi 15
+Redmi 15C
+Redmi A5
+16 Ultra
+16 Pro
+16
+Redmi Note 15 Pro+
+Redmi Note 15 Pro
+Redmi Note 15
+POCO X8 Pro
+POCO F7 Pro
+[tablet]
+Apple:
+iPad Air 4
+iPad 8
+iPad mini 6
+iPad 9
+iPad Pro 12.9" M1
+iPad Pro 11" M1
+iPad Pro 12.9" M2
+iPad Pro 11" M2
+iPad 10
+iPad Pro 13" M4
+iPad Pro 11" M4
+iPad Air 13" M2
+iPad Air 11" M2
+iPad mini A17 Pro
+iPad Air 13" M3
+iPad Air 11" M3
+iPad 11" A16
+iPad Pro 13" M5
+iPad Pro 11" M5
+iPad Air 13" M4
+iPad Air 11" M4
+Honor:
+Pad 9 Pro
+Pad 9
+Pad V9
+Huawei:
+MatePad Pro 12.6
+MatePad 11.5
+MatePad Pro 13.2
+MatePad 11.5 S
+Lenovo:
+Tab M10 Plus
+Tab P12
+Tab P11 Plus
+Tab M11
+Tab P12 Pro
+OPPO:
+Pad 2
+Pad 3 Pro
+OnePlus:
+Pad
+Pad Go
+Pad 2
+Realme:
+Pad X
+Pad 2
+Samsung:
+Galaxy Tab S9 Ultra
+Galaxy Tab S9+
+Galaxy Tab S9
+Galaxy Tab A9+
+Galaxy Tab A9
+Galaxy Tab S10 Ultra
+Galaxy Tab S10+
+Galaxy Tab S10 FE+
+Galaxy Tab S10 FE
+Galaxy Tab S11 Ultra
+Galaxy Tab S11+
+Galaxy Tab S11
+Xiaomi:
+Pad 6
+Pad 6 Pro
+Redmi Pad SE
+Redmi Pad Pro
+Pad 7 Pro
+Pad 7
+[laptop]
+Acer:
+Aspire 5
+Aspire Go 15
+Swift 3
+Swift Go 14
+Swift X 14
+TravelMate P4
+Nitro 5
+Predator Helios 16
+Predator Triton 17
+Asus:
+VivoBook 15
+VivoBook S 14
+ZenBook 14
+ZenBook Pro 14
+ExpertBook B5
+ProArt StudioBook 16
+TUF Gaming F15
+ROG Strix G16
+ROG Zephyrus G14
+Dell:
+Inspiron 15
+Inspiron 14
+XPS 13
+XPS 15
+XPS 17
+Latitude 5540
+Latitude 7440
+Precision 5680
+G15
+Alienware m16
+Gigabyte:
+Aorus 16X
+G6
+HP:
+Pavilion 15
+Pavilion 14
+Envy x360 15
+Envy 17
+Spectre x360 14
+ProBook 450 G10
+EliteBook 840 G10
+ZBook Firefly 14 G10
+Victus 15
+OMEN 16
+Huawei:
+MateBook X Pro
+MateBook 14
+MateBook D 16
+LG:
+Gram 17
+Gram 16
+Gram Pro 16
+Lenovo:
+IdeaPad Slim 3
+IdeaPad Slim 5
+IdeaPad Pro 5
+ThinkPad E14 Gen 5
+ThinkPad L14 Gen 4
+ThinkPad T14 Gen 4
+ThinkPad X1 Carbon Gen 11
+Yoga 7i
+Yoga 9i
+Legion 5
+Legion Pro 5
+MSI:
+Modern 15
+Prestige 14
+Summit E16 Flip
+Creator Z16
+Thin GF63
+Katana 15
+Cyborg 15
+Pulse 15
+Vector 16
+Titan 18
+Raider GE78
+Microsoft:
+Surface Laptop 5
+Surface Laptop Studio 2
+Surface Laptop 7
+Surface Laptop 6
+Surface Pro 11
+Razer:
+Blade 16
+Blade 14
+Samsung:
+Galaxy Book3 Ultra
+Galaxy Book4 Pro
+Galaxy Book4
+Toshiba:
+Dynabook Satellite Pro C50
+Dynabook Portégé X40
+[macbook]
+Apple:
+MacBook Air 13" (2015)
+MacBook Pro Retina 13" (2015)
+MacBook Pro Retina 15" (2015)
+MacBook 12" (2015)
+MacBook Pro 13" (2016)
+MacBook Pro 15" (2016)
+MacBook 12" (2016)
+MacBook Air 13" (2017)
+MacBook Pro 13" (2017)
+MacBook Pro 15" (2017)
+MacBook 12" (2017)
+MacBook Air Retina 13" (2018)
+MacBook Pro 13" (2018)
+MacBook Pro 15" (2018)
+MacBook Air Retina 13" (2019)
+MacBook Pro 16" (2019)
+MacBook Pro 13" (2019) 4 Ports
+MacBook Pro 13" (2019) 2 Ports
+MacBook Pro 15" (2019)
+MacBook Air M1 13"
+MacBook Air Retina 13" (2020)
+MacBook Pro 13" M1
+MacBook Pro 13" (2020) 4 Ports
+MacBook Pro 13" (2020) 2 Ports
+MacBook Pro 14" M1 Pro
+MacBook Pro 14" M1 Max
+MacBook Pro 16" M1 Pro
+MacBook Pro 16" M1 Max
+MacBook Pro 13" M2
+MacBook Air M2 13"
+MacBook Air M2 15"
+MacBook Pro 14" M3
+MacBook Pro 14" M3 Pro
+MacBook Pro 14" M3 Max
+MacBook Pro 14" M2 Pro
+MacBook Pro 14" M2 Max
+MacBook Pro 16" M3 Pro
+MacBook Pro 16" M3 Max
+MacBook Pro 16" M2 Pro
+MacBook Pro 16" M2 Max
+MacBook Air M3 13"
+MacBook Air M3 15"
+MacBook Pro 14" M4
+MacBook Pro 14" M4 Pro
+MacBook Pro 14" M4 Max
+MacBook Pro 16" M4 Pro
+MacBook Pro 16" M4 Max
+MacBook Air M4 13"
+MacBook Air M4 15"
+MacBook Pro 14" M5
+MacBook Air M5 13"
+MacBook Air M5 15"
+MacBook Pro 14" M5 Pro
+MacBook Pro 14" M5 Max
+MacBook Pro 16" M5 Pro
+MacBook Pro 16" M5 Max
+[watch]
+Amazfit:
+GTR 3 Pro
+GTR 3
+T-Rex 2
+GTR 4
+GTS 4
+GTS 4 Mini
+Bip 3 Pro
+Balance
+T-Rex Ultra
+Bip 5
+Active Edge
+Apple:
+Apple Watch Series 3 (42mm)
+Apple Watch Series 3 (38mm)
+Apple Watch Series 4 (44mm)
+Apple Watch Series 4 (40mm)
+Apple Watch Series 5 (44mm)
+Apple Watch Series 5 (40mm)
+Apple Watch Series 6 (44mm)
+Apple Watch Series 6 (40mm)
+Apple Watch SE (44mm)
+Apple Watch SE (40mm)
+Apple Watch Series 7 (45mm)
+Apple Watch Series 7 (41mm)
+Apple Watch Ultra (49mm)
+Apple Watch Series 8 (45mm)
+Apple Watch Series 8 (41mm)
+Apple Watch SE 2 (44mm)
+Apple Watch SE 2 (40mm)
+Apple Watch Ultra 2 (49mm)
+Apple Watch Series 9 (45mm)
+Apple Watch Series 9 (41mm)
+Apple Watch Series 10 (46mm)
+Apple Watch Series 10 (42mm)
+Apple Watch Series 11 (46mm)
+Apple Watch Series 11 (42mm)
+Apple Watch Ultra 3 (49mm)
+Apple Watch SE 3 (44mm)
+Apple Watch SE 3 (40mm)
+Apple Watch Series 12 (46mm)
+Apple Watch Series 12 (42mm)
+Apple Watch Ultra 4 (49mm)
+Fitbit:
+Charge 5
+Sense 2
+Versa 4
+Inspire 3
+Charge 6
+Garmin:
+Forerunner 55
+Venu 2
+Fenix 7
+Fenix 7 Pro
+Forerunner 965
+Forerunner 265
+Venu 3
+Vivoactive 5
+Epix Pro Gen 2
+Fenix 8 (51mm)
+Fenix 8 (47mm)
+Honor:
+Watch Magic 2 (46mm)
+Watch GS Pro
+Watch GS 3
+Watch 4 Pro
+Watch 4
+Watch GS 4
+Band 9
+Huawei:
+Watch GT 2 (46mm)
+Watch GT 2 (42mm)
+Watch GT 2 Pro
+Watch Fit
+Watch GT 3 (46mm)
+Watch GT 3 (42mm)
+Watch 3 Pro
+Watch 3
+Watch GT 3 Pro (46mm)
+Watch GT 3 Pro (43mm)
+Watch Fit 2
+Watch GT 4 (46mm)
+Watch GT 4 (41mm)
+Watch 4 Pro
+Watch 4
+Band 8
+Watch GT 5 Pro (46mm)
+Watch GT 5 (46mm)
+Watch GT 5 (41mm)
+Watch Fit 3
+Band 9
+OPPO:
+Watch Free
+Watch 3 Pro
+Watch 3
+Watch 4 Pro
+Watch X
+Realme:
+Watch S Pro
+Watch 3 Pro
+Watch 3
+Band 2
+Watch S2
+Samsung:
+Galaxy Watch Active 2 (44mm)
+Galaxy Watch Active 2 (40mm)
+Galaxy Watch 3 (45mm)
+Galaxy Watch 3 (41mm)
+Galaxy Watch 4 Classic (46mm)
+Galaxy Watch 4 Classic (42mm)
+Galaxy Watch 4 (44mm)
+Galaxy Watch 4 (40mm)
+Galaxy Watch 5 Pro (45mm)
+Galaxy Watch 5 (44mm)
+Galaxy Watch 5 (40mm)
+Galaxy Watch 6 Classic (47mm)
+Galaxy Watch 6 Classic (43mm)
+Galaxy Watch 6 (44mm)
+Galaxy Watch 6 (40mm)
+Galaxy Watch 7 (44mm)
+Galaxy Watch 7 (40mm)
+Galaxy Watch Ultra (47mm)
+Galaxy Fit 3
+Xiaomi:
+Mi Watch
+Watch S1 Active
+Watch S1
+Redmi Watch 2 Lite
+Mi Band 7
+Watch S1 Pro
+Redmi Watch 4
+Redmi Watch 3
+Smart Band 8 Pro
+Smart Band 8
+Watch S3
+Redmi Watch 5
+Smart Band 9
