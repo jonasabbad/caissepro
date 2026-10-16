@@ -499,7 +499,7 @@ model Repair {
   diagnosticNotes   String?
   fixedPrice        Decimal?
   totalCost         Decimal   @default(0)
-  status            String    @default("received") // received | in_progress | completed | delivered | cancelled
+  status            String    @default("pending") // pending | in_progress | completed | delivered | cancelled
   receivedAt        DateTime  @default(now())
   completedAt       DateTime?
   deliveredAt       DateTime?

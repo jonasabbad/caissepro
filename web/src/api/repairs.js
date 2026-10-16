@@ -39,7 +39,9 @@ export const repairsApi = {
 };
 
 export const repairersApi = {
-  async getAll(query) {
+  /** Accepts a search string or `{ query }`. */
+  async getAll(p) {
+    const query = typeof p === 'string' ? p : p?.query;
     const { data } = await http.get('/repairers', { params: { query: query || undefined } });
     return data.data.repairers;
   },

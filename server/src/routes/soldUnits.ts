@@ -130,7 +130,8 @@ export default async function soldUnitRoutes(app: FastifyInstance) {
   app.get(base, async (req: Req<unknown, Record<string, string>>) => {
     const q = req.query;
     const p = pageParams(q, 20);
-    const sold = qBool(q.sold);
+    // `inStock=true` (used by the repair form) is the same as `sold=false`.
+    const sold = qBool(q.sold) ?? (qBool(q.inStock) === true ? false : undefined);
     const created = dateRange(q.startDate, q.endDate);
     const where: Prisma.SoldUnitWhereInput = {
       tenantId: req.auth.tenantId,

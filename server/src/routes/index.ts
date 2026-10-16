@@ -16,6 +16,7 @@ import checkoutRoutes from './checkout.js';
 import transactionRoutes from './transactions.js';
 import reservationRoutes from './reservations.js';
 import employeeRoutes from './employees.js';
+import repairRoutes from './repairs.js';
 
 /** Every API module, mounted under /api/v1. Each module registers its own auth hook. */
 export async function routes(app: FastifyInstance) {
@@ -37,4 +38,5 @@ export async function routes(app: FastifyInstance) {
   await app.register(transactionRoutes);
   await app.register(reservationRoutes);
   await app.register(employeeRoutes);
+  await app.register(repairRoutes);
 }

@@ -135,8 +135,4 @@ export default {
     type: { sale: 'بيع', return: 'إرجاع', exchange: 'استرجاع جهاز', credit: 'آجل', reservation: 'حجز' },
     status: { completed: 'مكتملة', partial: 'جزئية', pending: 'معلقة', cancelled: 'ملغاة', refunded: 'مستردة', held: 'في الانتظار' },
   },
-  repairs: {
-    repairHistory: 'سجل الإصلاحات',
-    status: { pending: 'في الانتظار', in_progress: 'قيد التنفيذ', completed: 'مكتمل', delivered: 'تم التسليم', cancelled: 'ملغى' },
-  },
 };

@@ -135,8 +135,4 @@ export default {
     type: { sale: 'Vente', return: 'Retour', exchange: 'Reprise', credit: 'Crédit', reservation: 'Réservation' },
     status: { completed: 'Terminée', partial: 'Partielle', pending: 'En attente', cancelled: 'Annulée', refunded: 'Remboursée', held: 'En attente' },
   },
-  repairs: {
-    repairHistory: 'Historique des réparations',
-    status: { pending: 'En attente', in_progress: 'En cours', completed: 'Terminée', delivered: 'Livrée', cancelled: 'Annulée' },
-  },
 };
