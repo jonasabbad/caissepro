@@ -1,0 +1,55 @@
+import Fastify, { type FastifyInstance } from 'fastify';
+import cors from '@fastify/cors';
+import fastifyStatic from '@fastify/static';
+import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
+import { ZodError } from 'zod';
+import { HttpError } from './lib/errors.js';
+import { routes } from './routes/index.js';
+
+export async function buildApp(opts: { logger?: boolean } = {}): Promise<FastifyInstance> {
+  const app = Fastify({ logger: opts.logger ?? false, bodyLimit: 10 * 1024 * 1024 });
+
+  await app.register(cors, { origin: true, credentials: true, exposedHeaders: ['x-cash-drawer', 'content-disposition'] });
+
+  app.setErrorHandler((err, _req, reply) => {
+    if (err instanceof HttpError) return reply.status(err.statusCode).send(err.toJSON());
+    if (err instanceof ZodError) {
+      const errors: Record<string, string> = {};
+      for (const issue of err.issues) errors[issue.path.join('.') || '_'] = issue.message;
+      const first = err.issues[0];
+      return reply.status(400).send({
+        success: false,
+        message: first ? `${first.path.join('.')}: ${first.message}` : 'Données invalides',
+        error: 'Bad Request',
+        statusCode: 400,
+        errors,
+      });
+    }
+    const status = (err as any).statusCode ?? 500;
+    if (status >= 500) app.log.error(err);
+    return reply.status(status).send({
+      success: false,
+      message: status >= 500 ? 'Internal server error' : (err as Error).message,
+      error: status >= 500 ? 'Internal Server Error' : 'Error',
+      statusCode: status,
+    });
+  });
+
+  await app.register(routes, { prefix: '/api/v1' });
+
+  // Serve the built SPA in production (web/dist), with history-API fallback.
+  const webDist = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../web/dist');
+  if (existsSync(webDist)) {
+    await app.register(fastifyStatic, { root: webDist, wildcard: false });
+    app.setNotFoundHandler((req, reply) => {
+      if (req.url.startsWith('/api/')) {
+        return reply.status(404).send({ success: false, message: `Cannot ${req.method} ${req.url}`, error: 'Not Found', statusCode: 404 });
+      }
+      return reply.sendFile('index.html');
+    });
+  }
+
+  return app;
+}

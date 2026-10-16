@@ -1,0 +1,591 @@
+// CaissePro data model.
+// Money is Decimal(12,2) and serialised as "12.50" strings (same wire format as the reference app).
+// JSON-ish columns are stored as TEXT and (de)serialised in src/lib/json.ts (SQLite has no JSON type).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Tenancy ─────────────────────────────────────────────────────────────────
+
+model Tenant {
+  id                    String    @id @default(uuid())
+  name                  String
+  slug                  String    @unique
+  activityType          String    @default("phone_seller")
+  status                String    @default("trial") // trial | active | suspended | expired
+  plan                  String    @default("") // "" | demarrage | professionnel | multi_magasins | lifetime
+  subscriptionExpiresAt DateTime?
+  enabledModules        String    @default("[\"core\"]") // JSON string[]
+  applyTva              Boolean   @default(false)
+  legalStatus           String? // auto_entrepreneur | sarl | ...
+  settings              String    @default("{}") // JSON: locale, taxRate, currency, timezone, lowStockThreshold, defaultPaymentMethods
+  businessInfo          String    @default("{}") // JSON: legalName, ice, rc, if, patente, cnss, address, city, phone, email
+  printing              String    @default("{}") // JSON printing preferences
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  stores     Store[]
+  users      User[]
+  products   Product[]
+  customers  Customer[]
+  suppliers  Supplier[]
+  soldUnits  SoldUnit[]
+  employees  Employee[]
+  repairers  Repairer[]
+}
+
+model Store {
+  id            String   @id @default(uuid())
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name          String
+  code          String
+  address       String?
+  city          String?
+  phone         String?
+  isActive      Boolean  @default(true)
+  isMain        Boolean  @default(false)
+  caisseBalance Decimal  @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  caisseMovements CaisseMovement[]
+
+  @@index([tenantId])
+}
+
+model User {
+  id                         String    @id @default(uuid())
+  tenantId                   String?
+  tenant                     Tenant?   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  email                      String    @unique
+  passwordHash               String
+  firstName                  String    @default("")
+  lastName                   String    @default("")
+  roles                      String    @default("[\"admin\"]") // JSON: super_admin | admin | manager | cashier | viewer
+  isActive                   Boolean   @default(true)
+  currentStoreId             String?
+  lastLoginAt                DateTime?
+  accountDeletionRequestedAt DateTime?
+  sellerMode                 Boolean   @default(false)
+  createdAt                  DateTime  @default(now())
+  updatedAt                  DateTime  @updatedAt
+
+  refreshTokens RefreshToken[]
+
+  @@index([tenantId])
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+}
+
+// ─── Catalogue & stock ───────────────────────────────────────────────────────
+
+model Category {
+  id           String   @id @default(uuid())
+  activityType String
+  name         String
+  slug         String
+  parentId     String?
+  sortOrder    Int      @default(0)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  products Product[]
+
+  @@unique([activityType, slug])
+}
+
+model Product {
+  id              String    @id @default(uuid())
+  tenantId        String
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  storeId         String?
+  categoryId      String?
+  category        Category? @relation(fields: [categoryId], references: [id])
+  sku             String
+  barcode         String?
+  name            String
+  description     String?
+  costPrice       Decimal   @default(0)
+  retailPrice     Decimal   @default(0)
+  stockQuantity   Int       @default(0)
+  minStockLevel   Int       @default(5)
+  packSize        Int?
+  packCostPrice   Decimal?
+  packRetailPrice Decimal?
+  status          String    @default("available") // available | low_stock | out_of_stock | archived
+  variants        String? // JSON object
+  imageUrl        String?
+  isTracked       Boolean   @default(true)
+  archivedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  movements InventoryMovement[]
+
+  @@index([tenantId])
+  @@index([tenantId, barcode])
+}
+
+model InventoryMovement {
+  id               String   @id @default(uuid())
+  tenantId         String
+  productId        String
+  product          Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  storeId          String?
+  type             String // purchase | sale | return | adjustment | damage | loss | transfer_in | transfer_out | initial
+  quantity         Int
+  previousQuantity Int
+  newQuantity      Int
+  reference        String?
+  notes            String?
+  createdBy        String?
+  createdAt        DateTime @default(now())
+
+  @@index([tenantId, createdAt])
+  @@index([productId])
+}
+
+// ─── Phones (serialised units) ───────────────────────────────────────────────
+
+model SoldUnit {
+  id                String    @id @default(uuid())
+  tenantId          String
+  tenant            Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  storeId           String?
+  ref               String
+  deviceType        String    @default("phone") // phone | tablet | laptop | watch | console | other
+  brand             String
+  model             String
+  storage           String?
+  ram               String?
+  color             String?
+  condition         String    @default("new")
+  imei              String?
+  imei2             String?
+  serialNumber      String?
+  batteryHealth     Int?
+  chargeCycles      Int?
+  purchasePrice     Decimal   @default(0)
+  salePrice         Decimal   @default(0)
+  soldPrice         Decimal?
+  hasWarranty       Boolean   @default(true)
+  warrantyDays      Int?
+  warrantyExpiresAt DateTime?
+  notes             String?
+  extra             String? // JSON: device-type specific attributes (cpu, screen, gpu, ...)
+  supplierId        String?
+  supplierOrderId   String?
+  status            String    @default("in_stock") // in_stock | reserved | sold | returned | in_repair
+  soldAt            DateTime?
+  transactionId     String?
+  customerId        String?
+  employeeId        String?
+  reservedAt        DateTime?
+  reservationAmount Decimal?
+  reservationCustomerId String?
+  reservationTransactionId String?
+  source            String    @default("stock") // stock | trade_in | supplier_order
+  createdBy         String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([tenantId, status])
+  @@index([tenantId, imei])
+}
+
+model ReservationRefund {
+  id            String    @id @default(uuid())
+  tenantId      String
+  soldUnitId    String?
+  customerId    String?
+  transactionId String?
+  amount        Decimal
+  amountPaid    Decimal   @default(0)
+  status        String    @default("pending") // pending | partial | completed
+  payments      String    @default("[]") // JSON [{amount, method, paidAt, notes}]
+  reason        String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  completedAt   DateTime?
+
+  @@index([tenantId, status])
+}
+
+// ─── People ──────────────────────────────────────────────────────────────────
+
+model Customer {
+  id             String   @id @default(uuid())
+  tenantId       String
+  tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  firstName      String
+  lastName       String   @default("")
+  email          String?
+  phone          String?
+  address        String?
+  city           String?
+  cin            String?
+  ice            String?
+  notes          String?
+  totalPurchases Int      @default(0)
+  totalSpent     Decimal  @default(0)
+  currentBalance Decimal  @default(0) // amount the customer owes the store
+  creditLimit    Decimal?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  payments CustomerPayment[]
+
+  @@index([tenantId])
+}
+
+model CustomerPayment {
+  id            String   @id @default(uuid())
+  tenantId      String
+  customerId    String
+  customer      Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  amount        Decimal
+  method        String   @default("cash")
+  reference     String?
+  notes         String?
+  allocations   String   @default("[]") // JSON [{transactionId, amount}]
+  createdBy     String?
+  createdAt     DateTime @default(now())
+}
+
+model Supplier {
+  id             String   @id @default(uuid())
+  tenantId       String
+  tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name           String
+  contactName    String?
+  email          String?
+  phone          String?
+  address        String?
+  city           String?
+  notes          String?
+  totalOrders    Int      @default(0)
+  totalPurchased Decimal  @default(0)
+  currentBalance Decimal  @default(0) // amount the store owes the supplier
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([tenantId])
+}
+
+model SupplierOrder {
+  id              String    @id @default(uuid())
+  tenantId        String
+  storeId         String?
+  supplierId      String
+  orderNumber     String
+  status          String    @default("draft") // draft | pending | partial | received | cancelled
+  totalAmount     Decimal   @default(0)
+  amountPaid      Decimal   @default(0)
+  amountRemaining Decimal   @default(0)
+  payments        String    @default("[]") // JSON [{amount, method, paidAt, reference}]
+  notes           String?
+  orderedAt       DateTime  @default(now())
+  receivedAt      DateTime?
+  createdBy       String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  items SupplierOrderItem[]
+
+  @@index([tenantId])
+}
+
+model SupplierOrderItem {
+  id               String        @id @default(uuid())
+  supplierOrderId  String
+  order            SupplierOrder @relation(fields: [supplierOrderId], references: [id], onDelete: Cascade)
+  itemType         String        @default("product") // product | device
+  productId        String?
+  productName      String
+  sku              String?
+  quantityOrdered  Int
+  quantityReceived Int           @default(0)
+  unitCost         Decimal
+  totalCost        Decimal
+  deviceType       String?
+  brand            String?
+  deviceModel      String?
+  defaultSalePrice Decimal?
+  unitDetails      String? // JSON [{imei, serialNumber, storage, color, condition, salePrice, soldUnitId}]
+}
+
+model Employee {
+  id             String   @id @default(uuid())
+  tenantId       String
+  tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  storeId        String?
+  firstName      String
+  lastName       String   @default("")
+  phone          String?
+  role           String   @default("seller")
+  commissionRate Decimal?
+  isActive       Boolean  @default(true)
+  userId         String?  @unique
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+// ─── Sales ───────────────────────────────────────────────────────────────────
+
+model Transaction {
+  id                String    @id @default(uuid())
+  tenantId          String
+  storeId           String?
+  cashierId         String?
+  employeeId        String?
+  customerId        String?
+  transactionNumber String
+  type              String    @default("sale") // sale | return | reservation | trade_in
+  status            String    @default("completed") // completed | partial | pending | cancelled | refunded
+  subtotal          Decimal   @default(0)
+  taxAmount         Decimal   @default(0)
+  taxRate           Decimal   @default(0)
+  discountAmount    Decimal   @default(0)
+  totalAmount       Decimal   @default(0)
+  amountPaid        Decimal   @default(0)
+  amountRemaining   Decimal   @default(0)
+  totalCost         Decimal   @default(0)
+  totalProfit       Decimal   @default(0)
+  tradeInValue      Decimal   @default(0)
+  originalTransactionId String?
+  notes             String?
+  cancelReason      String?
+  cancelledAt       DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  items    TransactionItem[]
+  payments Payment[]
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, customerId])
+}
+
+model TransactionItem {
+  id            String      @id @default(uuid())
+  transactionId String
+  transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  productId     String?
+  soldUnitId    String?
+  productName   String
+  sku           String?
+  quantity      Int
+  unitPrice     Decimal
+  costPrice     Decimal     @default(0)
+  discount      Decimal     @default(0)
+  taxAmount     Decimal     @default(0)
+  totalPrice    Decimal
+  profit        Decimal     @default(0)
+  saleMode      String? // unit | pack
+  variants      String? // JSON
+  returnedQuantity Int      @default(0)
+  originalItemId String?
+}
+
+model Payment {
+  id            String      @id @default(uuid())
+  transactionId String
+  transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  method        String // cash | card | transfer | cheque | credit
+  amount        Decimal
+  reference     String?
+  receivedAt    DateTime    @default(now())
+}
+
+// ─── Cash drawer (caisse) ────────────────────────────────────────────────────
+
+model CaisseMovement {
+  id            String   @id @default(uuid())
+  tenantId      String
+  storeId       String
+  store         Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  type          String // sale | refund | cash_in | cash_out | adjustment | supplier_payment | debt_payment | repair | expense
+  amount        Decimal // signed
+  balanceBefore Decimal
+  balanceAfter  Decimal
+  reference     String?
+  description   String?
+  createdBy     String?
+  createdAt     DateTime @default(now())
+
+  @@index([storeId, createdAt])
+}
+
+// ─── Invoices ────────────────────────────────────────────────────────────────
+
+model Invoice {
+  id            String    @id @default(uuid())
+  tenantId      String
+  storeId       String?
+  invoiceNumber String
+  kind          String    @default("transaction") // transaction | standalone
+  transactionId String?
+  customerId    String?
+  customerName  String?
+  customerIce   String?
+  customerAddress String?
+  customerPhone String?
+  items         String    @default("[]") // JSON [{description, quantity, unitPrice, taxRate, total}]
+  subtotal      Decimal   @default(0)
+  taxRate       Decimal   @default(0)
+  taxAmount     Decimal   @default(0)
+  totalAmount   Decimal   @default(0)
+  status        String    @default("issued") // draft | issued | paid | cancelled
+  notes         String?
+  issuedAt      DateTime  @default(now())
+  dueAt         DateTime?
+  archivedAt    DateTime?
+  createdBy     String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([tenantId, issuedAt])
+}
+
+// ─── Repairs ─────────────────────────────────────────────────────────────────
+
+model Repairer {
+  id        String   @id @default(uuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name      String
+  phone     String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Repair {
+  id                String    @id @default(uuid())
+  tenantId          String
+  storeId           String?
+  repairNumber      String
+  customerId        String?
+  deviceDescription String
+  soldUnitId        String?
+  repairerId        String?
+  diagnosticNotes   String?
+  fixedPrice        Decimal?
+  totalCost         Decimal   @default(0)
+  status            String    @default("received") // received | in_progress | completed | delivered | cancelled
+  receivedAt        DateTime  @default(now())
+  completedAt       DateTime?
+  deliveredAt       DateTime?
+  transactionId     String?
+  createdBy         String?
+  notes             String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  expenses RepairExpense[]
+
+  @@index([tenantId])
+}
+
+model RepairExpense {
+  id          String   @id @default(uuid())
+  repairId    String
+  repair      Repair   @relation(fields: [repairId], references: [id], onDelete: Cascade)
+  tenantId    String
+  description String
+  amount      Decimal
+  type        String   @default("part") // part | labor | other
+  createdAt   DateTime @default(now())
+}
+
+// ─── Labels, announcements, misc ─────────────────────────────────────────────
+
+model LabelTemplate {
+  id        String   @id @default(uuid())
+  tenantId  String
+  key       String // products | sold_units | repairs | sold_units:<variant>
+  name      String
+  config    String   @default("{}") // JSON layout definition
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, key])
+}
+
+model Announcement {
+  id        String    @id @default(uuid())
+  title     String
+  message   String
+  type      String    @default("info") // info | warning | success | promo
+  isActive  Boolean   @default(true)
+  startsAt  DateTime?
+  endsAt    DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model PaperOrder {
+  id        String   @id @default(uuid())
+  tenantId  String
+  quantity  Int
+  paperType String   @default("80mm")
+  phone     String?
+  address   String?
+  notes     String?
+  status    String   @default("pending") // pending | confirmed | delivered | cancelled
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model PublicOrder {
+  id        String   @id @default(uuid())
+  data      String // JSON payload from /commander
+  status    String   @default("new")
+  createdAt DateTime @default(now())
+}
+
+model SubscriptionPlan {
+  id           String   @id @default(uuid())
+  code         String   @unique
+  name         String
+  description  String?
+  monthlyPrice Decimal
+  yearlyPrice  Decimal?
+  features     String   @default("[]")
+  limits       String   @default("{}")
+  isActive     Boolean  @default(true)
+  sortOrder    Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model SubscriptionPayment {
+  id          String    @id @default(uuid())
+  tenantId    String
+  planCode    String
+  months      Int       @default(1)
+  amount      Decimal
+  method      String    @default("bank_transfer")
+  status      String    @default("pending") // pending | confirmed | failed
+  reference   String?
+  confirmedAt DateTime?
+  createdAt   DateTime  @default(now())
+}
