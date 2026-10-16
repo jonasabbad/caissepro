@@ -15,7 +15,7 @@ export const Roles = Object.freeze({
 export const Plans = Object.freeze({
   DEMARRAGE: 'demarrage',
   PROFESSIONNEL: 'professionnel',
-  PREMIUM: 'multi_magasins',
+  PREMIUM: 'premium',
   LIFETIME: 'lifetime',
 });
 
