@@ -37,6 +37,6 @@ export const customersApi = {
   },
   async getPayments(id) {
     const { data } = await http.get(`/customers/${id}/payments`);
-    return data.data.payments;
+    return data.data;
   },
 };
