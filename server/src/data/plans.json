@@ -1,0 +1,11 @@
+[
+  {"code":"demarrage","name":"Démarrage","description":"Pour démarrer avec un seul point de vente","monthlyPrice":250,"yearlyPrice":2500,"sortOrder":0,
+   "maxStores":1,"maxUsers":1,"maxProducts":1200,"maxStockUnits":1200,
+   "included":["dashboard","cash_sales","simple_stock","prefilled_catalog","auto_archive","basic_reports","customer_credit","advanced_supplier","repairs"]},
+  {"code":"professionnel","name":"Professionnel","description":"Plus d'utilisateurs et de stock pour les boutiques en croissance","monthlyPrice":329,"yearlyPrice":3290,"sortOrder":1,
+   "maxStores":1,"maxUsers":2,"maxProducts":4000,"maxStockUnits":4000,
+   "included":["dashboard","cash_sales","simple_stock","prefilled_catalog","auto_archive","basic_reports","customer_credit","advanced_supplier","repairs","priority_support","whatsapp_bot","realtime_alerts"]},
+  {"code":"premium","name":"Premium","description":"Plusieurs magasins, utilisateurs illimités","monthlyPrice":750,"yearlyPrice":7500,"sortOrder":2,
+   "maxStores":4,"maxUsers":999,"maxProducts":null,"maxStockUnits":null,
+   "included":["dashboard","cash_sales","simple_stock","prefilled_catalog","auto_archive","basic_reports","customer_credit","advanced_supplier","repairs","priority_support","whatsapp_bot","realtime_alerts","custom_website","mobile_app","multi_store","consolidated_view","inter_store_transfers","vip_support"]}
+]

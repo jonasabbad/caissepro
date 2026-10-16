@@ -22,6 +22,11 @@ model Tenant {
   plan                  String    @default("") // "" | demarrage | professionnel | multi_magasins | lifetime
   subscriptionExpiresAt DateTime?
   enabledModules        String    @default("[\"core\"]") // JSON string[]
+  customPricing         String? // JSON {discountPercent, monthlyPrice?, yearlyPrice?}
+  autoRenew             Boolean   @default(false)
+  city                  String?
+  latitude              Float?
+  longitude             Float?
   applyTva              Boolean   @default(false)
   legalStatus           String? // auto_entrepreneur | sarl | ...
   settings              String    @default("{}") // JSON: locale, taxRate, currency, timezone, lowStockThreshold, defaultPaymentMethods
@@ -533,8 +538,8 @@ model LabelTemplate {
 model Announcement {
   id        String    @id @default(uuid())
   title     String
-  message   String
-  type      String    @default("info") // info | warning | success | promo
+  body      String
+  type      String    @default("info") // info | warning | success
   isActive  Boolean   @default(true)
   startsAt  DateTime?
   endsAt    DateTime?
@@ -546,11 +551,9 @@ model PaperOrder {
   id        String   @id @default(uuid())
   tenantId  String
   quantity  Int
-  paperType String   @default("80mm")
-  phone     String?
-  address   String?
-  notes     String?
-  status    String   @default("pending") // pending | confirmed | delivered | cancelled
+  paperType String   @default("caisse") // caisse | produits
+  note      String?
+  status    String   @default("new") // new | confirmed | shipped | delivered | cancelled
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -569,8 +572,11 @@ model SubscriptionPlan {
   description  String?
   monthlyPrice Decimal
   yearlyPrice  Decimal?
-  features     String   @default("[]")
-  limits       String   @default("{}")
+  features     String   @default("[]") // JSON [{key, label, included}]
+  maxStores     Int?
+  maxUsers      Int?
+  maxProducts   Int?
+  maxStockUnits Int?
   isActive     Boolean  @default(true)
   sortOrder    Int      @default(0)
   createdAt    DateTime @default(now())
@@ -588,4 +594,16 @@ model SubscriptionPayment {
   reference   String?
   confirmedAt DateTime?
   createdAt   DateTime  @default(now())
+}
+
+/// Singleton row (id = "platform") with platform-wide settings managed by the super-admin.
+model PlatformSettings {
+  id                    String   @id @default("platform")
+  paymentGatewayEnabled Boolean  @default(false)
+  rib                   String?
+  bankName              String?
+  accountHolderName     String?
+  supportWhatsapp       String?
+  trialDays             Int      @default(7)
+  updatedAt             DateTime @updatedAt
 }

@@ -23,6 +23,22 @@ async function main() {
     }
   }
 
+  // Subscription plans (prices are editable from the super-admin area).
+  const featureLabels: [string, string][] = JSON.parse(
+    readFileSync(new URL('../src/data/plan-features.json', import.meta.url), 'utf8'),
+  );
+  const plans: any[] = JSON.parse(readFileSync(new URL('../src/data/plans.json', import.meta.url), 'utf8'));
+  for (const p of plans) {
+    const { included, ...rest } = p;
+    const features = JSON.stringify(featureLabels.map(([key, label]) => ({ key, label, included: included.includes(key) })));
+    await prisma.subscriptionPlan.upsert({
+      where: { code: p.code },
+      update: {},
+      create: { ...rest, features },
+    });
+  }
+  await prisma.platformSettings.upsert({ where: { id: 'platform' }, update: {}, create: { id: 'platform' } });
+
   const tenant = await prisma.tenant.upsert({
     where: { slug: 'demo' },
     update: {},
