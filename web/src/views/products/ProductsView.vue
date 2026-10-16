@@ -1,0 +1,225 @@
+<script setup>
+import { computed, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
+import {
+  AdjustmentsHorizontalIcon,
+  ArrowPathIcon,
+  MagnifyingGlassIcon,
+  PencilIcon,
+  PlusIcon,
+  QrCodeIcon,
+  TrashIcon,
+} from '@heroicons/vue/24/outline';
+import { productsApi, categoriesApi } from '@/api/products';
+import { useActivity } from '@/composables/useActivity';
+import { formatCurrency } from '@/utils/format';
+import { apiErrorMessage } from '@/api/http';
+import StockAdjustModal from '@/components/products/StockAdjustModal.vue';
+import ProductQRCode from '@/components/products/ProductQRCode.vue';
+import Toast from '@/components/ui/Toast.vue';
+import ConfirmModal from '@/components/ui/ConfirmModal.vue';
+
+const { t } = useI18n();
+const queryClient = useQueryClient();
+const { activityType, productsLabelKey } = useActivity();
+
+const search = ref('');
+const categoryId = ref(null);
+const status = ref(null);
+const page = ref(1);
+const pageSize = ref(20);
+watch([search, categoryId, status], () => (page.value = 1));
+
+const adjustOpen = ref(false);
+const adjustProduct = ref(null);
+const qrOpen = ref(false);
+const qrProduct = ref(null);
+const toast = ref({ show: false, message: '', type: 'success' });
+const confirmOpen = ref(false);
+const pendingDeleteId = ref(null);
+
+const notify = (message, type = 'success') => (toast.value = { show: true, message, type });
+
+// Phones are managed as serialised units, so their categories are hidden from the accessories catalogue.
+const PHONE_CATEGORY_SLUGS = ['smartphones', 'tablettes', 'pc-portables', 'macbooks'];
+const { data: categories } = useQuery({ queryKey: ['categories'], queryFn: () => categoriesApi.getAll() });
+const visibleCategories = computed(() => {
+  if (!categories.value) return [];
+  return activityType.value === 'phone_seller' ? categories.value.filter((c) => !PHONE_CATEGORY_SLUGS.includes(c.slug || '')) : categories.value;
+});
+
+const { data, isLoading, refetch } = useQuery({
+  queryKey: ['products', search, categoryId, status, page, pageSize],
+  queryFn: () =>
+    productsApi.getAll({
+      query: search.value,
+      categoryId: categoryId.value || undefined,
+      status: status.value || undefined,
+      sort: 'createdAt',
+      page: page.value,
+      limit: pageSize.value,
+    }),
+});
+const products = computed(() => data.value?.products || []);
+const total = computed(() => data.value?.meta?.total || 0);
+const totalPages = computed(() => Math.ceil(total.value / pageSize.value));
+watch(totalPages, (n) => {
+  if (data.value && page.value > n) page.value = Math.max(1, n);
+});
+
+const deleteMutation = useMutation({
+  mutationFn: (id) => productsApi.delete(id),
+  onSuccess: () => {
+    queryClient.invalidateQueries({ queryKey: ['products'] });
+    notify(t('products.deleteSuccess'));
+  },
+  onError: (e) => notify(apiErrorMessage(e, t('products.deleteError')), 'error'),
+});
+
+const badgeClass = (s) =>
+  ({ available: 'badge-success', low_stock: 'badge-warning', out_of_stock: 'badge-danger', archived: 'badge-secondary' })[s] || 'badge-info';
+
+function askDelete(id) {
+  pendingDeleteId.value = id;
+  confirmOpen.value = true;
+}
+function confirmDelete() {
+  if (pendingDeleteId.value) deleteMutation.mutate(pendingDeleteId.value);
+  confirmOpen.value = false;
+  pendingDeleteId.value = null;
+}
+
+function openAdjust(p) {
+  adjustProduct.value = p;
+  adjustOpen.value = true;
+}
+function openQr(p) {
+  qrProduct.value = p;
+  qrOpen.value = true;
+}
+
+const adjustMutation = useMutation({
+  mutationFn: (payload) => {
+    let delta = Math.abs(payload.quantity);
+    if (payload.type === 'remove') delta = -Math.abs(payload.quantity);
+    else if (payload.type === 'set') delta = payload.quantity - (adjustProduct.value?.stockQuantity || 0);
+    return productsApi.adjustStock(payload.productId, delta, payload.reason, { type: payload.movementType, packCostPrice: payload.packCostPrice });
+  },
+  onSuccess: () => {
+    notify(t('products.adjust.success'));
+    adjustOpen.value = false;
+    queryClient.invalidateQueries({ queryKey: ['products'] });
+    queryClient.invalidateQueries({ queryKey: ['inventory-movements'] });
+  },
+  onError: (e) => notify(apiErrorMessage(e, t('products.adjust.error')), 'error'),
+});
+</script>
+
+<template>
+  <div class="space-y-6">
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <h1 class="text-2xl font-bold text-gray-900">{{ t(productsLabelKey) }}</h1>
+      <div class="flex items-center gap-3">
+        <RouterLink to="/app/products/new" class="btn-primary inline-flex items-center gap-2">
+          <PlusIcon class="h-5 w-5" /> {{ t('products.add') }}
+        </RouterLink>
+      </div>
+    </div>
+
+    <div class="card p-4">
+      <div class="flex flex-col gap-4 md:flex-row">
+        <div class="relative flex-1">
+          <MagnifyingGlassIcon class="absolute start-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+          <input v-model="search" type="text" :placeholder="t('products.search')" class="input ps-10" />
+        </div>
+        <select v-model="categoryId" class="input w-full md:w-48">
+          <option :value="null">{{ t('products.allCategories') }}</option>
+          <option v-for="c in visibleCategories" :key="c.id" :value="c.id">{{ c.name }}</option>
+        </select>
+        <select v-model="status" class="input w-full md:w-40">
+          <option :value="null">{{ t('products.allStatus') }}</option>
+          <option value="available">{{ t('products.status.available') }}</option>
+          <option value="low_stock">{{ t('products.status.lowStock') }}</option>
+          <option value="out_of_stock">{{ t('products.status.outOfStock') }}</option>
+          <option value="archived">{{ t('products.status.archived') }}</option>
+        </select>
+        <button class="btn-secondary p-2" @click="refetch()"><ArrowPathIcon class="h-5 w-5" /></button>
+      </div>
+    </div>
+
+    <div class="card overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead class="border-b border-gray-200 bg-gray-50">
+            <tr>
+              <th class="px-4 py-3 text-start text-sm font-medium text-gray-500">{{ t('products.product') }}</th>
+              <th class="px-4 py-3 text-start text-sm font-medium text-gray-500">{{ t('products.sku') }}</th>
+              <th class="px-4 py-3 text-start text-sm font-medium text-gray-500">{{ t('products.costPrice') }}</th>
+              <th class="px-4 py-3 text-start text-sm font-medium text-gray-500">{{ t('products.retailPrice') }}</th>
+              <th class="px-4 py-3 text-start text-sm font-medium text-gray-500">{{ t('products.stock') }}</th>
+              <th class="px-4 py-3 text-start text-sm font-medium text-gray-500">{{ t('products.statusLabel') }}</th>
+              <th class="px-4 py-3 text-end text-sm font-medium text-gray-500">{{ t('common.actions') }}</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-200">
+            <tr v-if="isLoading"><td colspan="7" class="px-4 py-8 text-center text-gray-500">{{ t('common.loading') }}</td></tr>
+            <tr v-else-if="products.length === 0"><td colspan="7" class="px-4 py-8 text-center text-gray-500">{{ t('products.noProducts') }}</td></tr>
+            <tr v-for="p in products" :key="p.id" class="hover:bg-gray-50">
+              <td class="px-4 py-3">
+                <p class="font-medium text-gray-900">{{ p.name }}</p>
+                <p v-if="p.barcode" class="text-sm text-gray-500">{{ p.barcode }}</p>
+              </td>
+              <td class="px-4 py-3 text-gray-500">{{ p.sku }}</td>
+              <td class="px-4 py-3 font-medium">{{ formatCurrency(p.costPrice) }}</td>
+              <td class="px-4 py-3 font-medium text-black">{{ formatCurrency(p.retailPrice) }}</td>
+              <td class="px-4 py-3">
+                <span :class="p.stockQuantity <= 5 ? 'font-bold text-danger-600' : ''">{{ p.stockQuantity }}</span>
+              </td>
+              <td class="px-4 py-3">
+                <span :class="['badge', badgeClass(p.status)]">{{ t(`products.status.${p.status}`) }}</span>
+              </td>
+              <td class="px-4 py-3 text-end">
+                <div class="flex items-center justify-end gap-1">
+                  <button class="p-2 text-gray-400 hover:text-primary-600" :title="t('products.adjustStock')" @click="openAdjust(p)">
+                    <AdjustmentsHorizontalIcon class="h-5 w-5" />
+                  </button>
+                  <button class="p-2 text-gray-400 hover:text-primary-600" :title="t('products.qrCode')" @click="openQr(p)">
+                    <QrCodeIcon class="h-5 w-5" />
+                  </button>
+                  <RouterLink :to="`/app/products/${p.id}/edit`" class="p-2 text-gray-400 hover:text-primary-600">
+                    <PencilIcon class="h-5 w-5" />
+                  </RouterLink>
+                  <button class="p-2 text-gray-400 hover:text-danger-600" @click="askDelete(p.id)"><TrashIcon class="h-5 w-5" /></button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div v-if="totalPages > 1" class="flex items-center justify-between border-t border-gray-200 px-4 py-3">
+        <p class="text-sm text-gray-500">
+          {{ t('common.showing') }} {{ (page - 1) * pageSize + 1 }} - {{ Math.min(page * pageSize, total) }} {{ t('common.of') }} {{ total }}
+        </p>
+        <div class="flex gap-2">
+          <button :disabled="page === 1" class="btn-secondary px-3 py-1 text-sm" @click="page--">{{ t('common.previous') }}</button>
+          <button :disabled="page >= totalPages" class="btn-secondary px-3 py-1 text-sm" @click="page++">{{ t('common.next') }}</button>
+        </div>
+      </div>
+    </div>
+
+    <StockAdjustModal :is-open="adjustOpen" :product="adjustProduct" @close="adjustOpen = false" @save="adjustMutation.mutate" />
+    <ProductQRCode :is-open="qrOpen" :product="qrProduct" @close="qrOpen = false" />
+    <Toast :show="toast.show" :message="toast.message" :type="toast.type" @close="toast.show = false" />
+    <ConfirmModal
+      :show="confirmOpen"
+      :title="t('common.confirm')"
+      :message="t('products.confirmDelete')"
+      :confirm-text="t('common.delete')"
+      :cancel-text="t('common.cancel')"
+      type="danger"
+      @confirm="confirmDelete"
+      @cancel="confirmOpen = false"
+    />
+  </div>
+</template>
