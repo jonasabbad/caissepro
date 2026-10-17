@@ -186,7 +186,7 @@ function confirm() {
               :class="['flex items-center gap-2 px-3 py-2 rounded-lg text-sm', margin.profit >= 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700']"
             >
               <span>{{ margin.profit >= 0 ? '↗' : '↘' }}</span>
-              <span>Marge estimée: <strong>{{ formatCurrency(margin.profit) }}</strong> ({{ margin.percentage > 0 ? '+' : '' }}{{ margin.percentage }}%)</span>
+              <span>{{ t('common.estimatedMargin') }} <strong>{{ formatCurrency(margin.profit) }}</strong> ({{ margin.percentage > 0 ? '+' : '' }}{{ margin.percentage }}%)</span>
             </div>
             <div>
               <label class="label">{{ t('tradeIn.notes') }}</label>

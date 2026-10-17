@@ -99,7 +99,7 @@ const paidPercent = computed(() =>
   !order.value || order.value.totalAmount <= 0 ? 0 : Math.min(100, Math.round((order.value.amountPaid / order.value.totalAmount) * 100)),
 );
 
-const CONDITION_LABELS = { new: 'Neuf', new_no_box: 'Neuf sans boîte', grade_a_plus: 'Grade A+', grade_a: 'Grade A', grade_b: 'Grade B', grade_c: 'Grade C' };
+const conditionLabel = (c) => t(`soldUnits.conditions.${c}`);
 
 // ── Receive product lines ──
 const receiveOpen = ref(false);
@@ -448,7 +448,7 @@ const spinner = 'h-4 w-4 animate-spin rounded-full border-2 border-white border-
                     <div class="flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-700">
                       <span v-if="u.imei" class="font-mono"><span class="text-xs font-medium text-gray-400">IMEI</span> {{ u.imei }}</span>
                       <span v-if="u.serialNumber" class="font-mono"><span class="text-xs font-medium text-gray-400">S/N</span> {{ u.serialNumber }}</span>
-                      <span v-if="u.condition" class="rounded bg-gray-100 px-2 py-0.5 text-xs">{{ CONDITION_LABELS[u.condition] || u.condition }}</span>
+                      <span v-if="u.condition" class="rounded bg-gray-100 px-2 py-0.5 text-xs">{{ conditionLabel(u.condition) }}</span>
                       <span v-if="u.batteryHealth != null"><span class="text-xs font-medium text-gray-400">{{ t('supplierOrders.batteryShort') }}</span> {{ u.batteryHealth }}%</span>
                       <span v-if="u.purchasePrice"><span class="text-xs font-medium text-gray-400">{{ t('supplierOrders.purchaseShort') }}</span> {{ formatCurrency(u.purchasePrice) }}</span>
                       <span v-if="u.salePrice"><span class="text-xs font-medium text-gray-400">{{ t('supplierOrders.saleShort') }}</span> {{ formatCurrency(u.salePrice) }}</span>

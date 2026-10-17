@@ -169,6 +169,8 @@ export default {
       unit_entry: 'دخول جهاز',
       unit_sale: 'بيع جهاز',
     },
+    reasons: {"initialStock":"المخزون الأولي","productSold":"منتج مباع","supplierReceipt":"مخزون مستلم من المورد","saleCancelled":"إلغاء البيع","customerReturn":"إرجاع العميل","partUsed":"قطعة مستعملة في الإصلاح","partBackCancelled":"قطعة أعيدت إلى المخزون (إصلاح ملغى)","partBackDeleted":"قطعة أعيدت إلى المخزون (إصلاح محذوف)","partRemoved":"قطعة أزيلت من الإصلاح"},
+    boxesSuffix: "{count} علبة من {size}",
   },
   categories: { title: 'الفئات', noCategories: 'لا توجد فئات' },
 };

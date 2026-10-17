@@ -3,17 +3,20 @@
 import VueDatePicker from '@vuepic/vue-datepicker';
 import '@vuepic/vue-datepicker/dist/main.css';
 import { format, parseISO, startOfMonth, endOfMonth, startOfYear, subDays, subMonths } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import { arMA, enGB, fr } from 'date-fns/locale';
+import { computed } from 'vue';
+import { currentLocale, i18n } from '@/i18n';
+const dfLocale = () => ({ en: enGB, ar: arMA })[currentLocale()] || fr;
 
 const model = defineModel({ type: Array, default: null });
 defineProps({
   clearable: { type: Boolean, default: true },
-  placeholder: { type: String, default: 'Sélectionner une période' },
+  placeholder: { type: String, default: null },
 });
 
 const iso = (d) => format(d, 'yyyy-MM-dd');
 const display = (value) => {
-  const f = (d) => format(typeof d === 'string' ? parseISO(d) : d, 'dd/MM/yyyy', { locale: fr });
+  const f = (d) => format(typeof d === 'string' ? parseISO(d) : d, 'dd/MM/yyyy', { locale: dfLocale() });
   if (Array.isArray(value)) {
     const [a, b] = value;
     return a && b ? `${f(a)}  —  ${f(b)}` : a ? f(a) : '';
@@ -23,17 +26,18 @@ const display = (value) => {
 
 const today = new Date();
 const weekday = today.getDay();
-const presets = [
-  { label: "Aujourd'hui", value: [iso(today), iso(today)] },
-  { label: 'Hier', value: [iso(subDays(today, 1)), iso(subDays(today, 1))] },
-  { label: 'Cette semaine', value: [iso(subDays(today, weekday === 0 ? 6 : weekday - 1)), iso(today)] },
-  { label: 'Ce mois', value: [iso(startOfMonth(today)), iso(today)] },
-  { label: '7 derniers jours', value: [iso(subDays(today, 6)), iso(today)] },
-  { label: '30 derniers jours', value: [iso(subDays(today, 29)), iso(today)] },
-  { label: 'Mois dernier', value: [iso(startOfMonth(subMonths(today, 1))), iso(endOfMonth(subMonths(today, 1)))] },
-  { label: '3 derniers mois', value: [iso(subMonths(today, 3)), iso(today)] },
-  { label: 'Cette année', value: [iso(startOfYear(today)), iso(today)] },
-];
+const t = (k) => i18n.global.t(k);
+const presets = computed(() => [
+  { label: t('common.today'), value: [iso(today), iso(today)] },
+  { label: t('common.yesterday'), value: [iso(subDays(today, 1)), iso(subDays(today, 1))] },
+  { label: t('common.thisWeek'), value: [iso(subDays(today, weekday === 0 ? 6 : weekday - 1)), iso(today)] },
+  { label: t('common.thisMonth'), value: [iso(startOfMonth(today)), iso(today)] },
+  { label: t('common.last7Days'), value: [iso(subDays(today, 6)), iso(today)] },
+  { label: t('common.last30Days'), value: [iso(subDays(today, 29)), iso(today)] },
+  { label: t('common.lastMonth'), value: [iso(startOfMonth(subMonths(today, 1))), iso(endOfMonth(subMonths(today, 1)))] },
+  { label: t('common.last3Months'), value: [iso(subMonths(today, 3)), iso(today)] },
+  { label: t('common.thisYear'), value: [iso(startOfYear(today)), iso(today)] },
+]);
 </script>
 
 <template>
@@ -45,15 +49,15 @@ const presets = [
       :enable-time-picker="false"
       :formats="{ input: display }"
       :format="display"
-      select-text="Appliquer"
-      cancel-text="Annuler"
-      :placeholder="placeholder"
+      :select-text="t('common.apply')"
+      :cancel-text="t('common.cancel')"
+      :placeholder="placeholder || t('common.selectPeriod')"
       auto-apply
       teleport
       model-type="yyyy-MM-dd"
       :clearable="clearable"
       hide-input-icon
-      :locale="fr"
+      :locale="dfLocale()"
       :week-start="1"
     >
       <template #preset-date-range-button="{ label, value, presetDate }">

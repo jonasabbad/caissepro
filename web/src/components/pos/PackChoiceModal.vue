@@ -42,7 +42,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey, true));
           <div>
             <h3 class="text-lg font-semibold text-gray-900">{{ product.name }}</h3>
             <p class="text-sm text-gray-500 mt-0.5">
-              Stock : {{ product.stockQuantity }} pièces
+              {{ $t('pos.stockPieces', { n: product.stockQuantity }) }}
               <template v-if="boxes > 0">(≈ {{ boxes }} boîte{{ boxes > 1 ? 's' : '' }}<template v-if="loose > 0"> + {{ loose }}</template>)</template>
             </p>
           </div>
@@ -58,7 +58,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey, true));
               @click="emit('unit')"
             >
               <CubeIcon class="w-6 h-6 text-gray-400" />
-              <span class="text-sm font-medium text-gray-900">1 pièce</span>
+              <span class="text-sm font-medium text-gray-900">{{ $t('common.onePiece') }}</span>
               <span class="text-lg font-bold text-gray-900">{{ formatCurrency(product.retailPrice) }}</span>
             </button>
             <button
@@ -68,14 +68,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey, true));
               @click="emit('pack')"
             >
               <ArchiveBoxIcon class="w-6 h-6 text-gray-400" />
-              <span class="text-sm font-medium text-gray-900">Boîte ×{{ packSize }}</span>
+              <span class="text-sm font-medium text-gray-900">{{ $t('pos.boxOf', { n: packSize }) }}</span>
               <span class="text-lg font-bold text-gray-900">{{ formatCurrency(boxPrice) }}</span>
-              <span class="text-xs text-gray-500">soit {{ formatCurrency(perPiece) }} / pièce</span>
+              <span class="text-xs text-gray-500">{{ $t('pos.perPieceEq', { price: formatCurrency(perPiece) }) }}</span>
             </button>
           </div>
-          <p v-if="!canPack" class="text-xs text-danger-600 mt-3">Stock insuffisant pour une boîte complète ({{ packSize }} pièces requises).</p>
+          <p v-if="!canPack" class="text-xs text-danger-600 mt-3">{{ $t('pos.packStockShortHint', { n: packSize }) }}</p>
           <p class="text-xs text-gray-400 mt-3">
-            <kbd class="px-1.5 py-0.5 border border-gray-200 rounded text-[10px] font-mono">Entrée</kbd> = 1 pièce
+            <kbd class="px-1.5 py-0.5 border border-gray-200 rounded text-[10px] font-mono">{{ $t('common.enterKey') }}</kbd> = {{ $t('common.onePiece') }}
           </p>
         </div>
       </div>

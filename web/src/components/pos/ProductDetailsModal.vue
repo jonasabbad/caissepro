@@ -1,4 +1,5 @@
 <script setup>
+import { intlLocale } from '@/i18n';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useQuery } from '@tanstack/vue-query';
@@ -64,7 +65,7 @@ function add() {
       <div class="absolute inset-0 bg-black/60" @click="emit('close')" />
       <div class="relative bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-hidden">
         <div class="sticky top-0 bg-white flex items-center justify-between px-6 py-4 border-b z-10">
-          <h3 class="text-lg font-bold text-gray-900">{{ isUnit ? "Détails de l'appareil" : 'Détails du produit' }}</h3>
+          <h3 class="text-lg font-bold text-gray-900">{{ isUnit ? t('pos.deviceDetails') : t('pos.productDetails') }}</h3>
           <button class="p-2 hover:bg-gray-100 rounded-lg transition-colors" @click="emit('close')"><XMarkIcon class="w-5 h-5 text-gray-500" /></button>
         </div>
         <div class="p-6 overflow-y-auto max-h-[calc(90vh-140px)]">
@@ -82,16 +83,16 @@ function add() {
               <div class="bg-gray-50 p-4 rounded-xl">
                 <div class="flex items-center gap-2 mb-1">
                   <DevicePhoneMobileIcon class="w-4 h-4 text-gray-400" />
-                  <span class="text-xs text-gray-500 uppercase font-medium">{{ product.imei ? 'IMEI' : 'N° Série' }}</span>
+                  <span class="text-xs text-gray-500 uppercase font-medium">{{ product.imei ? 'IMEI' : t('tradeIn.serialNumber') }}</span>
                 </div>
                 <span class="font-semibold text-gray-900 font-mono text-sm">{{ product.imei ? groupImei(product.imei) : product.serialNumber || '-' }}</span>
               </div>
               <div class="bg-primary-50 p-4 rounded-xl">
-                <div class="flex items-center gap-2 mb-1"><CurrencyDollarIcon class="w-4 h-4 text-primary-500" /><span class="text-xs text-primary-600 uppercase font-medium">Prix de vente</span></div>
+                <div class="flex items-center gap-2 mb-1"><CurrencyDollarIcon class="w-4 h-4 text-primary-500" /><span class="text-xs text-primary-600 uppercase font-medium">{{ t('products.retailPrice') }}</span></div>
                 <span class="text-xl font-bold text-primary-700">{{ formatCurrency(price) }}</span>
               </div>
               <div class="bg-blue-50 p-4 rounded-xl">
-                <div class="flex items-center gap-2 mb-1"><CubeIcon class="w-4 h-4 text-blue-500" /><span class="text-xs text-blue-600 uppercase font-medium">État</span></div>
+                <div class="flex items-center gap-2 mb-1"><CubeIcon class="w-4 h-4 text-blue-500" /><span class="text-xs text-blue-600 uppercase font-medium">{{ t('products.condition') }}</span></div>
                 <span class="text-lg font-bold text-blue-700">{{ t(`soldUnits.conditions.${product.condition}`) }}</span>
               </div>
             </div>
@@ -108,10 +109,10 @@ function add() {
                   <span v-if="product.tradeInFromCustomer.phone" class="text-amber-500"> · {{ product.tradeInFromCustomer.phone }}</span>
                 </p>
                 <p class="text-amber-700">
-                  <span class="text-amber-500">Date:</span>
-                  {{ new Date(product.tradeInAt).toLocaleDateString('fr-MA', { day: '2-digit', month: 'short', year: 'numeric' }) }}
+                  <span class="text-amber-500">{{ t('pos.dateLabel') }}</span>
+                  {{ new Date(product.tradeInAt).toLocaleDateString(intlLocale(), { day: '2-digit', month: 'short', year: 'numeric' }) }}
                 </p>
-                <p v-if="product.tradeInValue" class="text-amber-700"><span class="text-amber-500">Valeur:</span> {{ formatCurrency(product.tradeInValue) }}</p>
+                <p v-if="product.tradeInValue" class="text-amber-700"><span class="text-amber-500">{{ t('pos.valueLabel') }}</span> {{ formatCurrency(product.tradeInValue) }}</p>
               </div>
             </div>
 
@@ -156,11 +157,11 @@ function add() {
                 <span class="font-semibold text-gray-900 font-mono">{{ product.sku }}</span>
               </div>
               <div class="bg-gray-50 p-4 rounded-xl">
-                <div class="flex items-center gap-2 mb-1"><QrCodeIcon class="w-4 h-4 text-gray-400" /><span class="text-xs text-gray-500 uppercase font-medium">Code-barres</span></div>
+                <div class="flex items-center gap-2 mb-1"><QrCodeIcon class="w-4 h-4 text-gray-400" /><span class="text-xs text-gray-500 uppercase font-medium">{{ t('products.barcode') }}</span></div>
                 <span class="font-semibold text-gray-900 font-mono">{{ product.barcode || '-' }}</span>
               </div>
               <div class="bg-primary-50 p-4 rounded-xl">
-                <div class="flex items-center gap-2 mb-1"><CurrencyDollarIcon class="w-4 h-4 text-primary-500" /><span class="text-xs text-primary-600 uppercase font-medium">Prix</span></div>
+                <div class="flex items-center gap-2 mb-1"><CurrencyDollarIcon class="w-4 h-4 text-primary-500" /><span class="text-xs text-primary-600 uppercase font-medium">{{ t('reports.price') }}</span></div>
                 <span class="text-xl font-bold text-primary-700">{{ formatCurrency(product.retailPrice) }}</span>
               </div>
               <div :class="['p-4 rounded-xl', stockClass]">
@@ -173,16 +174,16 @@ function add() {
             </div>
             <div v-if="product.warrantyMonths || product.category" class="grid grid-cols-2 gap-3 mb-6">
               <div v-if="product.warrantyMonths" class="border border-blue-200 bg-blue-50 p-4 rounded-xl">
-                <span class="text-xs text-blue-600 uppercase font-medium block mb-1">Garantie</span>
-                <span class="font-semibold text-blue-900">{{ product.warrantyMonths }} mois</span>
+                <span class="text-xs text-blue-600 uppercase font-medium block mb-1">{{ t('pos.warranty') }}</span>
+                <span class="font-semibold text-blue-900">{{ t('pos.months', { n: product.warrantyMonths }) }}</span>
               </div>
               <div v-if="product.category" class="border border-purple-200 bg-purple-50 p-4 rounded-xl">
-                <span class="text-xs text-purple-600 uppercase font-medium block mb-1">Catégorie</span>
+                <span class="text-xs text-purple-600 uppercase font-medium block mb-1">{{ t('products.category') }}</span>
                 <span class="font-semibold text-purple-900">{{ product.category.name }}</span>
               </div>
             </div>
             <div v-if="product.variants && Object.keys(product.variants).length" class="mb-6">
-              <h5 class="text-sm font-semibold text-gray-700 mb-3">Variantes</h5>
+              <h5 class="text-sm font-semibold text-gray-700 mb-3">{{ t('pos.variants') }}</h5>
               <div class="flex flex-wrap gap-2">
                 <div v-for="(v, k) in product.variants" :key="k" class="inline-flex items-center gap-2 bg-gray-100 px-3 py-1.5 rounded-lg text-sm">
                   <span class="text-gray-500 capitalize">{{ k }}:</span><span class="font-medium text-gray-900">{{ v }}</span>
@@ -193,8 +194,8 @@ function add() {
               <div class="flex items-center gap-3">
                 <ExclamationTriangleIcon class="w-6 h-6 text-danger-500 flex-shrink-0" />
                 <div>
-                  <p class="font-medium text-danger-800">Produit en rupture de stock</p>
-                  <p class="text-sm text-danger-600">Ce produit ne peut pas être ajouté au panier.</p>
+                  <p class="font-medium text-danger-800">{{ t('pos.outOfStockTitle') }}</p>
+                  <p class="text-sm text-danger-600">{{ t('pos.outOfStockHint') }}</p>
                 </div>
               </div>
             </div>
@@ -203,20 +204,20 @@ function add() {
           <div class="bg-success-50 p-4 rounded-xl mb-6">
             <div class="flex items-center justify-between">
               <div>
-                <span class="text-xs text-success-600 uppercase font-medium">Profit estimé</span>
+                <span class="text-xs text-success-600 uppercase font-medium">{{ t('pos.estimatedProfit') }}</span>
                 <p class="text-xl font-bold text-success-700">{{ formatCurrency(profit) }}</p>
               </div>
               <div class="text-end">
-                <span class="text-xs text-success-600 uppercase font-medium">Marge</span>
+                <span class="text-xs text-success-600 uppercase font-medium">{{ t('products.margin') }}</span>
                 <p class="text-xl font-bold text-success-700">{{ margin.toFixed(1) }}%</p>
               </div>
             </div>
           </div>
         </div>
         <div class="sticky bottom-0 bg-gray-50 px-6 py-4 border-t flex gap-3">
-          <button class="btn-secondary flex-1" @click="emit('close')">Fermer</button>
+          <button class="btn-secondary flex-1" @click="emit('close')">{{ t('common.close') }}</button>
           <button class="btn-primary flex-1 inline-flex items-center justify-center gap-2" :disabled="outOfStock" @click="add">
-            <ShoppingCartIcon class="w-5 h-5" /> Ajouter au panier
+            <ShoppingCartIcon class="w-5 h-5" /> {{ t('pos.addToCart') }}
           </button>
         </div>
       </div>

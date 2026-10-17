@@ -45,7 +45,8 @@ import { useAuthStore } from '@/stores/auth';
 import { useSubscriptionStore } from '@/stores/subscription';
 import { useActivity } from '@/composables/useActivity';
 import { settingsApi } from '@/api/misc';
-import { setLocale, currentLocale } from '@/i18n';
+import { LOCALES, LOCALE_NAMES } from '@/i18n';
+import LanguageSwitcher from '@/components/layout/LanguageSwitcher.vue';
 import { APP_CONFIG, Modules, Plans, Roles, SELLER_MODE_ROUTES } from '@/config/constants';
 import { hasManagerRole } from '@/utils/format';
 
@@ -133,7 +134,6 @@ const visibleNavigation = computed(() =>
 
 const isActive = (href) => (href === '/app/dashboard' ? route.path === '/app/dashboard' : route.path.startsWith(href));
 
-const toggleLanguage = () => setLocale(currentLocale() === 'fr' ? 'ar' : 'fr');
 
 async function logout() {
   await auth.logout();
@@ -184,10 +184,21 @@ const supportLink = `https://wa.me/${APP_CONFIG.support.whatsapp}?text=${encodeU
             <span>{{ t('nav.settings') }}</span>
           </RouterLink>
         </template>
-        <button class="sidebar-link w-full" @click="toggleLanguage">
-          <LanguageIcon class="h-5 w-5" />
-          <span>{{ currentLocale() === 'fr' ? 'العربية' : 'Français' }}</span>
-        </button>
+        <div class="flex items-center gap-2 px-3 py-1.5 text-sm">
+          <LanguageIcon class="h-5 w-5 shrink-0 opacity-80" />
+          <div class="flex flex-1 gap-1">
+            <button
+              v-for="l in LOCALES"
+              :key="l"
+              :lang="l"
+              :title="LOCALE_NAMES[l]"
+              :class="['flex-1 rounded-md px-2 py-1 text-xs font-medium transition-colors', $i18n.locale === l ? 'bg-white text-gray-900' : 'text-white/70 hover:bg-white/10 hover:text-white']"
+              @click="auth.setLanguage(l)"
+            >
+              {{ l === 'ar' ? 'ع' : l.toUpperCase() }}
+            </button>
+          </div>
+        </div>
         <button v-if="!auth.sellerMode" class="sidebar-link w-full text-red-400 hover:bg-red-600 hover:text-white" @click="logout">
           <ArrowRightOnRectangleIcon class="h-5 w-5" />
           <span>{{ t('nav.logout') }}</span>
@@ -205,6 +216,7 @@ const supportLink = `https://wa.me/${APP_CONFIG.support.whatsapp}?text=${encodeU
               <TicketIcon class="h-4 w-4" />
               <span class="hidden sm:inline">{{ t('paperOrders.button') }}</span>
             </button>
+            <LanguageSwitcher compact />
             <button class="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-red-600 transition-colors hover:bg-red-50" @click="logout">
               <ArrowRightOnRectangleIcon class="h-4 w-4" /> {{ t('nav.logout') }}
             </button>
@@ -221,6 +233,7 @@ const supportLink = `https://wa.me/${APP_CONFIG.support.whatsapp}?text=${encodeU
           </button>
           <div class="flex flex-1 justify-center"><GlobalSearch /></div>
           <div class="flex items-center gap-3">
+            <LanguageSwitcher compact />
             <template v-if="auth.hasModule(Modules.SELLER_MODE)">
               <button
                 v-if="auth.sellerMode"

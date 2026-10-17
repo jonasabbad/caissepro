@@ -1,4 +1,5 @@
 <script setup>
+import { intlLocale } from '@/i18n';
 import { computed, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
@@ -154,7 +155,7 @@ const deleteMutation = useMutation({
   onError: () => (toast.value = { show: true, message: t('soldUnits.deleteError'), type: 'error' }),
 });
 
-const shortDate = (d) => new Date(d).toLocaleDateString('fr-MA', { day: '2-digit', month: 'short', year: 'numeric' });
+const shortDate = (d) => new Date(d).toLocaleDateString(intlLocale(), { day: '2-digit', month: 'short', year: 'numeric' });
 const CONDITIONS = computed(() => [
   { value: 'new', label: t('soldUnits.conditions.new') },
   { value: 'new_no_box', label: t('soldUnits.conditions.newNoBox') },

@@ -1,4 +1,5 @@
 <script setup>
+import { intlLocale } from '@/i18n';
 import { computed } from 'vue';
 import VueApexCharts from 'vue3-apexcharts';
 import { useI18n } from 'vue-i18n';
@@ -7,7 +8,7 @@ const { t } = useI18n();
 
 /** Daily sales and profit as two smoothed areas. `data`: [{ date: 'YYYY-MM-DD', sales, profit }]. */
 const props = defineProps({ data: { type: Array, default: () => [] } });
-const money = (v) => `${new Intl.NumberFormat('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v)} DH`;
+const money = (v) => `${new Intl.NumberFormat(intlLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v)} DH`;
 
 const options = computed(() => ({
   chart: {
@@ -24,7 +25,7 @@ const options = computed(() => ({
   grid: { borderColor: '#f1f1f1', strokeDashArray: 4, xaxis: { lines: { show: false } }, yaxis: { lines: { show: true } }, padding: { top: 0, right: 0, bottom: 0, left: 10 } },
   xaxis: {
     type: 'category',
-    categories: props.data.map((d) => new Date(`${d.date}T00:00:00`).toLocaleDateString('fr-MA', { day: 'numeric', month: 'short' })),
+    categories: props.data.map((d) => new Date(`${d.date}T00:00:00`).toLocaleDateString(intlLocale(), { day: 'numeric', month: 'short' })),
     labels: { style: { colors: '#64748b', fontSize: '12px', fontWeight: 500 }, rotate: -45 },
     axisBorder: { show: false },
     axisTicks: { show: false },

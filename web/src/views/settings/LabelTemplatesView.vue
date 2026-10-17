@@ -19,7 +19,7 @@ const isPhoneSeller = computed(() => activityType.value === 'phone_seller');
 const toast = ref({ show: false, message: '', type: 'success' });
 const ok = (message) => (toast.value = { show: true, message, type: 'success' });
 const fail = (message) => (toast.value = { show: true, message, type: 'error' });
-const storeName = computed(() => auth.storeName || 'Mon Magasin');
+const storeName = computed(() => auth.storeName || t('common.myStore'));
 
 // Device categories are handled by the per-device template, not as product categories.
 const DEVICE_SLUGS = ['smartphones', 'tablettes', 'pc-portables', 'macbooks'];

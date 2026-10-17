@@ -26,7 +26,7 @@ const groups = computed(() => [
       { keys: ['F2'], description: t('shortcuts.validatePayment') },
       { keys: ['Echap'], description: t('shortcuts.closeModal') },
       { keys: ['↑', '↓'], description: t('shortcuts.navigateResults') },
-      { keys: ['Entrée'], description: t('shortcuts.selectProduct') },
+      { keys: [t('common.enterKey')], description: t('shortcuts.selectProduct') },
     ],
   },
   {

@@ -3,6 +3,9 @@ import { computed, ref } from 'vue';
 import { authApi } from '@/api/auth';
 import { ACTIVITIES, DEFAULT_ACTIVITY } from '@/config/activities';
 import { useCartStore } from './cart';
+import { settingsApi } from '@/api/misc';
+import { currentLocale, i18n, setLocale } from '@/i18n';
+import { queryClient } from '@/queryClient';
 
 const TOKENS_KEY = 'auth_tokens';
 const IMPERSONATING_KEY = 'auth_impersonating';
@@ -21,6 +24,32 @@ export const useAuthStore = defineStore('auth', () => {
   const lockNotice = ref(false);
   let initPromise = null;
   let lockNoticeTimer;
+  // A language picked while signed out (e.g. on the login page) is saved to the account at the next sign-in.
+  let localeChosenSignedOut = false;
+
+  /** Switches the interface language, remembers it on this device and saves it to the signed-in user. */
+  async function setLanguage(l) {
+    const before = currentLocale();
+    setLocale(l);
+    // Data fetched in the previous language (category names...) is fetched again.
+    if (currentLocale() !== before) queryClient.invalidateQueries();
+    if (!user.value || !tokens.value?.accessToken) {
+      localeChosenSignedOut = true;
+      return;
+    }
+    if (user.value.locale === currentLocale()) return;
+    user.value = { ...user.value, locale: currentLocale() };
+    await settingsApi.updateProfile({ locale: currentLocale() }).catch(() => undefined);
+  }
+  /** After sign-in or session restore: the account's language wins, unless one was just picked on the login page. */
+  async function applyUserLanguage() {
+    if (!user.value) return;
+    if (localeChosenSignedOut) {
+      localeChosenSignedOut = false;
+      return setLanguage(currentLocale());
+    }
+    if (user.value.locale && user.value.locale !== currentLocale()) setLocale(user.value.locale);
+  }
 
   const isAuthenticated = computed(() => !!user.value && !!tokens.value?.accessToken);
   const currentUser = computed(() => user.value);
@@ -85,6 +114,7 @@ export const useAuthStore = defineStore('auth', () => {
           return;
         }
         user.value = freezeRoles(profile.data.user);
+        await applyUserLanguage();
       } catch {
         clearAuth();
       } finally {
@@ -105,12 +135,13 @@ export const useAuthStore = defineStore('auth', () => {
         localStorage.setItem(TOKENS_KEY, JSON.stringify(tokens.value));
         const profile = await authApi.getProfile().catch(() => null);
         if (profile?.data?.user) user.value = freezeRoles(profile.data.user);
+        await applyUserLanguage();
         initialized.value = true;
         return { success: true };
       }
-      return { success: false, error: res.error?.message || 'Erreur lors de la connexion' };
+      return { success: false, error: res.error?.message || i18n.global.t('common.loginError') };
     } catch (e) {
-      return { success: false, error: e.message || 'Erreur lors de la connexion' };
+      return { success: false, error: e.message || i18n.global.t('common.loginError') };
     } finally {
       loading.value = false;
     }
@@ -175,6 +206,7 @@ export const useAuthStore = defineStore('auth', () => {
     lock,
     unlock,
     initializeAuth,
+    setLanguage,
     login,
     logout,
     clearAuth,

@@ -1,4 +1,5 @@
 <script setup>
+import { intlLocale } from '@/i18n';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useQuery } from '@tanstack/vue-query';
@@ -86,7 +87,7 @@ const salesTitle = computed(() =>
 const profit = computed(() => kpis.value?.realProfit?.total ?? 0);
 const pnl = computed(() => kpis.value?.profitBreakdown);
 const STATUS_BADGE = { completed: 'badge-success', pending: 'badge-warning', partial: 'badge-info' };
-const when = (d) => new Date(d).toLocaleDateString('fr-MA', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+const when = (d) => new Date(d).toLocaleDateString(intlLocale(), { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 const PRESETS = computed(() => [
   { key: 'today', label: t('dashboard.today') },
   { key: 'week', label: t('dashboard.thisWeek') },
@@ -290,8 +291,8 @@ const PRESETS = computed(() => [
             <div class="text-end">
               <p class="font-semibold text-gray-900">{{ formatCurrency(tx.totalAmount) }}</p>
               <div v-if="tx.status === 'partial'" class="flex items-center gap-1 justify-end">
-                <span class="text-xs text-success-600">{{ formatCurrency(tx.amountPaid) }} payé</span><span class="text-xs text-gray-400">·</span>
-                <span class="text-xs text-danger-600">{{ formatCurrency(tx.totalAmount - tx.amountPaid) }} dû</span>
+                <span class="text-xs text-success-600">{{ t('transactions.paidAmount', { amount: formatCurrency(tx.amountPaid) }) }}</span><span class="text-xs text-gray-400">·</span>
+                <span class="text-xs text-danger-600">{{ t('transactions.dueAmount', { amount: formatCurrency(tx.totalAmount - tx.amountPaid) }) }}</span>
               </div>
               <span v-else :class="['badge text-xs', STATUS_BADGE[tx.status] || 'badge-secondary']">{{ t(`transactions.status.${tx.status}`) }}</span>
             </div>

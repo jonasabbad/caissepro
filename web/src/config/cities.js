@@ -1,3 +1,4 @@
+// i18n-scan: data — stored values or language-specific wording, translated elsewhere.
 // Moroccan cities offered in address forms (free text is also accepted).
 export const MOROCCAN_CITIES = [
   'Agadir', 'Aït Melloul', 'Al Hoceima', 'Asilah', 'Azrou', 'Beni Mellal', 'Berkane', 'Berrechid', 'Boujdour', 'Bouznika',

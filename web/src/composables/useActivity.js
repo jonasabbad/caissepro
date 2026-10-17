@@ -1,3 +1,4 @@
+import { currentLocale } from '@/i18n';
 import { computed } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import { ACTIVITIES, DEFAULT_ACTIVITY } from '@/config/activities';
@@ -13,7 +14,8 @@ export function useActivity() {
     hasWidget: (w) => config.value.dashboardWidgets.includes(w),
     hasNavItem: (n) => config.value.navItems.includes(n),
     productsLabelKey: computed(() => (activityType.value === 'phone_seller' ? 'nav.products' : 'nav.productsGeneric')),
-    getActivityLabel: (lang = 'fr') => (lang === 'ar' ? config.value.labelAr : config.value.label),
-    getActivityDescription: (lang = 'fr') => (lang === 'ar' ? config.value.descriptionAr : config.value.description),
+    getActivityLabel: (lang = currentLocale()) => (lang === 'ar' ? config.value.labelAr : lang === 'en' ? config.value.labelEn : config.value.label),
+    getActivityDescription: (lang = currentLocale()) =>
+      lang === 'ar' ? config.value.descriptionAr : lang === 'en' ? config.value.descriptionEn : config.value.description,
   };
 }

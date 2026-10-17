@@ -111,7 +111,7 @@ export default async function settingsRoutes(app: FastifyInstance) {
     managersOnly(req);
     const body = z
       .object({
-        locale: z.enum(['fr', 'ar', 'fr_MA', 'ar_MA']).optional(),
+        locale: z.enum(['fr', 'en', 'ar', 'fr_MA', 'en_GB', 'ar_MA']).optional(),
         taxRate: z.coerce.number().min(0).max(100).optional(),
         currency: z.string().optional(),
         timezone: z.string().optional(),
@@ -140,8 +140,10 @@ export default async function settingsRoutes(app: FastifyInstance) {
     return ok({ printingSettings: parseJson(t.printing, {}) });
   });
 
-  app.patch('/settings/profile', async (req: Req<{ firstName?: string; lastName?: string }>) => {
-    const body = z.object({ firstName: z.string().trim().min(1).optional(), lastName: z.string().trim().optional() }).parse(req.body ?? {});
+  app.patch('/settings/profile', async (req: Req<{ firstName?: string; lastName?: string; locale?: string }>) => {
+    const body = z
+      .object({ firstName: z.string().trim().min(1).optional(), lastName: z.string().trim().optional(), locale: z.enum(['fr', 'en', 'ar']).optional() })
+      .parse(req.body ?? {});
     await prisma.user.update({ where: { id: req.auth.userId }, data: body });
     return ok({ user: await buildProfile(req.auth.userId) });
   });

@@ -1,24 +1,24 @@
-const LOCALES = { fr_MA: 'fr-MA', ar_MA: 'ar-MA' };
+import { intlLocale } from '@/i18n';
 
 /** 1234.5 -> "1 234,50 DH" */
-export function formatCurrency(value, currency = 'DH', locale = 'fr_MA') {
+export function formatCurrency(value, currency = 'DH') {
   const n = Number(value ?? 0);
-  if (Number.isNaN(n)) return `0,00 ${currency}`;
+  if (Number.isNaN(n)) return `${formatCurrency(0, currency)}`;
   return (
-    new Intl.NumberFormat(LOCALES[locale], { style: 'decimal', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n) +
+    new Intl.NumberFormat(intlLocale(), { style: 'decimal', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n) +
     ` ${currency}`
   );
 }
 
-export function formatDate(value, locale = 'fr_MA', options = {}) {
+export function formatDate(value, options = {}) {
   if (!value) return '';
   const d = typeof value === 'string' ? new Date(value) : value;
-  return new Intl.DateTimeFormat(LOCALES[locale], { dateStyle: 'medium', ...options }).format(d);
+  return new Intl.DateTimeFormat(intlLocale(), { dateStyle: 'medium', ...options }).format(d);
 }
 
 export function formatDateTime(value) {
   if (!value) return '';
-  return new Date(value).toLocaleString('fr-MA', {
+  return new Date(value).toLocaleString(intlLocale(), {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
@@ -29,7 +29,7 @@ export function formatDateTime(value) {
 
 export function formatShortDate(value) {
   if (!value) return '';
-  return new Date(value).toLocaleDateString('fr-MA', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  return new Date(value).toLocaleDateString(intlLocale(), { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
 /** Round to cents. */

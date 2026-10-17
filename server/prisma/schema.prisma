@@ -79,6 +79,7 @@ model User {
   lastLoginAt                DateTime?
   accountDeletionRequestedAt DateTime?
   sellerMode                 Boolean   @default(false)
+  locale                     String? // fr | en | ar — interface language chosen by this user
   createdAt                  DateTime  @default(now())
   updatedAt                  DateTime  @updatedAt
 

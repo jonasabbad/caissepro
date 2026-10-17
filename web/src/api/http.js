@@ -1,5 +1,8 @@
 import axios from 'axios';
+import { i18n } from '@/i18n';
 import { useAuthStore } from '@/stores/auth';
+import { translateErrorResponse } from '@/utils/serverMessages';
+import { localizeReferenceData } from '@/utils/referenceData';
 
 /** Authenticated API client: adds the bearer token and handles 401/403 globally. */
 export const http = axios.create({
@@ -15,6 +18,13 @@ export const publicHttp = axios.create({
   withCredentials: true,
   headers: { 'Content-Type': 'application/json' },
 });
+
+// API messages are written in French; show them in the interface language.
+const translateError = (error) => {
+  translateErrorResponse(error?.response?.data);
+  return Promise.reject(error);
+};
+publicHttp.interceptors.response.use((r) => r, translateError);
 
 http.interceptors.request.use((config) => {
   const token = useAuthStore().getAccessToken();
@@ -32,6 +42,7 @@ function cashDrawerPaired() {
 
 http.interceptors.response.use(
   (response) => {
+    localizeReferenceData(response.data);
     // The server flags responses that should pop the cash drawer (cash sales).
     if (response.headers?.['x-cash-drawer'] === 'open' && cashDrawerPaired()) {
       import('@/services/cashDrawer')
@@ -41,6 +52,7 @@ http.interceptors.response.use(
     return response;
   },
   async (error) => {
+    translateErrorResponse(error.response?.data);
     const auth = useAuthStore();
     const status = error.response?.status;
     if (status === 401) {
@@ -66,7 +78,7 @@ http.interceptors.response.use(
 );
 
 /** Extracts a readable message from an API error. */
-export function apiErrorMessage(error, fallback = 'Une erreur est survenue') {
+export function apiErrorMessage(error, fallback = i18n.global.t('common.genericError')) {
   const data = error?.response?.data;
   return data?.error?.message || data?.message || error?.message || fallback;
 }

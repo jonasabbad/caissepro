@@ -13,6 +13,8 @@ export const ACTIVITIES = {
   phone_seller: {
     id: 'phone_seller',
     label: 'Vendeur de Téléphones',
+    labelEn: 'Phone Seller',
+    descriptionEn: 'Phones and accessories sales',
     labelAr: 'بائع الهواتف',
     description: 'Vente de téléphones et accessoires',
     descriptionAr: 'بيع الهواتف والإكسسوارات',
@@ -25,6 +27,8 @@ export const ACTIVITIES = {
   retail: {
     id: 'retail',
     label: 'Commerce de Détail',
+    labelEn: 'Retail Store',
+    descriptionEn: 'General retail',
     labelAr: 'تجارة التجزئة',
     description: 'Commerce de détail général',
     descriptionAr: 'تجارة التجزئة العامة',
@@ -37,6 +41,8 @@ export const ACTIVITIES = {
   clothing: {
     id: 'clothing',
     label: 'Boutique de Vêtements',
+    labelEn: 'Clothing Store',
+    descriptionEn: 'Clothes, shoes and accessories sales',
     labelAr: 'متجر الملابس',
     description: 'Vente de vêtements, chaussures et accessoires',
     descriptionAr: 'بيع الملابس والأحذية والإكسسوارات',
@@ -49,6 +55,8 @@ export const ACTIVITIES = {
   coiffeur: {
     id: 'coiffeur',
     label: 'Salon de Coiffure',
+    labelEn: 'Hair Salon',
+    descriptionEn: 'Hair salon and care',
     labelAr: 'صالون حلاقة',
     description: 'Salon de coiffure et soins',
     descriptionAr: 'صالون الحلاقة والعناية',
@@ -65,6 +73,8 @@ export const ACTIVITIES = {
   restaurant: {
     id: 'restaurant',
     label: 'Restaurant',
+    labelEn: 'Restaurant',
+    descriptionEn: 'Restaurant and café',
     labelAr: 'مطعم',
     description: 'Restaurant et café',
     descriptionAr: 'مطعم ومقهى',

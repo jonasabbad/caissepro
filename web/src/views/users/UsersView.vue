@@ -64,7 +64,7 @@ function openEdit(u) {
 async function save() {
   const f = form.value;
   if (!f.email || !f.firstName || !f.lastName) return (formError.value = t('errors.required'));
-  if (!f.currentStoreId) return (formError.value = multiStore.value ? 'Le magasin est obligatoire' : 'Erreur : magasin non assigné');
+  if (!f.currentStoreId) return (formError.value = multiStore.value ? t('common.storeRequired') : t('common.storeNotAssigned'));
   if (!editing.value && !f.password) return (formError.value = t('users.errors.passwordRequired'));
   const dto = { email: f.email, firstName: f.firstName, lastName: f.lastName, roles: f.roles, currentStoreId: f.currentStoreId, ...(f.password && { password: f.password }) };
   saving.value = true;

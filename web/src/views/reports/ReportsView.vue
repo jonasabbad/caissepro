@@ -1,4 +1,5 @@
 <script setup>
+import { intlLocale } from '@/i18n';
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useQuery } from '@tanstack/vue-query';
@@ -30,7 +31,7 @@ import { formatCurrency } from '@/utils/format';
 import { summaryPdfBlob } from '@/utils/invoicePdf';
 import DateRangePicker from '@/components/ui/DateRangePicker.vue';
 
-const { t } = useI18n();
+const { t, te } = useI18n();
 const auth = useAuthStore();
 const isPhoneSeller = computed(() => auth.activityType === 'phone_seller');
 const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -79,18 +80,19 @@ const { data: doneRefunds } = useQuery({
 });
 const { data: reserved } = useQuery({ queryKey: ['reserved-units'], queryFn: () => soldUnitsApi.getReserved(), enabled: onCustomers });
 
-const METHOD = { cash: 'Espèces', bank_transfer: 'Virement', transfer: 'Virement', card: 'Carte', check: 'Chèque', cheque: 'Chèque', credit: 'Crédit', mobile_money: 'Mobile Money' };
+const METHOD_KEY = { cash: 'cash', bank_transfer: 'transfer', transfer: 'transfer', card: 'card', check: 'check', cheque: 'check', credit: 'credit', mobile_money: 'mobile' };
+const methodLabel = (m) => (METHOD_KEY[m] ? t(`payment.${METHOD_KEY[m]}`) : m);
 const cashTotal = computed(() => (sales.value?.byPaymentMethod || []).filter((m) => m.method === 'cash').reduce((s, m) => s + Number(m.amount), 0));
 const transferTotal = computed(() => (sales.value?.byPaymentMethod || []).filter((m) => ['bank_transfer', 'transfer'].includes(m.method)).reduce((s, m) => s + Number(m.amount), 0));
 const methodMax = computed(() => Math.max(1, ...(sales.value?.byPaymentMethod || []).map((m) => m.amount)));
 const hasSellers = computed(() => (sales.value?.bySeller || []).some((s) => !!s.employeeId));
 const barMax = computed(() => (sales.value?.byDay?.length ? Math.max(...sales.value.byDay.map((d) => d.sales)) * 1.1 || 100 : 100));
-const barDay = (d) => new Date(d).toLocaleDateString('fr-MA', { weekday: 'short', day: 'numeric' });
-const shortDate = (d) => new Date(d).toLocaleDateString('fr-MA', { day: '2-digit', month: 'short', year: 'numeric' });
+const barDay = (d) => new Date(d).toLocaleDateString(intlLocale(), { weekday: 'short', day: 'numeric' });
+const shortDate = (d) => new Date(d).toLocaleDateString(intlLocale(), { day: '2-digit', month: 'short', year: 'numeric' });
 
 // ── Inventory: devices by brand/model ──
-const DEVICE_TYPES = { phone: 'Téléphone', laptop: 'Ordinateur portable', macbook: 'MacBook', tablet: 'Tablette', watch: 'Montre', accessory: 'Accessoire' };
-const CONDITIONS = { new: 'Neuf', new_no_box: 'Neuf sans boîte', grade_a_plus: 'Grade A+', grade_a: 'Grade A', grade_b: 'Grade B', grade_c: 'Grade C' };
+const deviceTypeLabel = (d) => (d === 'accessory' ? t('reports.accessory') : te(`soldUnits.deviceTypes.${d}.name`) ? t(`soldUnits.deviceTypes.${d}.name`) : d);
+const conditionLabel = (c) => (te(`soldUnits.conditions.${c}`) ? t(`soldUnits.conditions.${c}`) : c);
 const PAGE = 15;
 const modelRows = computed(() => {
   const rows = [];
@@ -183,43 +185,44 @@ function clearProductFilters() {
   pPage.value = 1;
 }
 watch([pSearch, pCategory, pStock], () => (pPage.value = 1));
-const ORDER_STATUS = { draft: 'Brouillon', pending: 'En attente', partial: 'Partiel', received: 'Reçue', cancelled: 'Annulée' };
 
 // ── PDF export (built in the browser) ──
-const dh = (v) => `${new Intl.NumberFormat('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v || 0)} DH`;
+const dh = (v) => `${new Intl.NumberFormat(intlLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v || 0)} DH`;
 async function exportPdf() {
   const r = report.value;
   if (!r) return;
-  const doc = { title: { sales: 'Rapport des Ventes', customers: 'Rapport des Clients', suppliers: 'Rapport des Fournisseurs', inventory: "Rapport d'Inventaire" }[tab.value], period: period.value, summary: [], tables: [] };
+  const doc = { title: te(`reports.pdfTitle.${tab.value}`) ? t(`reports.pdfTitle.${tab.value}`) : '', period: period.value, summary: [], tables: [] };
   if (tab.value === 'sales') {
     doc.summary = [
-      { label: 'Total Ventes', value: dh(r.summary.totalSales) },
-      { label: 'Total Profit', value: dh(r.summary.totalProfit) },
-      { label: 'Nombre de Transactions', value: String(r.summary.totalTransactions) },
-      { label: 'Ticket Moyen', value: dh(r.summary.averageTransaction) },
+      { label: t('reports.totalSales'), value: dh(r.summary.totalSales) },
+      { label: t('reports.totalProfit'), value: dh(r.summary.totalProfit) },
+      { label: t('reports.transactionCount'), value: String(r.summary.totalTransactions) },
+      { label: t('reports.avgTicket'), value: dh(r.summary.averageTransaction) },
     ];
-    if (r.topProducts?.length) doc.tables.push({ title: 'Produits les Plus Vendus', headers: ['Produit', 'Quantité', 'CA'], rows: r.topProducts.map((p) => [p.name, String(p.quantity), dh(p.revenue)]) });
-    if (r.byPaymentMethod?.length) doc.tables.push({ title: 'Modes de Paiement', headers: ['Mode', 'Montant', 'Transactions'], rows: r.byPaymentMethod.map((m) => [METHOD[m.method] || m.method, dh(m.amount), String(m.count)]) });
+    if (r.topProducts?.length) doc.tables.push({ title: t('reports.topProducts'), headers: [t('reports.product'), t('reports.quantity'), t('reports.revenue')], rows: r.topProducts.map((p) => [p.name, String(p.quantity), dh(p.revenue)]) });
+    if (r.byPaymentMethod?.length) doc.tables.push({ title: t('reports.paymentMethods'), headers: [t('reports.method'), t('reports.amount'), t('dashboard.transactions')], rows: r.byPaymentMethod.map((m) => [methodLabel(m.method), dh(m.amount), String(m.count)]) });
   } else if (tab.value === 'inventory') {
     doc.summary = [
-      { label: 'Valeur Totale Stock', value: dh(r.summary.totalInventoryValue) },
-      { label: 'Appareils en Stock', value: String(r.summary.unitsInStock) },
-      { label: 'Produits en Stock', value: String(r.summary.productsInStock) },
-      { label: 'Stock Bas', value: String(r.summary.lowStockCount) },
+      { label: t('reports.totalInventoryValue'), value: dh(r.summary.totalInventoryValue) },
+      { label: t('reports.unitsInStock'), value: String(r.summary.unitsInStock) },
+      { label: t('reports.productsInStock'), value: String(r.summary.productsInStock) },
+      { label: t('reports.lowStock'), value: String(r.summary.lowStockCount) },
     ];
-    if (r.byBrand?.length) doc.tables.push({ title: 'Stock par Marque/Modèle', headers: ['Marque', 'Modèle', 'En Stock', 'Valeur'], rows: r.byBrand.flatMap((b) => b.models.map((m) => [b.brand, m.model, String(m.inStock), dh(m.value)])) });
-    if (productRows.value.length) doc.tables.push({ title: 'Stock par Catégorie', headers: ['Catégorie', 'Produit', 'Stock', 'Valeur'], rows: productRows.value.map((p) => [p.categoryName, p.name, String(p.stockQuantity), dh(p.stockValue)]) });
+    if (r.byBrand?.length) doc.tables.push({ title: t('reports.stockByBrand'), headers: [t('products.brand'), t('products.model'), t('reports.inStock'), t('reports.value')], rows: r.byBrand.flatMap((b) => b.models.map((m) => [b.brand, m.model, String(m.inStock), dh(m.value)])) });
+    if (productRows.value.length) doc.tables.push({ title: t('reports.stockByCategory'), headers: [t('products.category'), t('reports.product'), t('reports.stock'), t('reports.value')], rows: productRows.value.map((p) => [p.categoryName, p.name, String(p.stockQuantity), dh(p.stockValue)]) });
   } else if (tab.value === 'customers') {
     doc.summary = [
-      { label: 'Total Clients', value: String(r.summary.totalCustomers) },
-      { label: 'Nouveaux Clients', value: String(r.summary.newCustomers) },
-      { label: 'Total Dettes', value: dh(r.summary.totalDebt) },
-      { label: 'Total à rembourser', value: dh(refundSummary.value?.totalPending) },
+      { label: t('reports.totalCustomers'), value: String(r.summary.totalCustomers) },
+      { label: t('reports.newCustomers'), value: String(r.summary.newCustomers) },
+      { label: t('reports.totalDebt'), value: dh(r.summary.totalDebt) },
+      { label: t('debts.totalToRefund'), value: dh(refundSummary.value?.totalPending) },
     ];
     if (r.topCustomers?.length)
       doc.tables.push({
-        title: 'Meilleurs Clients',
-        headers: isPhoneSeller.value ? ['Client', 'Achats', 'Reprises', 'Retours', 'Total Dépensé'] : ['Client', 'Achats', 'Retours', 'Total Dépensé'],
+        title: t('reports.topCustomers'),
+        headers: isPhoneSeller.value
+          ? [t('reports.customer'), t('reports.purchases'), t('reports.tradeIns'), t('reports.returns'), t('reports.totalSpent')]
+          : [t('reports.customer'), t('reports.purchases'), t('reports.returns'), t('reports.totalSpent')],
         rows: r.topCustomers.map((c) => (isPhoneSeller.value ? [c.name, String(c.purchases), String(c.exchanges || 0), String(c.returns || 0), dh(c.spent)] : [c.name, String(c.purchases), String(c.returns || 0), dh(c.spent)])),
       });
   } else if (tab.value === 'repairs') {
@@ -238,19 +241,19 @@ async function exportPdf() {
       });
   } else {
     doc.summary = [
-      { label: 'Total Fournisseurs', value: `${r.summary.activeSuppliers} / ${r.summary.totalSuppliers}` },
-      { label: 'Total Commandes', value: String(r.summary.totalOrders) },
-      { label: 'Total Dépensé', value: dh(r.summary.totalSpent) },
-      { label: 'Dette Fournisseurs', value: dh(r.summary.totalDebt) },
+      { label: t('reports.totalSuppliers'), value: `${r.summary.activeSuppliers} / ${r.summary.totalSuppliers}` },
+      { label: t('reports.totalOrders'), value: String(r.summary.totalOrders) },
+      { label: t('reports.totalSpent'), value: dh(r.summary.totalSpent) },
+      { label: t('reports.supplierDebt'), value: dh(r.summary.totalDebt) },
     ];
-    if (r.topSuppliers?.length) doc.tables.push({ title: 'Top Fournisseurs', headers: ['Fournisseur', 'Commandes', 'Dépensé', 'Dette'], rows: r.topSuppliers.map((s) => [s.name, String(s.orders), dh(s.spent), dh(s.debt)]) });
-    if (r.suppliersWithDebt?.length) doc.tables.push({ title: 'Fournisseurs avec Dette', headers: ['Fournisseur', 'Téléphone', 'Dette'], rows: r.suppliersWithDebt.map((s) => [s.name, s.phone || '-', dh(s.debt)]) });
+    if (r.topSuppliers?.length) doc.tables.push({ title: t('reports.topSuppliers'), headers: [t('reports.supplier'), t('reports.orders'), t('reports.spent'), t('reports.debt')], rows: r.topSuppliers.map((s) => [s.name, String(s.orders), dh(s.spent), dh(s.debt)]) });
+    if (r.suppliersWithDebt?.length) doc.tables.push({ title: t('reports.suppliersWithDebt'), headers: [t('reports.supplier'), t('reports.phone'), t('reports.debt')], rows: r.suppliersWithDebt.map((s) => [s.name, s.phone || '-', dh(s.debt)]) });
   }
   const blob = await summaryPdfBlob(doc);
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `rapport-${tab.value}-${period.value.from}-${period.value.to}.pdf`;
+  a.download = `${t('reports.filePrefix')}-${tab.value}-${period.value.from}-${period.value.to}.pdf`;
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -306,8 +309,8 @@ async function exportPdf() {
           <p class="text-sm text-gray-500 mb-1">{{ t('reports.transactionCount') }}</p>
           <p class="text-2xl font-bold text-gray-900">{{ sales.summary.totalTransactions }}</p>
           <div class="flex flex-wrap gap-2 text-xs mt-1">
-            <span class="text-success-600">{{ sales.summary.completedTransactions }} complètes</span>
-            <span v-if="sales.summary.partialTransactions" class="text-amber-600">{{ sales.summary.partialTransactions }} en cours</span>
+            <span class="text-success-600">{{ t('reports.completedCount', { n: sales.summary.completedTransactions }) }}</span>
+            <span v-if="sales.summary.partialTransactions" class="text-amber-600">{{ t('reports.inProgressCount', { n: sales.summary.partialTransactions }) }}</span>
           </div>
         </div>
         <div class="card p-4"><p class="text-sm text-gray-500 mb-1">{{ t('reports.avgTicket') }}</p><p class="text-2xl font-bold text-gray-900">{{ formatCurrency(sales.summary.averageTransaction) }}</p></div>
@@ -354,7 +357,7 @@ async function exportPdf() {
                   <p class="font-medium">{{ barDay(d.date) }}</p>
                   <p>Ventes: {{ d.sales.toLocaleString() }} DH</p>
                   <p>Profit: {{ d.profit.toLocaleString() }} DH</p>
-                  <p>{{ d.transactions }} transactions</p>
+                  <p>{{ t('reports.transactionsCount', { n: d.transactions }) }}</p>
                 </div>
                 <div class="w-full bg-black rounded-t-sm hover:bg-gray-800 min-h-[4px]" :style="{ height: `${(d.sales / barMax) * 180}px` }" />
                 <span class="text-[10px] text-gray-500 mt-1 truncate w-full text-center">{{ barDay(d.date) }}</span>
@@ -377,7 +380,7 @@ async function exportPdf() {
           </div>
           <div v-if="sales.byPaymentMethod?.length" class="space-y-3">
             <div v-for="m in sales.byPaymentMethod" :key="m.method" class="flex items-center gap-4">
-              <div class="w-24 text-sm text-gray-600">{{ METHOD[m.method] || m.method }}</div>
+              <div class="w-24 text-sm text-gray-600">{{ methodLabel(m.method) }}</div>
               <div class="flex-1 h-3 bg-gray-100 rounded-full overflow-hidden"><div class="h-full bg-black rounded-full" :style="{ width: `${(m.amount / methodMax) * 100}%` }" /></div>
               <div class="text-sm whitespace-nowrap"><span class="font-medium">{{ formatCurrency(m.amount) }}</span> <span class="text-gray-400">({{ m.count }})</span></div>
             </div>
@@ -438,19 +441,19 @@ async function exportPdf() {
           <div class="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center"><ShoppingBagIcon class="w-5 h-5 text-blue-600" /></div>
           <div>
             <h3 class="font-semibold text-gray-900">{{ t('reports.recentSales') }}</h3>
-            <p class="text-xs text-gray-500">{{ sales.recentSales.length }} ventes récentes</p>
+            <p class="text-xs text-gray-500">{{ t('reports.recentSalesCount', { n: sales.recentSales.length }) }}</p>
           </div>
         </div>
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
             <thead>
               <tr class="bg-gray-50">
-                <th class="px-5 py-3 text-start text-xs font-semibold text-gray-600 uppercase">Type</th>
-                <th class="px-4 py-3 text-start text-xs font-semibold text-gray-600 uppercase">Produit</th>
-                <th class="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase">Qté</th>
+                <th class="px-5 py-3 text-start text-xs font-semibold text-gray-600 uppercase">{{ t('reports.type') }}</th>
+                <th class="px-4 py-3 text-start text-xs font-semibold text-gray-600 uppercase">{{ t('reports.product') }}</th>
+                <th class="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase">{{ t('pos.quantity') }}</th>
                 <th v-if="isPhoneSeller" class="px-4 py-3 text-start text-xs font-semibold text-gray-600 uppercase">IMEI</th>
-                <th class="px-4 py-3 text-end text-xs font-semibold text-gray-600 uppercase">Montant</th>
-                <th class="px-5 py-3 text-end text-xs font-semibold text-gray-600 uppercase">Date</th>
+                <th class="px-4 py-3 text-end text-xs font-semibold text-gray-600 uppercase">{{ t('reports.amount') }}</th>
+                <th class="px-5 py-3 text-end text-xs font-semibold text-gray-600 uppercase">{{ t('reports.date') }}</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
@@ -479,8 +482,8 @@ async function exportPdf() {
             <p class="text-slate-400 text-sm mb-1">{{ t('reports.totalInventoryValue') }}</p>
             <p class="text-4xl font-bold">{{ formatCurrency(inventory.summary.totalInventoryValue) }}</p>
             <div class="flex gap-8 mt-4">
-              <div v-if="isPhoneSeller"><p class="text-slate-500 text-xs uppercase tracking-wide">Appareils</p><p class="text-lg font-semibold">{{ formatCurrency(inventory.summary.unitsValue) }}</p></div>
-              <div><p class="text-slate-500 text-xs uppercase tracking-wide">Produits</p><p class="text-lg font-semibold">{{ formatCurrency(inventory.summary.productsValue) }}</p></div>
+              <div v-if="isPhoneSeller"><p class="text-slate-500 text-xs uppercase tracking-wide">{{ t('reports.devices') }}</p><p class="text-lg font-semibold">{{ formatCurrency(inventory.summary.unitsValue) }}</p></div>
+              <div><p class="text-slate-500 text-xs uppercase tracking-wide">{{ t('reports.products') }}</p><p class="text-lg font-semibold">{{ formatCurrency(inventory.summary.productsValue) }}</p></div>
             </div>
           </div>
           <div class="flex items-center gap-6">
@@ -500,9 +503,9 @@ async function exportPdf() {
               <span class="absolute inset-0 flex items-center justify-center text-lg font-bold">{{ inventory.summary.stockHealthScore }}%</span>
             </div>
             <div class="space-y-1 text-sm">
-              <div class="flex items-center justify-between gap-6"><span class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-emerald-500" /> Stock OK</span><span>{{ inventory.stockDistribution.healthy }}</span></div>
-              <div class="flex items-center justify-between gap-6"><span class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-amber-500" /> Stock Bas</span><span>{{ inventory.stockDistribution.low }}</span></div>
-              <div class="flex items-center justify-between gap-6"><span class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-red-500" /> Rupture</span><span>{{ inventory.stockDistribution.outOfStock }}</span></div>
+              <div class="flex items-center justify-between gap-6"><span class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-emerald-500" /> {{ t('reports.stockOk') }}</span><span>{{ inventory.stockDistribution.healthy }}</span></div>
+              <div class="flex items-center justify-between gap-6"><span class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-amber-500" /> {{ t('reports.lowStock') }}</span><span>{{ inventory.stockDistribution.low }}</span></div>
+              <div class="flex items-center justify-between gap-6"><span class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-red-500" /> {{ t('reports.outOfStock') }}</span><span>{{ inventory.stockDistribution.outOfStock }}</span></div>
             </div>
           </div>
         </div>
@@ -511,19 +514,19 @@ async function exportPdf() {
       <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div class="card p-4 flex items-center gap-3">
           <div class="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center"><CubeIcon class="w-6 h-6 text-emerald-600" /></div>
-          <div><p class="text-2xl font-bold">{{ inventory.summary.totalProducts }}</p><p class="text-sm text-gray-500">Produits</p></div>
+          <div><p class="text-2xl font-bold">{{ inventory.summary.totalProducts }}</p><p class="text-sm text-gray-500">{{ t('reports.products') }}</p></div>
         </div>
         <div v-if="isPhoneSeller" class="card p-4 flex items-center gap-3">
           <div class="w-12 h-12 rounded-xl bg-purple-50 flex items-center justify-center"><DevicePhoneMobileIcon class="w-6 h-6 text-purple-600" /></div>
-          <div><p class="text-2xl font-bold">{{ inventory.summary.unitsInStock }}</p><p class="text-sm text-gray-500">Appareils en stock</p></div>
+          <div><p class="text-2xl font-bold">{{ inventory.summary.unitsInStock }}</p><p class="text-sm text-gray-500">{{ t('reports.unitsInStock') }}</p></div>
         </div>
         <div class="card p-4 flex items-center gap-3">
           <div class="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center"><ExclamationTriangleIcon class="w-6 h-6 text-amber-600" /></div>
-          <div><p class="text-2xl font-bold">{{ inventory.summary.lowStockCount }}</p><p class="text-sm text-gray-500">Stock bas</p></div>
+          <div><p class="text-2xl font-bold">{{ inventory.summary.lowStockCount }}</p><p class="text-sm text-gray-500">{{ t('reports.lowStock') }}</p></div>
         </div>
         <div class="card p-4 flex items-center gap-3">
           <div class="w-12 h-12 rounded-xl bg-red-50 flex items-center justify-center"><ExclamationTriangleIcon class="w-6 h-6 text-red-600" /></div>
-          <div><p class="text-2xl font-bold">{{ inventory.summary.outOfStockCount }}</p><p class="text-sm text-gray-500">Rupture de stock</p></div>
+          <div><p class="text-2xl font-bold">{{ inventory.summary.outOfStockCount }}</p><p class="text-sm text-gray-500">{{ t('reports.outOfStockLong') }}</p></div>
         </div>
       </div>
 
@@ -531,8 +534,8 @@ async function exportPdf() {
         <div class="px-5 py-4 bg-amber-50 border-b border-amber-100 flex items-center gap-3">
           <ExclamationTriangleIcon class="w-5 h-5 text-amber-600" />
           <div>
-            <h3 class="font-semibold text-amber-900">Alertes Stock Bas</h3>
-            <p class="text-xs text-amber-700">{{ inventory.lowStockAlerts.length }} produits nécessitent un réapprovisionnement</p>
+            <h3 class="font-semibold text-amber-900">{{ t('dashboard.lowStockAlerts') }}</h3>
+            <p class="text-xs text-amber-700">{{ t('reports.restockNeeded', { n: inventory.lowStockAlerts.length }) }}</p>
           </div>
         </div>
         <div class="divide-y divide-gray-100">
@@ -546,7 +549,7 @@ async function exportPdf() {
             </div>
             <div class="text-end">
               <p class="text-sm text-gray-600">Min: {{ a.minStock }}</p>
-              <p class="text-xs text-amber-600">Manque {{ a.minStock - a.currentStock }} unités</p>
+              <p class="text-xs text-amber-600">{{ t('reports.missingUnits', { n: a.minStock - a.currentStock }) }}</p>
             </div>
           </div>
         </div>
@@ -558,7 +561,7 @@ async function exportPdf() {
             <div class="w-10 h-10 rounded-lg bg-primary-50 flex items-center justify-center"><DevicePhoneMobileIcon class="w-5 h-5 text-primary-600" /></div>
             <div>
               <h3 class="font-semibold text-gray-900">{{ t('reports.stockByBrand') }}</h3>
-              <p class="text-xs text-gray-500">{{ modelRows.length }} {{ t('reports.models') }} · {{ inventory.byBrand.length }} marques</p>
+              <p class="text-xs text-gray-500">{{ modelRows.length }} {{ t('reports.models') }} · {{ t('reports.brandsCount', { n: inventory.byBrand.length }) }}</p>
             </div>
           </div>
           <div class="text-end">
@@ -569,15 +572,15 @@ async function exportPdf() {
         <div class="p-4 border-b border-gray-100 space-y-3">
           <div class="relative">
             <MagnifyingGlassIcon class="absolute start-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-            <input v-model="mSearch" type="text" class="input ps-10" placeholder="Rechercher un modèle..." />
+            <input v-model="mSearch" type="text" class="input ps-10" :placeholder="t('reports.searchModel')" />
           </div>
           <div class="grid grid-cols-2 md:grid-cols-5 gap-2">
-            <select v-model="mBrand" class="input text-sm"><option :value="null">Toutes marques</option><option v-for="b in brands" :key="b" :value="b">{{ b }}</option></select>
-            <select v-model="mStorage" class="input text-sm"><option :value="null">Tout stockage</option><option v-for="s in storages" :key="s" :value="s">{{ s }}</option></select>
-            <select v-model="mCondition" class="input text-sm"><option :value="null">Tout état</option><option v-for="c in conditions" :key="c" :value="c">{{ CONDITIONS[c] || c }}</option></select>
-            <select v-model="mType" class="input text-sm"><option :value="null">Tous types</option><option v-for="d in deviceTypes" :key="d" :value="d">{{ DEVICE_TYPES[d] || d }}</option></select>
+            <select v-model="mBrand" class="input text-sm"><option :value="null">{{ t('soldUnits.allBrands') }}</option><option v-for="b in brands" :key="b" :value="b">{{ b }}</option></select>
+            <select v-model="mStorage" class="input text-sm"><option :value="null">{{ t('soldUnits.allStorage') }}</option><option v-for="s in storages" :key="s" :value="s">{{ s }}</option></select>
+            <select v-model="mCondition" class="input text-sm"><option :value="null">{{ t('soldUnits.allConditions') }}</option><option v-for="c in conditions" :key="c" :value="c">{{ conditionLabel(c) }}</option></select>
+            <select v-model="mType" class="input text-sm"><option :value="null">{{ t('invoices.allTypes') }}</option><option v-for="d in deviceTypes" :key="d" :value="d">{{ deviceTypeLabel(d) }}</option></select>
             <select v-model="mStock" class="input text-sm">
-              <option value="all">{{ t('reports.allStock') }}</option><option value="inStock">En stock (&gt;2)</option><option value="lowStock">Stock bas (1-2)</option><option value="outOfStock">Rupture (0)</option>
+              <option value="all">{{ t('reports.allStock') }}</option><option value="inStock">{{ t('reports.stockAbove2') }}</option><option value="lowStock">{{ t('reports.stockLow12') }}</option><option value="outOfStock">{{ t('reports.stockOut0') }}</option>
             </select>
           </div>
         </div>
@@ -585,8 +588,8 @@ async function exportPdf() {
           <table class="w-full text-sm">
             <thead class="bg-gray-50">
               <tr>
-                <th class="px-4 py-3 text-start font-medium text-gray-500 cursor-pointer" @click="sortModels('model')">Modèle</th>
-                <th class="px-4 py-3 text-start font-medium text-gray-500">Variantes</th>
+                <th class="px-4 py-3 text-start font-medium text-gray-500 cursor-pointer" @click="sortModels('model')">{{ t('products.model') }}</th>
+                <th class="px-4 py-3 text-start font-medium text-gray-500">{{ t('reports.variants') }}</th>
                 <th class="px-4 py-3 text-end font-medium text-gray-500 cursor-pointer" @click="sortModels('inStock')">{{ t('reports.inStock') }}</th>
                 <th class="px-4 py-3 text-end font-medium text-gray-500 cursor-pointer" @click="sortModels('sold')">{{ t('reports.soldUnits') }}</th>
                 <th class="px-4 py-3 text-end font-medium text-gray-500 cursor-pointer" @click="sortModels('value')">{{ t('reports.stockValue') }}</th>
@@ -613,7 +616,7 @@ async function exportPdf() {
           </table>
         </div>
         <div v-if="modelPages > 1" class="flex items-center justify-between px-4 py-3 border-t border-gray-100">
-          <p class="text-sm text-gray-500">Page {{ mPage }} sur {{ modelPages }}</p>
+          <p class="text-sm text-gray-500">{{ t('reports.pageOf', { page: mPage, total: modelPages }) }}</p>
           <div class="flex gap-2">
             <button class="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-50" :disabled="mPage === 1" @click="mPage--"><ChevronLeftIcon class="w-5 h-5 rtl:rotate-180" /></button>
             <button class="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-50" :disabled="mPage === modelPages" @click="mPage++"><ChevronRightIcon class="w-5 h-5 rtl:rotate-180" /></button>
@@ -627,19 +630,19 @@ async function exportPdf() {
             <div class="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center"><CubeIcon class="w-5 h-5 text-blue-600" /></div>
             <div>
               <h3 class="font-semibold text-gray-900">{{ t('reports.stockByCategory') }}</h3>
-              <p class="text-xs text-gray-500">{{ productRows.length }} produits · {{ categories.length }} catégories</p>
+              <p class="text-xs text-gray-500">{{ t('reports.productsCategories', { products: productRows.length, categories: categories.length }) }}</p>
             </div>
           </div>
-          <div class="text-end"><p class="text-2xl font-bold">{{ inventory.summary.productsInStock }}</p><p class="text-xs text-gray-500">unités en stock</p></div>
+          <div class="text-end"><p class="text-2xl font-bold">{{ inventory.summary.productsInStock }}</p><p class="text-xs text-gray-500">{{ t('reports.unitsInStockShort') }}</p></div>
         </div>
         <div class="p-4 border-b border-gray-100 grid grid-cols-1 md:grid-cols-3 gap-2">
           <div class="relative">
             <MagnifyingGlassIcon class="absolute start-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-            <input v-model="pSearch" type="text" class="input ps-10" placeholder="Rechercher un produit..." />
+            <input v-model="pSearch" type="text" class="input ps-10" :placeholder="t('products.search')" />
           </div>
-          <select v-model="pCategory" class="input text-sm"><option :value="null">Toutes catégories</option><option v-for="c in categories" :key="c.id" :value="c.id">{{ c.name }}</option></select>
+          <select v-model="pCategory" class="input text-sm"><option :value="null">{{ t('products.allCategories') }}</option><option v-for="c in categories" :key="c.id" :value="c.id">{{ c.name }}</option></select>
           <select v-model="pStock" class="input text-sm">
-            <option value="all">{{ t('reports.allStock') }}</option><option value="inStock">Stock OK</option><option value="lowStock">Stock bas</option><option value="outOfStock">Rupture</option>
+            <option value="all">{{ t('reports.allStock') }}</option><option value="inStock">{{ t('reports.stockOk') }}</option><option value="lowStock">{{ t('reports.lowStock') }}</option><option value="outOfStock">{{ t('reports.outOfStock') }}</option>
           </select>
         </div>
         <div class="overflow-x-auto">
@@ -647,7 +650,7 @@ async function exportPdf() {
             <thead class="bg-gray-50">
               <tr>
                 <th class="px-4 py-3 text-start font-medium text-gray-500">{{ t('reports.product') }}</th>
-                <th class="px-4 py-3 text-start font-medium text-gray-500">Catégorie</th>
+                <th class="px-4 py-3 text-start font-medium text-gray-500">{{ t('products.category') }}</th>
                 <th class="px-4 py-3 text-end font-medium text-gray-500">{{ t('reports.stock') }}</th>
                 <th class="px-4 py-3 text-end font-medium text-gray-500">{{ t('reports.minStock') }}</th>
                 <th class="px-4 py-3 text-end font-medium text-gray-500">{{ t('reports.price') }}</th>
@@ -678,7 +681,7 @@ async function exportPdf() {
           </table>
         </div>
         <div v-if="productPages > 1" class="flex items-center justify-between px-4 py-3 border-t border-gray-100">
-          <p class="text-sm text-gray-500">Page {{ pPage }} sur {{ productPages }}</p>
+          <p class="text-sm text-gray-500">{{ t('reports.pageOf', { page: pPage, total: productPages }) }}</p>
           <div class="flex gap-2">
             <button class="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-50" :disabled="pPage === 1" @click="pPage--"><ChevronLeftIcon class="w-5 h-5 rtl:rotate-180" /></button>
             <button class="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-50" :disabled="pPage === productPages" @click="pPage++"><ChevronRightIcon class="w-5 h-5 rtl:rotate-180" /></button>
@@ -693,8 +696,8 @@ async function exportPdf() {
         <div class="card p-4"><p class="text-sm text-gray-500 mb-1">{{ t('reports.totalCustomers') }}</p><p class="text-2xl font-bold">{{ customers.summary.totalCustomers }}</p></div>
         <div class="card p-4"><p class="text-sm text-gray-500 mb-1">{{ t('reports.newCustomers') }}</p><p class="text-2xl font-bold">{{ customers.summary.newCustomers }}</p></div>
         <div class="card p-4"><p class="text-sm text-gray-500 mb-1">{{ t('reports.totalDebt') }}</p><p class="text-2xl font-bold text-danger-600">{{ formatCurrency(customers.summary.totalDebt) }}</p></div>
-        <div class="card p-4"><p class="text-sm text-gray-500 mb-1">À rembourser</p><p class="text-2xl font-bold text-amber-600">{{ formatCurrency(refundSummary?.totalPending || 0) }}</p></div>
-        <div class="card p-4 col-span-2 lg:col-span-1"><p class="text-sm text-gray-500 mb-1">Total remboursé</p><p class="text-2xl font-bold text-emerald-600">{{ formatCurrency(refundSummary?.totalRefunded || 0) }}</p></div>
+        <div class="card p-4"><p class="text-sm text-gray-500 mb-1">{{ t('customers.filters.refund') }}</p><p class="text-2xl font-bold text-amber-600">{{ formatCurrency(refundSummary?.totalPending || 0) }}</p></div>
+        <div class="card p-4 col-span-2 lg:col-span-1"><p class="text-sm text-gray-500 mb-1">{{ t('reports.totalRefunded') }}</p><p class="text-2xl font-bold text-emerald-600">{{ formatCurrency(refundSummary?.totalRefunded || 0) }}</p></div>
       </div>
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div class="card overflow-hidden">
@@ -705,8 +708,8 @@ async function exportPdf() {
                 <tr>
                   <th class="px-4 py-3 text-start font-medium text-gray-500">{{ t('reports.customer') }}</th>
                   <th class="px-4 py-3 text-end font-medium text-gray-500">{{ t('reports.purchases') }}</th>
-                  <th v-if="isPhoneSeller" class="px-4 py-3 text-end font-medium text-gray-500">Reprises</th>
-                  <th class="px-4 py-3 text-end font-medium text-gray-500">Retours</th>
+                  <th v-if="isPhoneSeller" class="px-4 py-3 text-end font-medium text-gray-500">{{ t('reports.tradeIns') }}</th>
+                  <th class="px-4 py-3 text-end font-medium text-gray-500">{{ t('reports.returns') }}</th>
                   <th class="px-4 py-3 text-end font-medium text-gray-500">{{ t('reports.totalSpent') }}</th>
                 </tr>
               </thead>
@@ -739,14 +742,14 @@ async function exportPdf() {
       <div v-if="isPhoneSeller" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div class="card overflow-hidden">
           <div class="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
-            <ClockIcon class="w-5 h-5 text-purple-500" /><h3 class="font-semibold text-gray-900">Réservations en cours</h3>
+            <ClockIcon class="w-5 h-5 text-purple-500" /><h3 class="font-semibold text-gray-900">{{ t('reports.reservationsInProgress') }}</h3>
             <span v-if="reserved?.length" class="px-2 py-0.5 text-xs rounded-full bg-purple-100 text-purple-700">{{ reserved.length }}</span>
           </div>
           <table v-if="reserved?.length" class="w-full text-sm">
             <thead class="bg-gray-50">
               <tr>
-                <th class="px-4 py-3 text-start font-medium text-gray-500">Client</th><th class="px-4 py-3 text-start font-medium text-gray-500">Article</th>
-                <th class="px-4 py-3 text-end font-medium text-gray-500">Acompte</th><th class="px-4 py-3 text-end font-medium text-gray-500">Prix</th>
+                <th class="px-4 py-3 text-start font-medium text-gray-500">{{ t('reports.customer') }}</th><th class="px-4 py-3 text-start font-medium text-gray-500">{{ t('supplierOrders.table.product') }}</th>
+                <th class="px-4 py-3 text-end font-medium text-gray-500">{{ t('reservation.deposit') }}</th><th class="px-4 py-3 text-end font-medium text-gray-500">{{ t('reports.price') }}</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
@@ -758,16 +761,16 @@ async function exportPdf() {
               </tr>
             </tbody>
           </table>
-          <div v-else class="p-8 text-center text-gray-400">Aucune réservation en cours</div>
+          <div v-else class="p-8 text-center text-gray-400">{{ t('customers.emptyFilters.reservation') }}</div>
         </div>
         <div class="card overflow-hidden">
           <div class="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
-            <ShoppingBagIcon class="w-5 h-5 text-amber-500" /><h3 class="font-semibold text-gray-900">À rembourser</h3>
+            <ShoppingBagIcon class="w-5 h-5 text-amber-500" /><h3 class="font-semibold text-gray-900">{{ t('customers.filters.refund') }}</h3>
             <span v-if="pendingRefunds?.length" class="px-2 py-0.5 text-xs rounded-full bg-amber-100 text-amber-700">{{ pendingRefunds.length }}</span>
           </div>
           <table v-if="pendingRefunds?.length" class="w-full text-sm">
             <thead class="bg-gray-50">
-              <tr><th class="px-4 py-3 text-start font-medium text-gray-500">Client</th><th class="px-4 py-3 text-start font-medium text-gray-500">Article</th><th class="px-4 py-3 text-end font-medium text-gray-500">Montant</th></tr>
+              <tr><th class="px-4 py-3 text-start font-medium text-gray-500">{{ t('reports.customer') }}</th><th class="px-4 py-3 text-start font-medium text-gray-500">{{ t('supplierOrders.table.product') }}</th><th class="px-4 py-3 text-end font-medium text-gray-500">{{ t('reports.amount') }}</th></tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
               <tr v-for="r in pendingRefunds" :key="r.id">
@@ -777,18 +780,18 @@ async function exportPdf() {
               </tr>
             </tbody>
           </table>
-          <div v-else class="p-8 text-center text-gray-400">Aucun remboursement en attente</div>
+          <div v-else class="p-8 text-center text-gray-400">{{ t('debts.noRefunds') }}</div>
         </div>
         <div class="card overflow-hidden">
           <div class="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
-            <CheckCircleIcon class="w-5 h-5 text-emerald-500" /><h3 class="font-semibold text-gray-900">Remboursements effectués</h3>
+            <CheckCircleIcon class="w-5 h-5 text-emerald-500" /><h3 class="font-semibold text-gray-900">{{ t('reports.refundsDone') }}</h3>
             <span v-if="doneRefunds?.length" class="px-2 py-0.5 text-xs rounded-full bg-emerald-100 text-emerald-700">{{ doneRefunds.length }}</span>
           </div>
           <table v-if="doneRefunds?.length" class="w-full text-sm">
             <thead class="bg-gray-50">
               <tr>
-                <th class="px-4 py-3 text-start font-medium text-gray-500">Client</th><th class="px-4 py-3 text-start font-medium text-gray-500">Article</th>
-                <th class="px-4 py-3 text-end font-medium text-gray-500">Remboursé</th><th class="px-4 py-3 text-center font-medium text-gray-500">Statut</th>
+                <th class="px-4 py-3 text-start font-medium text-gray-500">{{ t('reports.customer') }}</th><th class="px-4 py-3 text-start font-medium text-gray-500">{{ t('supplierOrders.table.product') }}</th>
+                <th class="px-4 py-3 text-end font-medium text-gray-500">{{ t('customers.sourceRefund') }}</th><th class="px-4 py-3 text-center font-medium text-gray-500">{{ t('common.status') }}</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
@@ -799,13 +802,13 @@ async function exportPdf() {
                   {{ formatCurrency(Number(r.refundedAmount)) }}<span v-if="Number(r.refundedAmount) < Number(r.depositAmount)" class="text-xs text-gray-400"> / {{ formatCurrency(Number(r.depositAmount)) }}</span>
                 </td>
                 <td class="px-4 py-3 text-center">
-                  <span v-if="r.status === 'completed'" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-emerald-100 text-emerald-700"><CheckCircleIcon class="w-3.5 h-3.5" /> Complet</span>
-                  <span v-else class="px-2 py-0.5 rounded-full text-xs bg-amber-100 text-amber-700">Partiel</span>
+                  <span v-if="r.status === 'completed'" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-emerald-100 text-emerald-700"><CheckCircleIcon class="w-3.5 h-3.5" /> {{ t('reports.refundComplete') }}</span>
+                  <span v-else class="px-2 py-0.5 rounded-full text-xs bg-amber-100 text-amber-700">{{ t('reports.refundPartial') }}</span>
                 </td>
               </tr>
             </tbody>
           </table>
-          <div v-else class="p-8 text-center text-gray-400">Aucun remboursement effectué</div>
+          <div v-else class="p-8 text-center text-gray-400">{{ t('reports.noRefundsDone') }}</div>
         </div>
       </div>
     </template>
@@ -841,7 +844,7 @@ async function exportPdf() {
         <h3 class="font-semibold text-gray-900 mb-4">{{ t('reports.ordersByStatus') }}</h3>
         <div class="space-y-3">
           <div v-for="s in suppliers.ordersByStatus" :key="s.status" class="flex items-center gap-4">
-            <div class="w-28 text-sm text-gray-600">{{ ORDER_STATUS[s.status] || s.status }}</div>
+            <div class="w-28 text-sm text-gray-600">{{ te(`supplierOrders.status.${s.status}`) ? t(`supplierOrders.status.${s.status}`) : s.status }}</div>
             <div class="flex-1 h-3 bg-gray-100 rounded-full overflow-hidden">
               <div class="h-full bg-orange-500 rounded-full" :style="{ width: `${(s.count / (suppliers.summary.totalOrders || 1)) * 100}%` }" />
             </div>

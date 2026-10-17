@@ -1,11 +1,12 @@
 <script setup>
-import { ref } from 'vue';
+import { ref, watchEffect } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { EyeIcon, EyeSlashIcon } from '@heroicons/vue/24/outline';
 import { useAuthStore } from '@/stores/auth';
 import { Roles } from '@/config/constants';
 import BrandLogo from '@/components/brand/BrandLogo.vue';
+import LanguageSwitcher from '@/components/layout/LanguageSwitcher.vue';
 
 const { t } = useI18n();
 const router = useRouter();
@@ -18,7 +19,7 @@ const showPassword = ref(false);
 const error = ref('');
 const submitting = ref(false);
 
-document.title = `${t('auth.login')} — CaissePro`;
+watchEffect(() => (document.title = `${t('auth.login')} — CaissePro`));
 
 async function submit() {
   if (!email.value || !password.value) {
@@ -45,7 +46,8 @@ const inputClass =
 </script>
 
 <template>
-  <div class="flex min-h-screen flex-col justify-center bg-gray-50 px-4 py-12 sm:px-6 lg:px-8">
+  <div class="relative flex min-h-screen flex-col justify-center bg-gray-50 px-4 py-12 sm:px-6 lg:px-8">
+    <div class="absolute end-4 top-4"><LanguageSwitcher /></div>
     <div class="sm:mx-auto sm:w-full sm:max-w-sm">
       <RouterLink to="/" class="mb-10 flex justify-center">
         <BrandLogo size="lg" />

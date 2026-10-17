@@ -1,7 +1,9 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
 import { ArrowDownTrayIcon, CheckCircleIcon, PrinterIcon, XMarkIcon } from '@heroicons/vue/24/outline';
+import { useI18n } from 'vue-i18n';
 import { formatCurrency } from '@/utils/format';
+import { dt } from '@/i18n';
 import { downloadReceiptPdf, paymentLabel, printReceipt, RECEIPT_TEXT, receiptDate } from '@/utils/receipt';
 
 const props = defineProps({
@@ -30,6 +32,7 @@ const props = defineProps({
   autoPrint: Boolean,
 });
 const emit = defineEmits(['close']);
+const { t } = useI18n();
 
 const printing = ref(false);
 const downloading = ref(false);
@@ -38,8 +41,8 @@ const when = () => props.date || new Date().toISOString();
 const receipt = computed(() => ({
   transactionNumber: props.transactionNumber,
   date: when(),
-  cashierName: props.cashierName || 'Caissier',
-  storeName: props.storeName || 'POS CAISSE',
+  cashierName: props.cashierName || dt('doc.receipt.cashierFallback'),
+  storeName: props.storeName || dt('doc.receipt.storeFallback'),
   storeAddress: props.storeAddress,
   storePhone: props.storePhone,
   items: props.items.map((i) => ({ name: i.name, quantity: i.quantity, unitPrice: i.retailPrice, total: i.total })),
@@ -96,7 +99,7 @@ watch(
           <div class="flex items-center gap-3">
             <CheckCircleIcon v-if="!title" class="w-8 h-8 text-success-500" />
             <div>
-              <h2 class="text-lg font-semibold text-gray-900">{{ title || 'Paiement réussi' }}</h2>
+              <h2 class="text-lg font-semibold text-gray-900">{{ title || t('doc.receipt.paymentDone') }}</h2>
               <p class="text-sm text-gray-500">{{ transactionNumber }}</p>
             </div>
           </div>
@@ -106,15 +109,15 @@ watch(
         <div class="p-6 max-h-96 overflow-y-auto">
           <div class="bg-gray-50 p-4 rounded-lg font-mono text-sm">
             <div class="text-center mb-4">
-              <p class="font-bold text-lg">{{ storeName || 'POS CAISSE' }}</p>
+              <p class="font-bold text-lg">{{ storeName || dt('doc.receipt.storeFallback') }}</p>
               <p v-if="storeAddress" class="text-xs text-gray-600">{{ storeAddress }}</p>
-              <p v-if="storePhone" class="text-xs text-gray-600">Tel: {{ storePhone }}</p>
+              <p v-if="storePhone" class="text-xs text-gray-600">{{ dt('doc.receipt.phone', { phone: storePhone }) }}</p>
               <p class="text-xs text-gray-500 mt-1">{{ receiptDate(when()) }}</p>
             </div>
             <div class="border-t border-dashed border-gray-300 my-3" />
-            <p class="text-xs text-gray-600 mb-2">{{ docLabel || RECEIPT_TEXT.docLabel }} N°: {{ transactionNumber }}</p>
-            <p v-if="cashierName" class="text-xs text-gray-600 mb-2">Caissier: {{ cashierName }}</p>
-            <p v-if="customerName" class="text-xs text-gray-600 mb-2">Client: {{ customerName }}</p>
+            <p class="text-xs text-gray-600 mb-2">{{ dt('doc.receipt.number', { label: docLabel || RECEIPT_TEXT.docLabel, number: transactionNumber }) }}</p>
+            <p v-if="cashierName" class="text-xs text-gray-600 mb-2">{{ dt('doc.receipt.cashier', { name: cashierName }) }}</p>
+            <p v-if="customerName" class="text-xs text-gray-600 mb-2">{{ dt('doc.receipt.customer', { name: customerName }) }}</p>
             <p v-for="(line, i) in extraLines" :key="i" class="text-xs text-gray-600 mb-2">{{ line }}</p>
             <div class="border-t border-dashed border-gray-300 my-3" />
             <template v-if="items.length">
@@ -130,16 +133,16 @@ watch(
               <div class="border-t border-dashed border-gray-300 my-3" />
             </template>
             <div v-if="!hideTotals" class="space-y-1 text-xs">
-              <div class="flex justify-between"><span>Sous-total</span><span>{{ formatCurrency(subtotal) }}</span></div>
-              <div v-if="applyTva" class="flex justify-between text-gray-600"><span>TVA (20%)</span><span>{{ formatCurrency(tax) }}</span></div>
-              <div class="flex justify-between font-bold text-base mt-2"><span>TOTAL</span><span>{{ formatCurrency(total) }}</span></div>
+              <div class="flex justify-between"><span>{{ dt('doc.receipt.subtotal') }}</span><span>{{ formatCurrency(subtotal) }}</span></div>
+              <div v-if="applyTva" class="flex justify-between text-gray-600"><span>{{ dt('doc.receipt.vat', { rate: 20 }) }}</span><span>{{ formatCurrency(tax) }}</span></div>
+              <div class="flex justify-between font-bold text-base mt-2"><span>{{ dt('doc.receipt.grandTotal') }}</span><span>{{ formatCurrency(total) }}</span></div>
             </div>
             <template v-if="!hidePayment">
               <div class="border-t border-dashed border-gray-300 my-3" />
               <div class="space-y-1 text-xs">
-                <div class="flex justify-between"><span>Mode: {{ paymentLabel(paymentMethod) }}</span></div>
-                <div class="flex justify-between"><span>Payé</span><span>{{ formatCurrency(amountPaid) }}</span></div>
-                <div v-if="change > 0" class="flex justify-between font-bold"><span>Monnaie</span><span>{{ formatCurrency(change) }}</span></div>
+                <div class="flex justify-between"><span>{{ dt('doc.receipt.method', { method: paymentLabel(paymentMethod) }) }}</span></div>
+                <div class="flex justify-between"><span>{{ dt('doc.receipt.paid') }}</span><span>{{ formatCurrency(amountPaid) }}</span></div>
+                <div v-if="change > 0" class="flex justify-between font-bold"><span>{{ dt('doc.receipt.changeShort') }}</span><span>{{ formatCurrency(change) }}</span></div>
               </div>
             </template>
             <div class="border-t border-dashed border-gray-300 my-3" />
@@ -151,12 +154,12 @@ watch(
         </div>
 
         <div class="flex gap-2 px-6 py-4 border-t border-gray-100 bg-gray-50 rounded-b-2xl">
-          <button class="flex-1 btn-secondary" @click="emit('close')">Fermer</button>
-          <button class="btn-secondary inline-flex items-center justify-center gap-2 px-3" :disabled="downloading" title="Télécharger PDF" @click="download">
+          <button class="flex-1 btn-secondary" @click="emit('close')">{{ t('common.close') }}</button>
+          <button class="btn-secondary inline-flex items-center justify-center gap-2 px-3" :disabled="downloading" :title="t('doc.receipt.download')" @click="download">
             <ArrowDownTrayIcon class="w-5 h-5" />
           </button>
           <button class="flex-1 btn-primary inline-flex items-center justify-center gap-2" :disabled="printing" @click="print">
-            <PrinterIcon class="w-5 h-5" /> {{ printing ? 'Impression...' : 'Imprimer' }}
+            <PrinterIcon class="w-5 h-5" /> {{ printing ? t('doc.receipt.printing') : t('common.print') }}
           </button>
         </div>
       </div>

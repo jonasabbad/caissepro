@@ -14,7 +14,7 @@ watch(
   effectiveLocale,
   (l) => {
     document.documentElement.dir = l === 'ar' ? 'rtl' : 'ltr';
-    document.documentElement.lang = l === 'ar' ? 'ar' : 'fr';
+    document.documentElement.lang = l;
   },
   { immediate: true },
 );

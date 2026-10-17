@@ -32,6 +32,7 @@ import { employeesApi } from '@/api/employees';
 import { customersApi } from '@/api/customers';
 import { productsApi } from '@/api/products';
 import ProductImage from '@/components/products/ProductImage.vue';
+import { intlLocale } from '@/i18n';
 import { soldUnitsApi, formatImei } from '@/api/soldUnits';
 import { transactionsApi } from '@/api/transactions';
 import { checkoutApi } from '@/api/checkout';
@@ -311,11 +312,11 @@ function closeReservedWarning() {
 }
 async function confirmCompleteReservation() {
   if (!completeUnit.value?.reservationTransactionId) {
-    completeError.value = 'Transaction de réservation introuvable';
+    completeError.value = t('pos.reservationNotFound');
     return;
   }
   if (completeAmount.value <= 0) {
-    completeError.value = 'Montant invalide';
+    completeError.value = t('pos.invalidAmount');
     return;
   }
   completing.value = true;
@@ -325,9 +326,9 @@ async function confirmCompleteReservation() {
     showCompleteReservation.value = false;
     completeUnit.value = null;
     invalidate('pos-inventory-units', 'transactions');
-    notify('Réservation complétée avec succès', 'success');
+    notify(t('pos.reservationCompleted'), 'success');
   } catch (e) {
-    completeError.value = e.response?.data?.message || 'Erreur lors du paiement';
+    completeError.value = e.response?.data?.message || t('pos.paymentError');
   } finally {
     completing.value = false;
   }
@@ -409,7 +410,7 @@ function packChooseUnit() {
 }
 function packChooseBox() {
   const p = packProduct.value;
-  if (p && !cart.addPackItem(productSnapshot(p))) scanError.value = `Stock insuffisant pour une boîte complète de ${p.name}`;
+  if (p && !cart.addPackItem(productSnapshot(p))) scanError.value = t('pos.packStockShort', { name: p.name });
   closePack();
 }
 function onUnitPicked(u) {
@@ -463,7 +464,7 @@ async function lookup() {
     }
     const found = (await productsApi.getAll({ query: q, limit: 10 })).products;
     if (!found?.length) {
-      scanError.value = `Aucun produit trouvé pour: ${q}`;
+      scanError.value = t('pos.noProductFor', { q });
       return;
     }
     const p = found.find((x) => x.sku === q || x.barcode === q) || found[0];
@@ -477,7 +478,7 @@ async function lookup() {
       showDetails.value = true;
     } else selectProduct(p);
   } catch {
-    scanError.value = 'Erreur lors de la recherche du produit';
+    scanError.value = t('pos.lookupError');
   } finally {
     searching.value = false;
   }
@@ -688,7 +689,7 @@ async function completePayment() {
     receipt.value = {
       items: cart.items.map((i) => ({
         id: i.productId,
-        name: i.saleMode === 'pack' && i.packSize ? `${i.product.name} (boîte ×${i.packSize})` : i.product.name,
+        name: i.saleMode === 'pack' && i.packSize ? t('pos.packLineName', { name: i.product.name, size: i.packSize }) : i.product.name,
         retailPrice: i.product.retailPrice,
         quantity: i.quantity,
         total: i.total,
@@ -707,26 +708,26 @@ async function completePayment() {
     invalidate('transactions', 'pos-products', 'pos-inventory-units');
   } catch (e) {
     const msg = e.response?.data?.message || '';
-    if (typeof msg === 'string' && msg.startsWith('Sélectionnez le vendeur')) {
+    if (String(e.response?.data?.originalMessage ?? msg).startsWith('Sélectionnez le vendeur')) {
       refetchSellable();
       showPayment.value = false;
       paymentError.value = t('employees.selectSellerRequired');
       sellerError.value = t('employees.selectSellerRequired');
-    } else paymentError.value = msg || 'Erreur lors du paiement';
+    } else paymentError.value = msg || t('pos.paymentError');
   } finally {
     processing.value = false;
   }
 }
 
 const formatSoldAt = (d) =>
-  new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(d));
+  new Intl.DateTimeFormat(intlLocale(), { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(d));
 
-const PAY_METHODS = [
-  { key: 'cash', label: 'Espèces', icon: BanknotesIcon },
-  { key: 'card', label: 'Carte', icon: CreditCardIcon },
-  { key: 'bank_transfer', label: 'Virement', icon: BuildingLibraryIcon },
-];
-const COMPLETE_METHODS = [...PAY_METHODS, { key: 'check', label: 'Chèque', icon: DocumentTextIcon }];
+const PAY_METHODS = computed(() => [
+  { key: 'cash', label: t('payment.cash'), icon: BanknotesIcon },
+  { key: 'card', label: t('repairs.payment.methods.card'), icon: CreditCardIcon },
+  { key: 'bank_transfer', label: t('payment.transfer'), icon: BuildingLibraryIcon },
+]);
+const COMPLETE_METHODS = computed(() => [...PAY_METHODS.value, { key: 'check', label: t('payment.check'), icon: DocumentTextIcon }]);
 
 // ── Keyboard: F2 pay, Esc closes the top-most dialog, Ctrl/Cmd+K or "/" focuses search ──
 function onKeydown(e) {
@@ -1134,7 +1135,7 @@ const customerLocked = computed(() => cart.isReturnMode && !cart.isEmpty);
             </div>
 
             <div>
-              <label class="label">Type de vente</label>
+              <label class="label">{{ t('pos.saleType') }}</label>
               <div :class="['grid grid-cols-2 gap-2', isPhoneSeller ? 'sm:grid-cols-4' : 'sm:grid-cols-3']">
                 <button
                   :class="[
@@ -1143,11 +1144,11 @@ const customerLocked = computed(() => cart.isReturnMode && !cart.isEmpty);
                   ]"
                   @click="saleType = 'sale'"
                 >
-                  <BanknotesIcon class="w-5 h-5 mx-auto mb-1" /> Vente directe
+                  <BanknotesIcon class="w-5 h-5 mx-auto mb-1" /> {{ t('pos.directSale') }}
                 </button>
                 <button
                   :disabled="!customer"
-                  :title="customer ? '' : 'Sélectionnez un client d\'abord'"
+                  :title="customer ? '' : t('pos.selectCustomerFirst')"
                   :class="[
                     'p-3 rounded-lg border text-center transition-colors text-sm',
                     saleType === 'credit'
@@ -1158,7 +1159,7 @@ const customerLocked = computed(() => cart.isReturnMode && !cart.isEmpty);
                   ]"
                   @click="customer && (saleType = 'credit')"
                 >
-                  <CreditCardIcon class="w-5 h-5 mx-auto mb-1" /> Vente à crédit
+                  <CreditCardIcon class="w-5 h-5 mx-auto mb-1" /> {{ t('pos.creditSale') }}
                 </button>
                 <button
                   :disabled="!customer || !cartOnlyDevices"
@@ -1178,7 +1179,7 @@ const customerLocked = computed(() => cart.isReturnMode && !cart.isEmpty);
                 <button
                   v-if="isPhoneSeller"
                   :disabled="!customer"
-                  :title="customer ? '' : 'Sélectionnez un client d\'abord'"
+                  :title="customer ? '' : t('pos.selectCustomerFirst')"
                   :class="[
                     'p-3 rounded-lg border text-center transition-colors text-sm',
                     cart.hasTradeIn
@@ -1192,7 +1193,7 @@ const customerLocked = computed(() => cart.isReturnMode && !cart.isEmpty);
                   <ArrowsRightLeftIcon class="w-5 h-5 mx-auto mb-1" /> {{ t('tradeIn.button') }}
                 </button>
               </div>
-              <p v-if="!customer" class="text-xs text-gray-500 mt-2">Sélectionnez un client pour activer les options crédit, réservation et reprise</p>
+              <p v-if="!customer" class="text-xs text-gray-500 mt-2">{{ t('pos.customerOptionsHint') }}</p>
               <p v-else-if="!cartOnlyDevices && isPhoneSeller" class="text-xs text-gray-500 mt-2">{{ t('reservation.soldUnitsOnly') }}</p>
             </div>
 
@@ -1216,16 +1217,16 @@ const customerLocked = computed(() => cart.isReturnMode && !cart.isEmpty);
             <div>
               <label class="label">{{ saleType === 'reservation' ? t('reservation.deposit') : t('payment.amountPaid') }}</label>
               <input :value="amountPaid" type="number" class="input text-2xl text-center font-bold" step="0.01" min="0" @input="onAmountInput" />
-              <p v-if="saleType === 'credit'" class="text-xs text-gray-500 mt-1">Acompte versé (le reste sera en crédit client)</p>
+              <p v-if="saleType === 'credit'" class="text-xs text-gray-500 mt-1">{{ t('pos.depositCreditHint') }}</p>
               <p v-else-if="saleType === 'reservation'" class="text-xs text-gray-500 mt-1">{{ t('reservation.noDeposit') }} (0 DH minimum)</p>
             </div>
 
             <div v-if="saleType === 'sale' && !cart.hasTradeIn && amountPaid < cart.total && amountPaid >= 0" class="bg-amber-50 rounded-lg p-4 text-center">
-              <p class="text-sm text-amber-700">Remise appliquée</p>
+              <p class="text-sm text-amber-700">{{ t('pos.discountApplied') }}</p>
               <p class="text-2xl font-bold text-amber-600">-{{ formatCurrency(cart.total - amountPaid) }}</p>
             </div>
             <div v-else-if="isOverpaid" class="rounded-lg border border-stone-200 bg-white p-3 space-y-3">
-              <p class="text-xs font-medium text-stone-500 text-center">Excédent de {{ formatCurrency(amountPaid - amountDue) }} — comment le traiter ?</p>
+              <p class="text-xs font-medium text-stone-500 text-center">{{ t('pos.overpayQuestion', { amount: formatCurrency(amountPaid - amountDue) }) }}</p>
               <div class="grid grid-cols-2 gap-2">
                 <button
                   type="button"
@@ -1235,9 +1236,9 @@ const customerLocked = computed(() => cart.isReturnMode && !cart.isEmpty);
                   ]"
                   @click="overpayMode = 'change'"
                 >
-                  <p :class="['text-xs font-medium', overpayMode === 'change' ? 'text-stone-300' : 'text-stone-500']">Monnaie à rendre</p>
+                  <p :class="['text-xs font-medium', overpayMode === 'change' ? 'text-stone-300' : 'text-stone-500']">{{ t('payment.change') }}</p>
                   <p class="text-lg font-bold">{{ formatCurrency(amountPaid - amountDue) }}</p>
-                  <p :class="['text-[11px] mt-1', overpayMode === 'change' ? 'text-stone-400' : 'text-stone-500']">Vente reste à {{ formatCurrency(amountDue) }}</p>
+                  <p :class="['text-[11px] mt-1', overpayMode === 'change' ? 'text-stone-400' : 'text-stone-500']">{{ t('pos.saleStaysAt', { amount: formatCurrency(amountDue) }) }}</p>
                 </button>
                 <button
                   type="button"
@@ -1247,20 +1248,20 @@ const customerLocked = computed(() => cart.isReturnMode && !cart.isEmpty);
                   ]"
                   @click="overpayMode = 'supplement'"
                 >
-                  <p :class="['text-xs font-medium', overpayMode === 'supplement' ? 'text-stone-300' : 'text-stone-500']">Supplément</p>
+                  <p :class="['text-xs font-medium', overpayMode === 'supplement' ? 'text-stone-300' : 'text-stone-500']">{{ t('pos.supplement') }}</p>
                   <p class="text-lg font-bold">+{{ formatCurrency(amountPaid - amountDue) }}</p>
-                  <p :class="['text-[11px] mt-1', overpayMode === 'supplement' ? 'text-stone-400' : 'text-stone-500']">Vente passe à {{ formatCurrency(amountPaid) }}</p>
+                  <p :class="['text-[11px] mt-1', overpayMode === 'supplement' ? 'text-stone-400' : 'text-stone-500']">{{ t('pos.saleGoesTo', { amount: formatCurrency(amountPaid) }) }}</p>
                 </button>
               </div>
             </div>
             <div v-if="saleType === 'credit' && amountPaid < cart.total" class="bg-blue-50 rounded-lg p-4 text-center">
-              <p class="text-sm text-blue-700">Reste à payer (crédit)</p>
+              <p class="text-sm text-blue-700">{{ t('pos.remainingCredit') }}</p>
               <p class="text-2xl font-bold text-blue-600">{{ formatCurrency(cart.total - amountPaid) }}</p>
             </div>
             <div v-if="saleType === 'reservation'" class="bg-purple-50 rounded-lg p-4 text-center">
               <p class="text-sm text-purple-700">{{ t('reservation.deposit') }}</p>
               <p class="text-2xl font-bold text-purple-600">{{ formatCurrency(amountPaid) }}</p>
-              <p class="text-xs text-purple-500 mt-1">L'article sera réservé pour {{ customer?.firstName }} {{ customer?.lastName }}</p>
+              <p class="text-xs text-purple-500 mt-1">{{ t('pos.willBeReservedFor', { name: `${customer?.firstName || ''} ${customer?.lastName || ''}`.trim() }) }}</p>
             </div>
 
             <div v-if="cart.hasTradeIn" class="rounded-xl border border-green-200 bg-white overflow-hidden">
@@ -1298,7 +1299,7 @@ const customerLocked = computed(() => cart.isReturnMode && !cart.isEmpty);
                   <span>{{ t('pos.discount') }}</span><span>- {{ formatCurrency(cart.totalAfterTradeIn - amountPaid) }}</span>
                 </div>
                 <div v-else-if="amountPaid > cart.totalAfterTradeIn && overpayMode === 'supplement'" class="flex justify-between text-stone-700">
-                  <span>Supplément</span><span>+ {{ formatCurrency(amountPaid - cart.totalAfterTradeIn) }}</span>
+                  <span>{{ t('pos.supplement') }}</span><span>+ {{ formatCurrency(amountPaid - cart.totalAfterTradeIn) }}</span>
                 </div>
                 <div class="flex items-center justify-between pt-2 mt-1 border-t border-gray-100">
                   <span class="text-sm font-semibold text-gray-900">{{ t('tradeIn.finalAmount') }}</span>
@@ -1316,7 +1317,7 @@ const customerLocked = computed(() => cart.isReturnMode && !cart.isEmpty);
               :disabled="processing || (saleType === 'reservation' && amountPaid < 0)"
               @click="completePayment"
             >
-              <span v-if="processing" class="flex items-center gap-2"><span class="animate-spin rounded-full h-4 w-4 border-b-2 border-white" /> Traitement...</span>
+              <span v-if="processing" class="flex items-center gap-2"><span class="animate-spin rounded-full h-4 w-4 border-b-2 border-white" /> {{ t('pos.processing') }}</span>
               <span v-else>{{ saleType === 'reservation' ? t('reservation.title') : t('payment.complete') }}</span>
             </button>
           </div>
@@ -1371,7 +1372,7 @@ const customerLocked = computed(() => cart.isReturnMode && !cart.isEmpty);
               </div>
               <div v-if="c.balance < 0" class="text-end">
                 <p class="text-sm font-medium text-danger-600">{{ formatCurrency(Math.abs(c.balance)) }}</p>
-                <p class="text-xs text-gray-400">dette</p>
+                <p class="text-xs text-gray-400">{{ t('pos.debt') }}</p>
               </div>
               <CheckCircleIcon v-if="customer?.id === c.id" class="w-5 h-5 text-success-500" />
             </button>
@@ -1424,7 +1425,7 @@ const customerLocked = computed(() => cart.isReturnMode && !cart.isEmpty);
           <div class="modal-header">
             <div class="flex items-center gap-3">
               <div class="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center"><BookmarkIcon class="w-5 h-5 text-purple-600" /></div>
-              <h3 class="text-lg font-bold text-gray-900">Article réservé</h3>
+              <h3 class="text-lg font-bold text-gray-900">{{ t('pos.reservedItem') }}</h3>
             </div>
             <button class="p-1 hover:bg-gray-100 rounded" @click="closeReservedChoice"><XMarkIcon class="w-5 h-5" /></button>
           </div>
@@ -1436,22 +1437,22 @@ const customerLocked = computed(() => cart.isReturnMode && !cart.isEmpty);
             </div>
             <div class="bg-purple-50 rounded-lg p-4 space-y-2 text-sm">
               <div class="flex justify-between">
-                <span class="text-gray-500">Réservé par</span>
+                <span class="text-gray-500">{{ t('reservation.reservedBy') }}</span>
                 <span class="font-medium text-gray-900">{{ reservedChoiceUnit.reservedByCustomer?.firstName }} {{ reservedChoiceUnit.reservedByCustomer?.lastName }}</span>
               </div>
               <div v-if="reservedChoiceUnit.reservationDeposit" class="flex justify-between">
-                <span class="text-gray-500">Acompte versé</span>
+                <span class="text-gray-500">{{ t('debts.depositPaid') }}</span>
                 <span class="font-medium text-purple-700">{{ formatCurrency(Number(reservedChoiceUnit.reservationDeposit)) }}</span>
               </div>
             </div>
-            <p class="text-sm text-gray-600">Que souhaitez-vous faire ?</p>
+            <p class="text-sm text-gray-600">{{ t('pos.whatToDo') }}</p>
             <div class="space-y-3">
               <button class="w-full p-4 border-2 border-purple-200 rounded-lg hover:border-purple-500 hover:bg-purple-50 transition-colors text-start" @click="choiceComplete">
                 <div class="flex items-center gap-3">
                   <div class="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center"><CheckCircleIcon class="w-5 h-5 text-purple-600" /></div>
                   <div>
-                    <p class="font-semibold text-gray-900">Compléter la réservation</p>
-                    <p class="text-sm text-gray-500">Le client vient récupérer son article</p>
+                    <p class="font-semibold text-gray-900">{{ t('pos.completeReservation') }}</p>
+                    <p class="text-sm text-gray-500">{{ t('pos.customerPicksUp') }}</p>
                   </div>
                 </div>
               </button>
@@ -1459,14 +1460,14 @@ const customerLocked = computed(() => cart.isReturnMode && !cart.isEmpty);
                 <div class="flex items-center gap-3">
                   <div class="w-10 h-10 rounded-full bg-warning-100 flex items-center justify-center"><UserIcon class="w-5 h-5 text-warning-600" /></div>
                   <div>
-                    <p class="font-semibold text-gray-900">Vendre à un autre client</p>
-                    <p class="text-sm text-gray-500">L'acompte devra être remboursé</p>
+                    <p class="font-semibold text-gray-900">{{ t('pos.sellToOther') }}</p>
+                    <p class="text-sm text-gray-500">{{ t('pos.depositMustBeRefunded') }}</p>
                   </div>
                 </div>
               </button>
             </div>
           </div>
-          <div class="modal-footer"><button class="btn-secondary w-full" @click="closeReservedChoice">Annuler</button></div>
+          <div class="modal-footer"><button class="btn-secondary w-full" @click="closeReservedChoice">{{ t('common.cancel') }}</button></div>
         </div>
       </div>
     </Teleport>
@@ -1478,7 +1479,7 @@ const customerLocked = computed(() => cart.isReturnMode && !cart.isEmpty);
           <div class="modal-header">
             <div class="flex items-center gap-3">
               <div class="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center"><CheckCircleIcon class="w-5 h-5 text-purple-600" /></div>
-              <h3 class="text-lg font-bold text-gray-900">Compléter la réservation</h3>
+              <h3 class="text-lg font-bold text-gray-900">{{ t('pos.completeReservation') }}</h3>
             </div>
             <button class="p-1 hover:bg-gray-100 rounded" @click="closeCompleteReservation"><XMarkIcon class="w-5 h-5" /></button>
           </div>
@@ -1489,21 +1490,21 @@ const customerLocked = computed(() => cart.isReturnMode && !cart.isEmpty);
               <p class="text-sm text-gray-500 font-mono">{{ completeUnit.imei ? formatImei(completeUnit.imei) : completeUnit.serialNumber }}</p>
             </div>
             <div>
-              <p class="text-sm text-gray-500">Client</p>
+              <p class="text-sm text-gray-500">{{ t('pos.customer') }}</p>
               <p class="font-medium text-gray-900">{{ completeUnit.reservedByCustomer?.firstName }} {{ completeUnit.reservedByCustomer?.lastName }}</p>
             </div>
             <div class="bg-purple-50 rounded-lg p-4 space-y-2 text-sm">
-              <div class="flex justify-between"><span class="text-gray-500">Prix total</span><span class="font-medium">{{ formatCurrency(completeUnit.salePrice) }}</span></div>
+              <div class="flex justify-between"><span class="text-gray-500">{{ t('pos.totalPrice') }}</span><span class="font-medium">{{ formatCurrency(completeUnit.salePrice) }}</span></div>
               <div class="flex justify-between">
-                <span class="text-gray-500">Acompte payé</span><span class="font-medium text-purple-700">- {{ formatCurrency(Number(completeUnit.reservationDeposit) || 0) }}</span>
+                <span class="text-gray-500">{{ t('pos.depositPaid') }}</span><span class="font-medium text-purple-700">- {{ formatCurrency(Number(completeUnit.reservationDeposit) || 0) }}</span>
               </div>
               <div class="flex justify-between pt-2 border-t border-purple-200">
-                <span class="font-semibold text-gray-900">Reste à payer</span>
+                <span class="font-semibold text-gray-900">{{ t('payment.amountDue') }}</span>
                 <span class="font-bold text-purple-700">{{ formatCurrency(Number(completeUnit.salePrice) - (Number(completeUnit.reservationDeposit) || 0)) }}</span>
               </div>
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Montant</label>
+              <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('payment.amount') }}</label>
               <div class="relative">
                 <input
                   v-model.number="completeAmount"
@@ -1516,7 +1517,7 @@ const customerLocked = computed(() => cart.isReturnMode && !cart.isEmpty);
               </div>
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-2">Mode de paiement</label>
+              <label class="block text-sm font-medium text-gray-700 mb-2">{{ t('payment.method') }}</label>
               <div class="grid grid-cols-2 gap-2">
                 <button
                   v-for="m in COMPLETE_METHODS"
@@ -1534,10 +1535,10 @@ const customerLocked = computed(() => cart.isReturnMode && !cart.isEmpty);
             </div>
           </div>
           <div class="modal-footer">
-            <button class="btn-secondary" :disabled="completing" @click="closeCompleteReservation">Annuler</button>
+            <button class="btn-secondary" :disabled="completing" @click="closeCompleteReservation">{{ t('common.cancel') }}</button>
             <button class="btn-primary bg-purple-600 hover:bg-purple-700" :disabled="completing || completeAmount <= 0" @click="confirmCompleteReservation">
-              <span v-if="completing" class="flex items-center gap-2"><span class="animate-spin rounded-full h-4 w-4 border-b-2 border-white" /> Traitement...</span>
-              <span v-else>Confirmer le paiement</span>
+              <span v-if="completing" class="flex items-center gap-2"><span class="animate-spin rounded-full h-4 w-4 border-b-2 border-white" /> {{ t('pos.processing') }}</span>
+              <span v-else>{{ t('customers.confirmPayment') }}</span>
             </button>
           </div>
         </div>

@@ -1,4 +1,5 @@
 <script setup>
+import { intlLocale } from '@/i18n';
 import { computed, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
@@ -53,7 +54,7 @@ const refresh = () => {
   queryClient.invalidateQueries({ queryKey: ['repairs'] });
 };
 
-const formatWhen = (d) => new Date(d).toLocaleDateString('fr-MA', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+const formatWhen = (d) => new Date(d).toLocaleDateString(intlLocale(), { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 const STATUS = {
   pending: { cls: 'bg-amber-100 text-amber-700', icon: ClockIcon },
   in_progress: { cls: 'bg-blue-100 text-blue-700', icon: WrenchScrewdriverIcon },

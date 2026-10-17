@@ -1,4 +1,5 @@
 <script setup>
+import { intlLocale } from '@/i18n';
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useQuery } from '@tanstack/vue-query';
@@ -77,7 +78,7 @@ watch(() => props.isOpen, (open) => open && props.unit && generate());
 const identifier = computed(() => (props.unit ? (props.unit.imei ? formatImei(props.unit.imei) : props.unit.serialNumber || '-') : '-'));
 const identifierLabel = computed(() => (props.unit ? (props.unit.imei ? 'IMEI' : t('soldUnits.serialNumber')) : 'ID'));
 const priceText = computed(() =>
-  props.unit ? new Intl.NumberFormat('fr-MA', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(props.unit.salePrice) + ' DH' : '0 DH',
+  props.unit ? new Intl.NumberFormat(intlLocale(), { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(props.unit.salePrice) + ' DH' : '0 DH',
 );
 
 async function copy() {

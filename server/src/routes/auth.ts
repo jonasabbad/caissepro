@@ -26,6 +26,7 @@ export async function buildProfile(userId: string) {
     firstName: user.firstName,
     lastName: user.lastName,
     sellerMode: user.sellerMode,
+    locale: user.locale,
     applyTva: t?.applyTva ?? false,
     activityType: t?.activityType ?? 'phone_seller',
     enabledModules: parseJson<string[]>(t?.enabledModules, ['core']),

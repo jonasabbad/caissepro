@@ -1,4 +1,5 @@
 <script setup>
+import { dt, intlLocale } from '@/i18n';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
@@ -43,8 +44,8 @@ const yearTo = `${Y}-12-31`;
 const q = Math.floor(now.getMonth() / 3);
 const quarterFrom = `${Y}-${pad(q * 3 + 1)}-01`;
 const quarterTo = `${Y}-${pad(q * 3 + 3)}-${pad(lastDay(Y, q * 3 + 3))}`;
-const quarterLabel = `T${q + 1} ${Y}`;
-const monthName = (d) => new Date(d).toLocaleDateString('fr-MA', { month: 'long', year: 'numeric' });
+const quarterLabel = t('invoices.quarterShort', { n: q + 1, year: Y });
+const monthName = (d) => new Date(d).toLocaleDateString(intlLocale(), { month: 'long', year: 'numeric' });
 
 const periodQuery = (key, fn, from, to, enabled) => useQuery({ queryKey: [key], queryFn: () => fn(from, to), enabled });
 const notAE = computed(() => !isAutoEntrepreneur.value);
@@ -68,7 +69,6 @@ const summaryOpen = ref(false);
 
 const quarterYear = ref(Y);
 const { data: quarterly } = useQuery({ queryKey: ['quarterly-totals', quarterYear], queryFn: () => invoicesApi.getQuarterlyTotals(quarterYear.value) });
-const QUARTER_MONTHS = { 1: 'Jan - Mars', 2: 'Avr - Juin', 3: 'Juil - Sept', 4: 'Oct - Déc' };
 
 // Custom periods
 const tvaRange = ref(null);
@@ -118,7 +118,7 @@ const { data: list, isLoading } = useQuery({
 const invoices = computed(() => list.value?.invoices || []);
 const total = computed(() => list.value?.total || 0);
 const totalPages = computed(() => Math.ceil(total.value / limit.value));
-const formatWhen = (d) => new Date(d).toLocaleDateString('fr-MA', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+const formatWhen = (d) => new Date(d).toLocaleDateString(intlLocale(), { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
 const refreshAll = () => {
   for (const k of ['invoices', 'quarterly-totals', 'ir-month', 'ir-trimestre', 'ir-year', 'tva-month', 'tva-trimestre', 'tva-year']) queryClient.invalidateQueries({ queryKey: [k] });
@@ -152,49 +152,49 @@ async function downloadPeriod(from, to, label, summaryInfo) {
     const summary =
       summaryInfo?.type === 'ir'
         ? [
-            { label: 'Nombre de factures', value: String(summaryInfo.invoiceCount || rows.length) },
-            { label: 'Taux forfaitaire', value: `${summaryInfo.flatTaxRate || 0}%` },
-            { label: 'CA Total', value: formatCurrency(summaryInfo.totalRevenue || 0) },
-            { label: 'IR forfaitaire', value: formatCurrency(summaryInfo.irAmount || 0) },
+            { label: dt('invoices.invoiceCount'), value: String(summaryInfo.invoiceCount || rows.length) },
+            { label: dt('invoices.tva.flatRate'), value: `${summaryInfo.flatTaxRate || 0}%` },
+            { label: dt('invoices.tva.totalRevenue'), value: formatCurrency(summaryInfo.totalRevenue || 0) },
+            { label: dt('invoices.irFlat'), value: formatCurrency(summaryInfo.irAmount || 0) },
           ]
         : summaryInfo?.type === 'tva'
           ? [
-              { label: 'Nombre de factures', value: String(summaryInfo.invoiceCount || rows.length) },
-              { label: 'Taux TVA', value: `${summaryInfo.taxRate || 0}%` },
-              { label: 'Total HT', value: formatCurrency(summaryInfo.taxableAmount || 0) },
-              { label: 'Montant TVA', value: formatCurrency(summaryInfo.tvaAmount || 0) },
-              { label: 'Total TTC', value: formatCurrency(sum('totalAmount')) },
+              { label: dt('invoices.invoiceCount'), value: String(summaryInfo.invoiceCount || rows.length) },
+              { label: dt('invoices.vatRate'), value: `${summaryInfo.taxRate || 0}%` },
+              { label: dt('invoices.totalHt'), value: formatCurrency(summaryInfo.taxableAmount || 0) },
+              { label: dt('invoices.vatAmount'), value: formatCurrency(summaryInfo.tvaAmount || 0) },
+              { label: dt('invoices.totalTtc'), value: formatCurrency(sum('totalAmount')) },
             ]
           : [
-              { label: 'Nombre de factures', value: String(rows.length) },
-              { label: 'Total HT', value: formatCurrency(sum('subtotal')) },
-              { label: 'Total TVA', value: formatCurrency(sum('taxAmount')) },
-              { label: 'Total TTC', value: formatCurrency(sum('totalAmount')) },
+              { label: dt('invoices.invoiceCount'), value: String(rows.length) },
+              { label: dt('invoices.totalHt'), value: formatCurrency(sum('subtotal')) },
+              { label: dt('invoices.totalVat'), value: formatCurrency(sum('taxAmount')) },
+              { label: dt('invoices.totalTtc'), value: formatCurrency(sum('totalAmount')) },
             ];
     const { default: JSZip } = await import('jszip');
     const zip = new JSZip();
     zip.file(
-      'resume.pdf',
+      `${dt('invoices.zipSummary')}.pdf`,
       await summaryPdfBlob({
-        title: 'Factures',
+        title: dt('invoices.title'),
         period: { from, to },
         summary,
         tables: [
           {
-            title: 'Liste des factures',
-            headers: ['N° Facture', 'Date', 'Client', 'HT', 'TVA', 'TTC'],
-            rows: rows.map((i) => [i.invoiceNumber, formatWhen(i.date), i.customer?.fullName || 'Client de passage', formatCurrency(i.subtotal), formatCurrency(i.taxAmount), formatCurrency(i.totalAmount)]),
+            title: dt('invoices.list'),
+            headers: [dt('invoices.number'), dt('invoices.date'), dt('invoices.customer'), dt('invoices.ht'), dt('invoices.tvaAmount'), dt('invoices.ttc')],
+            rows: rows.map((i) => [i.invoiceNumber, formatWhen(i.date), i.customer?.fullName || dt('invoices.walkIn'), formatCurrency(i.subtotal), formatCurrency(i.taxAmount), formatCurrency(i.totalAmount)]),
           },
         ],
       }),
     );
-    const folder = zip.folder('factures');
+    const folder = zip.folder(dt('invoices.zipFolder'));
     for (const inv of rows) folder.file(`${inv.invoiceNumber}.pdf`, await invoicePdfBlob(inv, company));
     const blob = await zip.generateAsync({ type: 'blob' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `factures-${label.replace(/\s+/g, '-').toLowerCase()}.zip`;
+    a.download = `${dt('invoices.zipFolder')}-${label.replace(/\s+/g, '-').toLowerCase()}.zip`;
     a.click();
     URL.revokeObjectURL(url);
   } catch (e) {
@@ -246,9 +246,9 @@ async function downloadPeriod(from, to, label, summaryInfo) {
               <button
                 class="mt-2 text-xs text-gray-600 hover:text-gray-900 flex items-center gap-1"
                 :disabled="downloading !== null"
-                @click="downloadPeriod(c.from, c.to, `IR ${c.badge}`, { type: 'ir', ...c.d })"
+                @click="downloadPeriod(c.from, c.to, `${t('invoices.irShort')} ${c.badge}`, { type: 'ir', ...c.d })"
               >
-                <ArrowDownTrayIcon class="w-3.5 h-3.5" /> {{ downloading === `IR ${c.badge}` ? t('invoices.downloading') : t('invoices.downloadAll') }}
+                <ArrowDownTrayIcon class="w-3.5 h-3.5" /> {{ downloading === `${t('invoices.irShort')} ${c.badge}` ? t('invoices.downloading') : t('invoices.downloadAll') }}
               </button>
             </div>
           </template>
@@ -264,13 +264,13 @@ async function downloadPeriod(from, to, label, summaryInfo) {
                 <span class="w-1 h-1 rounded-full bg-gray-300" />
                 <span>{{ t('invoices.tva.rate') }}: {{ c.d?.taxRate || 0 }}%</span>
               </div>
-              <div class="text-xs text-gray-500 mt-1">HT: {{ formatCurrency(c.d?.taxableAmount || 0) }}</div>
+              <div class="text-xs text-gray-500 mt-1">{{ t('invoices.htValue', { amount: formatCurrency(c.d?.taxableAmount || 0) }) }}</div>
               <button
                 class="mt-2 text-xs text-gray-600 hover:text-gray-900 flex items-center gap-1"
                 :disabled="downloading !== null"
-                @click="downloadPeriod(c.from, c.to, `TVA ${c.badge}`, { type: 'tva', ...c.d })"
+                @click="downloadPeriod(c.from, c.to, `${t('invoices.tvaShort')} ${c.badge}`, { type: 'tva', ...c.d })"
               >
-                <ArrowDownTrayIcon class="w-3.5 h-3.5" /> {{ downloading === `TVA ${c.badge}` ? t('invoices.downloading') : t('invoices.downloadAll') }}
+                <ArrowDownTrayIcon class="w-3.5 h-3.5" /> {{ downloading === `${t('invoices.tvaShort')} ${c.badge}` ? t('invoices.downloading') : t('invoices.downloadAll') }}
               </button>
             </div>
           </template>
@@ -298,9 +298,9 @@ async function downloadPeriod(from, to, label, summaryInfo) {
             <button
               class="mt-2 text-xs text-gray-600 hover:text-gray-900 flex items-center gap-1"
               :disabled="downloading !== null"
-              @click="downloadPeriod(irRange[0], irRange[1], 'période personnalisée IR', { type: 'ir', ...irResult })"
+              @click="downloadPeriod(irRange[0], irRange[1], t('invoices.customIr'), { type: 'ir', ...irResult })"
             >
-              <ArrowDownTrayIcon class="w-3.5 h-3.5" /> {{ downloading === 'période personnalisée IR' ? t('invoices.downloading') : t('invoices.downloadAll') }}
+              <ArrowDownTrayIcon class="w-3.5 h-3.5" /> {{ downloading === t('invoices.customIr') ? t('invoices.downloading') : t('invoices.downloadAll') }}
             </button>
           </div>
           <div v-if="!isAutoEntrepreneur && tvaResult" class="mt-4">
@@ -308,14 +308,14 @@ async function downloadPeriod(from, to, label, summaryInfo) {
             <div class="flex flex-wrap items-center gap-2 text-xs text-gray-500 mt-1">
               <span>{{ tvaResult.invoiceCount }} {{ t('invoices.tva.invoices') }}</span><span class="w-1 h-1 rounded-full bg-gray-300" />
               <span>{{ t('invoices.tva.rate') }}: {{ tvaResult.taxRate }}%</span><span class="w-1 h-1 rounded-full bg-gray-300" />
-              <span>HT: {{ formatCurrency(tvaResult.taxableAmount) }}</span>
+              <span>{{ t('invoices.htValue', { amount: formatCurrency(tvaResult.taxableAmount) }) }}</span>
             </div>
             <button
               class="mt-2 text-xs text-gray-600 hover:text-gray-900 flex items-center gap-1"
               :disabled="downloading !== null"
-              @click="downloadPeriod(tvaRange[0], tvaRange[1], 'période personnalisée TVA', { type: 'tva', ...tvaResult })"
+              @click="downloadPeriod(tvaRange[0], tvaRange[1], t('invoices.customTva'), { type: 'tva', ...tvaResult })"
             >
-              <ArrowDownTrayIcon class="w-3.5 h-3.5" /> {{ downloading === 'période personnalisée TVA' ? t('invoices.downloading') : t('invoices.downloadAll') }}
+              <ArrowDownTrayIcon class="w-3.5 h-3.5" /> {{ downloading === t('invoices.customTva') ? t('invoices.downloading') : t('invoices.downloadAll') }}
             </button>
           </div>
         </div>
@@ -343,11 +343,11 @@ async function downloadPeriod(from, to, label, summaryInfo) {
         <div v-for="qt in quarterly?.quarters || []" :key="qt.quarter" class="rounded-xl border border-emerald-100 bg-emerald-50/40 p-5">
           <div class="flex items-center justify-between mb-2">
             <p class="text-sm font-semibold text-gray-700">{{ qt.label }}</p>
-            <span class="text-xs text-gray-500">{{ QUARTER_MONTHS[qt.quarter] }}</span>
+            <span class="text-xs text-gray-500">{{ t(`invoices.quarterMonths.q${qt.quarter}`) }}</span>
           </div>
           <p class="text-xl font-bold text-gray-900">{{ formatCurrency(qt.totalTTC) }}</p>
           <div class="flex flex-wrap items-center gap-2 text-xs text-gray-500 mt-2">
-            <span>{{ qt.invoiceCount }} {{ t('invoices.tva.invoices') }}</span><span class="w-1 h-1 rounded-full bg-gray-300" /><span>HT: {{ formatCurrency(qt.totalHT) }}</span>
+            <span>{{ qt.invoiceCount }} {{ t('invoices.tva.invoices') }}</span><span class="w-1 h-1 rounded-full bg-gray-300" /><span>{{ t('invoices.htValue', { amount: formatCurrency(qt.totalHT) }) }}</span>
           </div>
         </div>
       </div>

@@ -1,4 +1,5 @@
 <script setup>
+import { intlLocale } from '@/i18n';
 import { computed, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
@@ -23,7 +24,7 @@ import { useAuthStore } from '@/stores/auth';
 import { formatCurrency } from '@/utils/format';
 import ReceiptModal from '@/components/pos/ReceiptModal.vue';
 
-const { t } = useI18n();
+const { t, te } = useI18n();
 const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
@@ -53,7 +54,7 @@ const pay = useMutation({
     resetForm();
     refetch();
   },
-  onError: (e) => (paymentError.value = e?.response?.data?.message || e?.message || 'Erreur lors du paiement'),
+  onError: (e) => (paymentError.value = e?.response?.data?.message || e?.message || t('transactions.paymentError')),
 });
 function openPayment() {
   resetForm();
@@ -63,27 +64,28 @@ function openPayment() {
 function submitPayment() {
   paymentError.value = null;
   if (!form.value.amount || form.value.amount <= 0) {
-    paymentError.value = 'Montant invalide';
+    paymentError.value = t('transactions.invalidAmount');
     return;
   }
   if (form.value.method !== 'cash' && !form.value.reference?.trim()) {
-    paymentError.value = 'Référence requise pour ce mode de paiement';
+    paymentError.value = t('transactions.referenceRequired');
     return;
   }
   pay.mutate();
 }
-const METHODS = [
-  { value: 'cash', label: 'Espèces', icon: '💵' },
-  { value: 'card', label: 'Carte', icon: '💳' },
-  { value: 'bank_transfer', label: 'Virement', icon: '🏦' },
-  { value: 'check', label: 'Chèque', icon: '📝' },
-];
-const METHOD_LABEL = { cash: 'Espèces', card: 'Carte', bank_transfer: 'Virement', check: 'Chèque', credit: 'Crédit' };
+const METHODS = computed(() => [
+  { value: 'cash', label: t('payment.cash'), icon: '💵' },
+  { value: 'card', label: t('repairs.payment.methods.card'), icon: '💳' },
+  { value: 'bank_transfer', label: t('payment.transfer'), icon: '🏦' },
+  { value: 'check', label: t('payment.check'), icon: '📝' },
+]);
+const METHOD_KEY = { cash: 'payment.cash', card: 'repairs.payment.methods.card', bank_transfer: 'payment.transfer', check: 'payment.check', credit: 'payment.credit' };
+const methodLabel = (m) => (METHOD_KEY[m] ? t(METHOD_KEY[m]) : m);
 
 const formatLong = (d) =>
-  new Date(d).toLocaleDateString('fr-MA', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  new Date(d).toLocaleDateString(intlLocale(), { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 const STATUS_BADGE = { completed: 'badge-success', pending: 'badge-warning', partial: 'badge-info', cancelled: 'badge-danger', refunded: 'badge-danger' };
-const CONDITION_LABEL = { new: 'Neuf', new_no_box: 'Neuf sans boite', grade_a_plus: 'Grade A+', grade_a: 'Grade A', grade_b: 'Grade B', grade_c: 'Grade C' };
+const conditionLabel = (c) => (te(`soldUnits.conditions.${c}`) ? t(`soldUnits.conditions.${c}`) : c);
 const CONDITION_CLASS = {
   new: 'bg-green-100 text-green-800',
   new_no_box: 'bg-green-100 text-green-800',
@@ -132,11 +134,11 @@ const receiptChange = computed(() => {
         <div class="flex items-center gap-3">
           <div class="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center"><BanknotesIcon class="w-6 h-6 text-amber-600" /></div>
           <div>
-            <p class="font-semibold text-amber-900">Montant restant à payer</p>
+            <p class="font-semibold text-amber-900">{{ t('transactions.remainingBanner') }}</p>
             <p class="text-2xl font-bold text-amber-700">{{ formatCurrency(remaining) }}</p>
           </div>
         </div>
-        <button class="btn-primary inline-flex items-center gap-2" @click="openPayment"><BanknotesIcon class="w-5 h-5" /> Encaisser le paiement</button>
+        <button class="btn-primary inline-flex items-center gap-2" @click="openPayment"><BanknotesIcon class="w-5 h-5" /> {{ t('transactions.collectPayment') }}</button>
       </div>
     </div>
 
@@ -184,19 +186,19 @@ const receiptChange = computed(() => {
         <div class="card p-4">
           <div class="flex items-center gap-3">
             <div class="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center"><BanknotesIcon class="w-5 h-5 text-gray-500" /></div>
-            <div><p class="text-sm text-gray-500">Montant total</p><p class="font-semibold text-gray-900">{{ formatCurrency(tx.totalAmount) }}</p></div>
+            <div><p class="text-sm text-gray-500">{{ t('transactions.totalAmount') }}</p><p class="font-semibold text-gray-900">{{ formatCurrency(tx.totalAmount) }}</p></div>
           </div>
         </div>
         <div class="card p-4">
           <div class="flex items-center gap-3">
             <div class="w-10 h-10 bg-success-50 rounded-lg flex items-center justify-center"><CheckCircleIcon class="w-5 h-5 text-success-600" /></div>
-            <div><p class="text-sm text-gray-500">Montant payé</p><p class="font-semibold text-success-600">{{ formatCurrency(tx.amountPaid) }}</p></div>
+            <div><p class="text-sm text-gray-500">{{ t('transactions.amountPaid') }}</p><p class="font-semibold text-success-600">{{ formatCurrency(tx.amountPaid) }}</p></div>
           </div>
         </div>
         <div class="card p-4">
           <div class="flex items-center gap-3">
             <div class="w-10 h-10 bg-danger-50 rounded-lg flex items-center justify-center"><ExclamationCircleIcon class="w-5 h-5 text-danger-600" /></div>
-            <div><p class="text-sm text-gray-500">Reste à payer</p><p class="font-semibold text-danger-600">{{ formatCurrency(tx.amountRemaining) }}</p></div>
+            <div><p class="text-sm text-gray-500">{{ t('payment.amountDue') }}</p><p class="font-semibold text-danger-600">{{ formatCurrency(tx.amountRemaining) }}</p></div>
           </div>
         </div>
       </div>
@@ -204,21 +206,21 @@ const receiptChange = computed(() => {
       <div v-if="showNotes" class="card p-4">
         <p class="text-sm text-gray-600">{{ tx.notes }}</p>
         <div v-if="tx.type === 'return' && tx.amountRemaining < 0" class="mt-3 p-3 bg-success-50 rounded-lg">
-          <p class="text-sm font-medium text-success-700">Crédit client: {{ formatCurrency(Math.abs(tx.amountRemaining)) }}</p>
-          <p class="text-xs text-success-600">Ce montant est dû au client</p>
+          <p class="text-sm font-medium text-success-700">{{ t('transactions.customerCredit', { amount: formatCurrency(Math.abs(tx.amountRemaining)) }) }}</p>
+          <p class="text-xs text-success-600">{{ t('transactions.dueToCustomer') }}</p>
         </div>
       </div>
 
       <div class="card overflow-hidden">
-        <div class="p-4 border-b border-gray-200"><h2 class="font-semibold text-gray-900">Articles</h2></div>
+        <div class="p-4 border-b border-gray-200"><h2 class="font-semibold text-gray-900">{{ t('transactions.items') }}</h2></div>
         <div class="overflow-x-auto">
           <table class="w-full">
             <thead class="bg-gray-50">
               <tr>
-                <th class="px-4 py-3 text-start text-sm font-medium text-gray-500">Produit</th>
-                <th class="px-4 py-3 text-end text-sm font-medium text-gray-500">Prix</th>
-                <th class="px-4 py-3 text-end text-sm font-medium text-gray-500">Qté</th>
-                <th class="px-4 py-3 text-end text-sm font-medium text-gray-500">Total</th>
+                <th class="px-4 py-3 text-start text-sm font-medium text-gray-500">{{ t('reports.product') }}</th>
+                <th class="px-4 py-3 text-end text-sm font-medium text-gray-500">{{ t('reports.price') }}</th>
+                <th class="px-4 py-3 text-end text-sm font-medium text-gray-500">{{ t('pos.quantity') }}</th>
+                <th class="px-4 py-3 text-end text-sm font-medium text-gray-500">{{ t('pos.total') }}</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-200">
@@ -238,7 +240,7 @@ const receiptChange = computed(() => {
                     </p>
                     <div class="flex flex-wrap items-center gap-2">
                       <span :class="['inline-flex items-center px-2 py-0.5 rounded text-xs font-medium', conditionClass(item.soldUnit.condition)]">
-                        {{ CONDITION_LABEL[item.soldUnit.condition] || item.soldUnit.condition }}
+                        {{ conditionLabel(item.soldUnit.condition) }}
                       </span>
                       <span v-if="item.soldUnit.batteryHealth != null" class="text-xs text-gray-500">Batterie: {{ item.soldUnit.batteryHealth }}%</span>
                       <span v-if="item.soldUnit.hasWarranty && item.soldUnit.warrantyDays" class="inline-flex items-center gap-1 text-xs text-green-700">
@@ -259,7 +261,7 @@ const receiptChange = computed(() => {
       <div v-if="tx.type === 'exchange' && tx.tradeInUnit" class="card p-4">
         <div class="flex items-center gap-2 mb-4">
           <ArrowsRightLeftIcon class="w-5 h-5 text-gray-500" />
-          <h2 class="font-semibold text-gray-900">Appareil repris</h2>
+          <h2 class="font-semibold text-gray-900">{{ t('tradeIn.deviceDetails') }}</h2>
         </div>
         <div class="flex items-start justify-between gap-4">
           <div class="flex items-start gap-3">
@@ -272,13 +274,13 @@ const receiptChange = computed(() => {
               <p v-if="tx.tradeInUnit.imei" class="text-xs text-gray-500 font-mono">IMEI: {{ tx.tradeInUnit.imei }}</p>
               <div class="mt-1">
                 <span :class="['inline-flex items-center px-2 py-0.5 rounded text-xs font-medium', conditionClass(tx.tradeInUnit.condition)]">
-                  {{ CONDITION_LABEL[tx.tradeInUnit.condition] || tx.tradeInUnit.condition }}
+                  {{ conditionLabel(tx.tradeInUnit.condition) }}
                 </span>
               </div>
             </div>
           </div>
           <div class="text-end">
-            <p class="text-sm text-gray-500">Valeur de reprise</p>
+            <p class="text-sm text-gray-500">{{ t('tradeIn.tradeInValue') }}</p>
             <p class="text-lg font-bold text-green-700">{{ formatCurrency(tx.tradeInUnit.tradeInValue) }}</p>
           </div>
         </div>
@@ -297,31 +299,31 @@ const receiptChange = computed(() => {
 
       <div class="card p-4">
         <div class="space-y-2">
-          <div class="flex justify-between text-sm"><span class="text-gray-500">Sous-total</span><span class="font-medium">{{ formatCurrency(tx.subtotal) }}</span></div>
-          <div v-if="tx.taxAmount > 0" class="flex justify-between text-sm"><span class="text-gray-500">TVA (20%)</span><span class="font-medium">{{ formatCurrency(tx.taxAmount) }}</span></div>
+          <div class="flex justify-between text-sm"><span class="text-gray-500">{{ t('pos.subtotal') }}</span><span class="font-medium">{{ formatCurrency(tx.subtotal) }}</span></div>
+          <div v-if="tx.taxAmount > 0" class="flex justify-between text-sm"><span class="text-gray-500">{{ t('pos.tax') }} (20%)</span><span class="font-medium">{{ formatCurrency(tx.taxAmount) }}</span></div>
           <div v-if="Number(tx.discountAmount) > 0" class="flex justify-between text-sm">
-            <span class="text-gray-500">Remise</span><span class="font-medium text-danger-600">-{{ formatCurrency(tx.discountAmount) }}</span>
+            <span class="text-gray-500">{{ t('pos.discount') }}</span><span class="font-medium text-danger-600">-{{ formatCurrency(tx.discountAmount) }}</span>
           </div>
           <div v-else-if="Number(tx.discountAmount) < 0" class="flex justify-between text-sm">
-            <span class="text-gray-500">Supplément</span><span class="font-medium text-success-600">+{{ formatCurrency(-Number(tx.discountAmount)) }}</span>
+            <span class="text-gray-500">{{ t('pos.supplement') }}</span><span class="font-medium text-success-600">+{{ formatCurrency(-Number(tx.discountAmount)) }}</span>
           </div>
           <div class="flex justify-between pt-2 border-t border-gray-200">
-            <span class="text-lg font-bold text-gray-900">Total</span><span class="text-lg font-bold text-gray-900">{{ formatCurrency(tx.totalAmount) }}</span>
+            <span class="text-lg font-bold text-gray-900">{{ t('pos.total') }}</span><span class="text-lg font-bold text-gray-900">{{ formatCurrency(tx.totalAmount) }}</span>
           </div>
           <div :class="['flex justify-between text-sm', tx.totalProfit > 0 ? 'text-success-600' : tx.totalProfit < 0 ? 'text-danger-600' : 'text-gray-500']">
-            <span>Profit</span><span class="font-medium">{{ tx.totalProfit > 0 ? '+' : '' }}{{ formatCurrency(tx.totalProfit) }}</span>
+            <span>{{ t('pos.profit') }}</span><span class="font-medium">{{ tx.totalProfit > 0 ? '+' : '' }}{{ formatCurrency(tx.totalProfit) }}</span>
           </div>
         </div>
       </div>
 
       <div v-if="tx.payments?.length" class="card p-4">
-        <h2 class="font-semibold text-gray-900 mb-4">Paiements</h2>
+        <h2 class="font-semibold text-gray-900 mb-4">{{ t('transactions.payments') }}</h2>
         <div class="space-y-2">
           <div v-for="p in tx.payments" :key="p.id" class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
             <div class="flex items-center gap-3">
               <CreditCardIcon class="w-5 h-5 text-gray-400" />
               <div>
-                <span class="font-medium text-gray-900">{{ METHOD_LABEL[p.method] || p.method }}</span>
+                <span class="font-medium text-gray-900">{{ methodLabel(p.method) }}</span>
                 <p v-if="p.reference" class="text-xs text-gray-500">{{ p.reference }}</p>
               </div>
             </div>
@@ -353,7 +355,7 @@ const receiptChange = computed(() => {
       <div v-if="showPayment" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" @click.self="showPayment = false">
         <div class="bg-white rounded-xl shadow-xl w-full max-w-md">
           <div class="flex items-center justify-between p-4 border-b">
-            <h3 class="text-lg font-bold text-gray-900">Encaisser le paiement</h3>
+            <h3 class="text-lg font-bold text-gray-900">{{ t('transactions.collectPayment') }}</h3>
             <button class="p-1 hover:bg-gray-100 rounded" @click="showPayment = false"><XMarkIcon class="w-5 h-5" /></button>
           </div>
           <form @submit.prevent="submitPayment">
@@ -363,16 +365,16 @@ const receiptChange = computed(() => {
                 <p class="text-sm text-danger-700">{{ paymentError }}</p>
               </div>
               <div class="bg-gray-50 rounded-lg p-4">
-                <p class="text-sm text-gray-600 mb-1">Transaction</p>
+                <p class="text-sm text-gray-600 mb-1">{{ t('invoices.transaction') }}</p>
                 <p class="font-mono font-medium text-gray-900">{{ tx?.transactionNumber }}</p>
-                <div class="flex justify-between text-sm mt-3"><span class="text-gray-500">Total</span><span>{{ formatCurrency(tx?.totalAmount || 0) }}</span></div>
-                <div class="flex justify-between text-sm"><span class="text-gray-500">Déjà payé</span><span>{{ formatCurrency(tx?.amountPaid || 0) }}</span></div>
+                <div class="flex justify-between text-sm mt-3"><span class="text-gray-500">{{ t('pos.total') }}</span><span>{{ formatCurrency(tx?.totalAmount || 0) }}</span></div>
+                <div class="flex justify-between text-sm"><span class="text-gray-500">{{ t('transactions.alreadyPaid') }}</span><span>{{ formatCurrency(tx?.amountPaid || 0) }}</span></div>
                 <div class="flex justify-between text-sm mt-1 pt-1 border-t border-gray-200">
-                  <span class="text-amber-700 font-medium">Reste à payer</span><span class="font-bold text-amber-700">{{ formatCurrency(remaining) }}</span>
+                  <span class="text-amber-700 font-medium">{{ t('payment.amountDue') }}</span><span class="font-bold text-amber-700">{{ formatCurrency(remaining) }}</span>
                 </div>
               </div>
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Montant *</label>
+                <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('transactions.amountRequired') }}</label>
                 <div class="relative">
                   <input
                     v-model.number="form.amount"
@@ -385,10 +387,10 @@ const receiptChange = computed(() => {
                   />
                   <span class="absolute end-3 top-1/2 -translate-y-1/2 text-gray-500">DH</span>
                 </div>
-                <button type="button" class="text-xs text-primary-600 hover:text-primary-800 mt-1" @click="form.amount = remaining">Payer le montant total</button>
+                <button type="button" class="text-xs text-primary-600 hover:text-primary-800 mt-1" @click="form.amount = remaining">{{ t('transactions.payFull') }}</button>
               </div>
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Mode de paiement *</label>
+                <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('transactions.methodRequired') }}</label>
                 <div class="grid grid-cols-2 gap-2">
                   <button
                     v-for="m in METHODS"
@@ -405,32 +407,32 @@ const receiptChange = computed(() => {
                 </div>
               </div>
               <div v-if="form.method !== 'cash'">
-                <label class="block text-sm font-medium text-gray-700 mb-1">Référence *</label>
+                <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('transactions.referenceRequiredLabel') }}</label>
                 <input
                   v-model="form.reference"
                   type="text"
                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent"
-                  :placeholder="form.method === 'check' ? 'Numéro du chèque' : 'Référence de la transaction'"
+                  :placeholder="form.method === 'check' ? t('transactions.checkNumber') : t('transactions.txReference')"
                   required
                 />
               </div>
               <div v-if="form.amount > 0" :class="['p-4 rounded-lg', form.amount >= remaining ? 'bg-success-50' : 'bg-gray-50']">
                 <div class="flex items-center justify-between">
                   <div>
-                    <p class="text-sm text-gray-600 mb-1">Après ce paiement</p>
+                    <p class="text-sm text-gray-600 mb-1">{{ t('transactions.afterPayment') }}</p>
                     <p :class="['text-xl font-bold', form.amount >= remaining ? 'text-success-600' : 'text-gray-900']">
-                      {{ formatCurrency(Math.max(0, remaining - form.amount)) }} <span class="text-sm font-normal">restant</span>
+                      {{ formatCurrency(Math.max(0, remaining - form.amount)) }} <span class="text-sm font-normal">{{ t('transactions.remainingWord') }}</span>
                     </p>
                   </div>
-                  <div v-if="form.amount >= remaining" class="text-success-600 font-medium text-sm">✓ Transaction complète</div>
+                  <div v-if="form.amount >= remaining" class="text-success-600 font-medium text-sm">{{ t('transactions.willBeComplete') }}</div>
                 </div>
               </div>
             </div>
             <div class="flex justify-end gap-3 p-4 border-t">
-              <button type="button" class="btn-secondary" @click="showPayment = false">Annuler</button>
+              <button type="button" class="btn-secondary" @click="showPayment = false">{{ t('common.cancel') }}</button>
               <button type="submit" class="btn-primary" :disabled="pay.isPending.value || !form.amount || form.amount <= 0">
-                <span v-if="pay.isPending.value" class="flex items-center gap-2"><span class="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" /> Traitement...</span>
-                <span v-else>Confirmer le paiement</span>
+                <span v-if="pay.isPending.value" class="flex items-center gap-2"><span class="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" /> {{ t('pos.processing') }}</span>
+                <span v-else>{{ t('customers.confirmPayment') }}</span>
               </button>
             </div>
           </form>

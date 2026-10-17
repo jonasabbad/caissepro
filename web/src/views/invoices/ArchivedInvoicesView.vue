@@ -1,4 +1,5 @@
 <script setup>
+import { intlLocale } from '@/i18n';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
@@ -24,7 +25,7 @@ const unarchive = useMutation({
     for (const k of ['invoices', 'quarterly-totals', 'ir-month', 'ir-trimestre', 'ir-year', 'tva-month', 'tva-trimestre', 'tva-year']) queryClient.invalidateQueries({ queryKey: [k] });
   },
 });
-const formatWhen = (d) => new Date(d).toLocaleDateString('fr-MA', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+const formatWhen = (d) => new Date(d).toLocaleDateString(intlLocale(), { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 </script>
 
 <template>

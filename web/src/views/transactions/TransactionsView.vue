@@ -1,4 +1,5 @@
 <script setup>
+import { intlLocale } from '@/i18n';
 import { computed, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
@@ -52,7 +53,7 @@ const transactions = computed(() => data.value?.transactions || []);
 const total = computed(() => data.value?.total || 0);
 const totalPages = computed(() => Math.ceil(total.value / limit.value));
 
-const formatWhen = (d) => new Date(d).toLocaleDateString('fr-MA', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+const formatWhen = (d) => new Date(d).toLocaleDateString(intlLocale(), { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 const STATUS_BADGE = { completed: 'badge-success', pending: 'badge-warning', partial: 'badge-info', cancelled: 'badge-danger', refunded: 'badge-danger' };
 const TYPE_COLOR = { sale: 'text-success-600', return: 'text-danger-600', exchange: 'text-warning-600', credit: 'text-blue-600', reservation: 'text-purple-600' };
 
@@ -169,9 +170,9 @@ async function exportCsv() {
               <td class="px-4 py-3 whitespace-nowrap">
                 <div class="font-medium text-gray-900">{{ formatCurrency(tx.totalAmount) }}</div>
                 <div v-if="tx.status === 'partial'" class="flex items-center gap-2 mt-0.5">
-                  <span class="text-xs text-success-600">{{ formatCurrency(tx.amountPaid) }} payé</span>
+                  <span class="text-xs text-success-600">{{ t('transactions.paidAmount', { amount: formatCurrency(tx.amountPaid) }) }}</span>
                   <span class="text-xs text-gray-400">·</span>
-                  <span class="text-xs text-danger-600">{{ formatCurrency(tx.totalAmount - tx.amountPaid) }} dû</span>
+                  <span class="text-xs text-danger-600">{{ t('transactions.dueAmount', { amount: formatCurrency(tx.totalAmount - tx.amountPaid) }) }}</span>
                 </div>
               </td>
               <td :class="['px-4 py-3 font-medium whitespace-nowrap', tx.totalProfit > 0 ? 'text-success-600' : tx.totalProfit < 0 ? 'text-danger-600' : 'text-gray-500']">

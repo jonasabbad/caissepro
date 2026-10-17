@@ -1,3 +1,4 @@
+import { docLocale, dt, intlLocale } from '@/i18n';
 import QRCode from 'qrcode';
 import { escapeHtml } from '@/utils/printFrame';
 
@@ -9,16 +10,16 @@ export function repairReceiptProps(repair, storeName) {
   const price = Number(repair.fixedPrice) || 0;
   const customerName = repair.customer ? `${repair.customer.firstName} ${repair.customer.lastName || ''}`.trim() : undefined;
   const extraLines = [];
-  if (repair.customer?.phone) extraLines.push(`Tél. client: ${repair.customer.phone}`);
-  if (price <= 0) extraLines.push(`Appareil: ${repair.deviceDescription}`);
+  if (repair.customer?.phone) extraLines.push(dt('doc.repair.clientPhone', { value: repair.customer.phone }));
+  if (price <= 0) extraLines.push(dt('doc.repair.device', { value: repair.deviceDescription }));
   if (repair.soldUnit?.imei) extraLines.push(`IMEI: ${repair.soldUnit.imei}`);
-  if (repair.diagnosticNotes) extraLines.push(`Panne: ${repair.diagnosticNotes}`);
-  if (price > 0) extraLines.push('Montant à régler à la récupération');
+  if (repair.diagnosticNotes) extraLines.push(dt('doc.repair.fault', { value: repair.diagnosticNotes }));
+  if (price > 0) extraLines.push(dt('doc.repair.payOnPickup'));
   return {
     transactionNumber: repair.repairNumber,
     date: repair.receivedAt,
-    title: 'Ticket de réparation',
-    docLabel: 'Réparation',
+    title: dt('doc.repair.title'),
+    docLabel: dt('doc.repair.docLabel'),
     items: price > 0 ? [{ id: repair.id, name: repair.deviceDescription, retailPrice: price, quantity: 1, total: price }] : [],
     subtotal: price,
     tax: 0,
@@ -32,17 +33,17 @@ export function repairReceiptProps(repair, storeName) {
     customerName,
     storeName: storeName || 'CaissePro',
     cashierName: repair.creator ? `${repair.creator.firstName} ${repair.creator.lastName || ''}`.trim() : undefined,
-    footerNote: 'Présentez ce ticket pour récupérer votre appareil',
+    footerNote: dt('doc.repair.footer'),
   };
 }
 
 const cut = (s, n) => (s.length <= n ? s : s.slice(0, n - 1) + '…');
-const shortDate = (d) => new Date(d).toLocaleDateString('fr-MA', { day: '2-digit', month: '2-digit', year: '2-digit' });
+const shortDate = (d) => new Date(d).toLocaleDateString(intlLocale(), { day: '2-digit', month: '2-digit', year: '2-digit' });
 
 function labelHtml(repair, qr, storeName) {
   const client = [repair.customer?.firstName, repair.customer?.lastName].filter(Boolean).join(' ');
   const device = repair.soldUnit ? `${repair.soldUnit.brand} ${repair.soldUnit.model}` : repair.deviceDescription;
-  return `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Étiquette réparation</title><style>
+  return `<!DOCTYPE html><html lang="${docLocale()}"><head><meta charset="UTF-8"><title>${escapeHtml(dt('doc.repair.labelTitle'))}</title><style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'Courier New',Courier,monospace;-webkit-print-color-adjust:exact;print-color-adjust:exact;background:#fff}
 .label{position:relative;width:50mm;height:25mm;padding:.5mm;padding-bottom:4mm}

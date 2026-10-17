@@ -169,6 +169,8 @@ export default {
       unit_entry: 'Entrée appareil',
       unit_sale: 'Vente appareil',
     },
+    reasons: {"initialStock":"Stock initial","productSold":"Produit vendu","supplierReceipt":"Stock reçu du fournisseur","saleCancelled":"Annulation de vente","customerReturn":"Retour client","partUsed":"Pièce utilisée en réparation","partBackCancelled":"Pièce remise en stock (réparation annulée)","partBackDeleted":"Pièce remise en stock (réparation supprimée)","partRemoved":"Pièce retirée de la réparation"},
+    boxesSuffix: "{count} boîte(s) de {size}",
   },
   categories: { title: 'Catégories', noCategories: 'Aucune catégorie' },
 };

@@ -1,3 +1,4 @@
+import { i18n } from '@/i18n';
 import { http, publicHttp, apiErrorMessage } from './http';
 
 function mapSession(data) {
@@ -25,11 +26,11 @@ export const authApi = {
     try {
       const { data } = await publicHttp.post('/auth/login', { email, password, tenantSlug });
       if (!data.success || !data.data?.tokens?.accessToken) {
-        return { success: false, error: { code: 'invalid_response', message: data.message || 'Erreur lors de la connexion' } };
+        return { success: false, error: { code: 'invalid_response', message: data.message || i18n.global.t('common.loginError') } };
       }
       return { success: true, data: mapSession(data.data) };
     } catch (e) {
-      return { success: false, error: { code: 'auth_error', message: apiErrorMessage(e, 'Erreur lors de la connexion') } };
+      return { success: false, error: { code: 'auth_error', message: apiErrorMessage(e, i18n.global.t('common.loginError')) } };
     }
   },
   async logout() {
@@ -57,11 +58,11 @@ export const authApi = {
     try {
       const { data } = await http.post('/auth/impersonation/stop');
       if (!data.success || !data.data?.tokens?.accessToken) {
-        return { success: false, error: { code: 'invalid_response', message: data.message || "Échec de l'arrêt de la session impersonifiée" } };
+        return { success: false, error: { code: 'invalid_response', message: data.message || i18n.global.t('common.stopImpersonationError') } };
       }
       return { success: true, data: mapSession(data.data) };
     } catch (e) {
-      return { success: false, error: { code: 'auth_error', message: apiErrorMessage(e, "Échec de l'arrêt de la session impersonifiée") } };
+      return { success: false, error: { code: 'auth_error', message: apiErrorMessage(e, i18n.global.t('common.stopImpersonationError')) } };
     }
   },
 };

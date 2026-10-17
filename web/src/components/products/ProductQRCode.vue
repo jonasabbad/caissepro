@@ -1,4 +1,5 @@
 <script setup>
+import { intlLocale } from '@/i18n';
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useQuery } from '@tanstack/vue-query';
@@ -23,7 +24,7 @@ const codeLabel = computed(() => (props.product ? (props.product.barcode ? t('pr
 const codeValue = computed(() => (props.product ? props.product.barcode || props.product.sku || '-' : ''));
 const priceText = computed(() =>
   props.product
-    ? new Intl.NumberFormat('fr-MA', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(props.product.retailPrice) + ' DH'
+    ? new Intl.NumberFormat(intlLocale(), { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(props.product.retailPrice) + ' DH'
     : '0 DH',
 );
 

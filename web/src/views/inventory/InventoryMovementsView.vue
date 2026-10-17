@@ -1,4 +1,6 @@
 <script setup>
+import { intlLocale } from '@/i18n';
+import { stockReasonLabel } from '@/utils/stockReason';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useQuery } from '@tanstack/vue-query';
@@ -105,7 +107,7 @@ const { data: productList } = useQuery({ queryKey: ['products', 'all-for-filter'
 const products = computed(() => productList.value?.products || []);
 
 const formatWhen = (d) =>
-  new Date(d).toLocaleDateString('fr-MA', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  new Date(d).toLocaleDateString(intlLocale(), { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
 const TYPES = {
   sale: { label: 'sale', icon: ShoppingCartIcon, cls: 'text-danger-600 bg-danger-50' },
@@ -233,7 +235,7 @@ function clearFilters() {
               </td>
               <td class="px-4 py-3">
                 <p v-if="r.reference" class="text-sm text-primary-600">{{ r.reference }}</p>
-                <p v-if="r.reason" class="text-xs text-gray-500">{{ r.reason }}</p>
+                <p v-if="r.reason" class="text-xs text-gray-500">{{ stockReasonLabel(r.reason) }}</p>
               </td>
             </tr>
           </tbody>

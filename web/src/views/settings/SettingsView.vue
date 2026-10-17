@@ -14,7 +14,7 @@ import {
 import { settingsApi } from '@/api/misc';
 import { authApi } from '@/api/auth';
 import { useAuthStore } from '@/stores/auth';
-import { currentLocale, setLocale } from '@/i18n';
+import { currentLocale } from '@/i18n';
 import { getSavedPrinter, isQzAvailable, listPrinters, printHtml, setSavedPrinter } from '@/services/printer';
 import {
   getDrawerBaudRate,
@@ -127,10 +127,12 @@ const ribError = computed(() => {
   const rib = business.value.rib.replace(/\s/g, '');
   const bank = business.value.bankName;
   if (!rib) return null;
-  if (!/^\d{24}$/.test(rib)) return 'Le RIB doit contenir 24 chiffres';
+  if (!/^\d{24}$/.test(rib)) return t('settings.ribLength');
   const codes = BANK_CODES[bank];
   if (!codes?.length) return null;
-  return codes.includes(rib.slice(0, 3)) ? null : `Le RIB doit commencer par ${codes.length > 3 ? `${codes.slice(0, 3).join(', ')}...` : codes.join(' ou ')} pour ${bank}`;
+  return codes.includes(rib.slice(0, 3))
+    ? null
+    : t('settings.ribPrefix', { codes: codes.length > 3 ? `${codes.slice(0, 3).join(', ')}...` : codes.join(` ${t('settings.or')} `), bank });
 });
 
 // ── Saves ──
@@ -188,7 +190,7 @@ const prefsMut = useMutation({
   onError: (e) => fail(errMsg(e, t('settings.saveError'))),
 });
 function saveLocalization() {
-  setLocale(localization.value.language);
+  auth.setLanguage(localization.value.language);
   prefsMut.mutate({ locale: localization.value.language });
 }
 const passwordMut = useMutation({
@@ -290,24 +292,24 @@ async function detectPrinters() {
   }
 }
 function savePrinter() {
-  if (!printer.value) return fail('Sélectionnez une imprimante');
+  if (!printer.value) return fail(t('settings.selectPrinter'));
   setSavedPrinter(printer.value);
-  ok('Imprimante ticket enregistrée');
+  ok(t('settings.printerSaved'));
 }
 async function testPrinter() {
-  if (!printer.value) return fail('Sélectionnez une imprimante');
+  if (!printer.value) return fail(t('settings.selectPrinter'));
   testing.value = true;
   try {
     const html = receiptHtml({
       transactionNumber: 'TEST-0001',
-      docLabel: 'Ticket de test',
-      footerNote: "Aucune vente enregistrée — essai d'impression.",
+      docLabel: t('settings.testTicket'),
+      footerNote: t('settings.testTicketNote'),
       date: new Date().toISOString(),
-      cashierName: auth.currentUser?.firstName || 'Caissier',
+      cashierName: auth.currentUser?.firstName || t('settings.cashierFallback'),
       storeName: store.value.name || 'POS CAISSE',
       storeAddress: store.value.address || undefined,
       storePhone: store.value.phone || undefined,
-      items: [{ name: 'Article de test', quantity: 1, unitPrice: 100, total: 100 }],
+      items: [{ name: t('settings.testItem'), quantity: 1, unitPrice: 100, total: 100 }],
       subtotal: 100,
       taxAmount: 0,
       discount: 0,
@@ -317,9 +319,9 @@ async function testPrinter() {
       change: 0,
     });
     await printHtml(html, { widthMm: 80, printerName: printer.value });
-    ok('Ticket de test envoyé');
+    ok(t('settings.testSent'));
   } catch (e) {
-    fail(`Échec impression : ${e?.message || 'imprimante injoignable'}`);
+    fail(t('settings.printFailed', { error: e?.message || t('settings.printerUnreachable') }));
   } finally {
     testing.value = false;
   }
@@ -338,9 +340,9 @@ async function pairDrawer() {
     saveDrawerSettings(drawerCommand.value, drawerBaud.value);
     await pairCashDrawer();
     drawerPaired.value = true;
-    ok('Tiroir ouvert : ce poste est maintenant activé');
+    ok(t('settings.drawerPairedToast'));
   } catch (e) {
-    fail(e?.name === 'NotFoundError' ? 'Aucun port sélectionné' : `Échec ouverture tiroir : ${e?.message || 'port injoignable'}`);
+    fail(e?.name === 'NotFoundError' ? t('settings.noPortSelected') : t('settings.drawerFailed', { error: e?.message || t('settings.portUnreachable') }));
   } finally {
     pairing.value = false;
   }
@@ -350,9 +352,9 @@ async function testDrawer() {
   try {
     saveDrawerSettings(drawerCommand.value, drawerBaud.value);
     await openCashDrawer();
-    ok('Impulsion envoyée au tiroir');
+    ok(t('settings.drawerPulseSent'));
   } catch (e) {
-    fail(`Échec ouverture tiroir : ${e?.message || 'port injoignable'}`);
+    fail(t('settings.drawerFailed', { error: e?.message || t('settings.portUnreachable') }));
   } finally {
     kicking.value = false;
   }
@@ -360,7 +362,7 @@ async function testDrawer() {
 async function unpairDrawer() {
   await unpairCashDrawer();
   drawerPaired.value = false;
-  ok('Tiroir-caisse désactivé sur ce poste');
+  ok(t('settings.drawerDisabled'));
 }
 </script>
 
@@ -409,7 +411,7 @@ async function unpairDrawer() {
             <div><label class="label">{{ t('settings.storeCity') }}</label><input v-model="store.city" class="input" /></div>
             <div>
               <label class="label">{{ t('settings.storePhone') }}</label><input v-model="store.phone" class="input" />
-              <p class="text-xs text-gray-500 mt-1">Format: 0612345678 ou +212612345678</p>
+              <p class="text-xs text-gray-500 mt-1">{{ t('settings.phoneFormat') }}</p>
             </div>
           </div>
           <div class="sm:w-1/2"><label class="label">{{ t('settings.taxRate') }} (%)</label><input v-model.number="store.taxRate" type="number" min="0" max="100" class="input" /></div>
@@ -451,11 +453,11 @@ async function unpairDrawer() {
               <div><label class="label">{{ t('settings.invoicePrefix') }}</label><input v-model="business.invoicePrefix" class="input" placeholder="Ex: FAC, INV, F" maxlength="10" /></div>
               <div>
                 <label class="label">{{ t('settings.invoiceSeparator') }}</label>
-                <select v-model="business.invoiceSeparator" class="input"><option value="-">Tiret (-)</option><option value="/">Slash (/)</option><option value="_">Underscore (_)</option><option value="">Aucun</option></select>
+                <select v-model="business.invoiceSeparator" class="input"><option value="-">{{ t('settings.separatorDash') }}</option><option value="/">{{ t('settings.separatorSlash') }}</option><option value="_">{{ t('settings.separatorUnderscore') }}</option><option value="">{{ t('settings.none') }}</option></select>
               </div>
               <div>
                 <label class="label">{{ t('settings.invoiceYearFormat') }}</label>
-                <select v-model="business.invoiceYearFormat" class="input"><option value="YYYY">YYYY</option><option value="YY">YY</option><option value="">Aucun</option></select>
+                <select v-model="business.invoiceYearFormat" class="input"><option value="YYYY">YYYY</option><option value="YY">YY</option><option value="">{{ t('settings.none') }}</option></select>
               </div>
               <div><label class="label">{{ t('settings.invoiceDigits') }}</label><input v-model.number="business.invoiceDigits" type="number" min="1" max="8" class="input" /></div>
             </div>
@@ -472,15 +474,15 @@ async function unpairDrawer() {
               <p class="text-sm text-gray-500">{{ t('settings.companyInfoHelp') }}</p>
             </div>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div><label class="label">ICE</label><input v-model="business.ice" class="input font-mono" inputmode="numeric" maxlength="15" /><p class="text-xs text-gray-500 mt-1">Identifiant Commun de l'Entreprise (15 chiffres)</p></div>
-              <div><label class="label">RC</label><input v-model="business.rc" class="input" /><p class="text-xs text-gray-500 mt-1">Registre de Commerce</p></div>
+              <div><label class="label">ICE</label><input v-model="business.ice" class="input font-mono" inputmode="numeric" maxlength="15" /><p class="text-xs text-gray-500 mt-1">{{ t('settings.iceHelp') }}</p></div>
+              <div><label class="label">RC</label><input v-model="business.rc" class="input" /><p class="text-xs text-gray-500 mt-1">{{ t('settings.rcHelp') }}</p></div>
               <div><label class="label">Patente</label><input v-model="business.patente" class="input" /></div>
-              <div><label class="label">IF</label><input v-model="business.identifiantFiscal" class="input" /><p class="text-xs text-gray-500 mt-1">Identifiant Fiscal</p></div>
-              <div><label class="label">TP</label><input v-model="business.taxeProfessionnelle" class="input" /><p class="text-xs text-gray-500 mt-1">Taxe Professionnelle</p></div>
+              <div><label class="label">IF</label><input v-model="business.identifiantFiscal" class="input" /><p class="text-xs text-gray-500 mt-1">{{ t('settings.ifHelp') }}</p></div>
+              <div><label class="label">TP</label><input v-model="business.taxeProfessionnelle" class="input" /><p class="text-xs text-gray-500 mt-1">{{ t('settings.tpHelp') }}</p></div>
               <div><label class="label">CNSS</label><input v-model="business.cnss" class="input" /></div>
               <div v-if="isAE" class="sm:col-span-2">
                 <label class="label">CNIE</label><input v-model="business.cnie" class="input" placeholder="AB123456" />
-                <p class="text-xs text-gray-500 mt-1">Carte Nationale d'Identité (Auto-entrepreneur) — Format : 1-2 lettres + 5-7 chiffres</p>
+                <p class="text-xs text-gray-500 mt-1">{{ t('settings.cnieHelp') }}</p>
               </div>
             </div>
           </div>
@@ -495,11 +497,11 @@ async function unpairDrawer() {
                 <label class="label">{{ t('settings.bankName') }}</label>
                 <select v-model="business.bankName" class="input"><option value="">—</option><option v-for="b in Object.keys(BANK_CODES)" :key="b" :value="b">{{ b }}</option></select>
               </div>
-              <div><label class="label">{{ t('settings.accountHolder') }}</label><input v-model="business.accountHolder" class="input" placeholder="Nom du titulaire" /></div>
+              <div><label class="label">{{ t('settings.accountHolder') }}</label><input v-model="business.accountHolder" class="input" :placeholder="t('settings.accountHolderPlaceholder')" /></div>
               <div><label class="label">{{ t('settings.accountNumber') }}</label><input v-model="business.accountNumber" class="input" /></div>
               <div>
                 <label class="label">RIB</label><input v-model="business.rib" class="input font-mono" inputmode="numeric" maxlength="29" />
-                <p :class="['text-xs mt-1', ribError ? 'text-danger-600' : 'text-gray-500']">{{ ribError || "Relevé d'Identité Bancaire — 24 chiffres" }}</p>
+                <p :class="['text-xs mt-1', ribError ? 'text-danger-600' : 'text-gray-500']">{{ ribError || t('settings.ribHelp') }}</p>
               </div>
             </div>
           </div>
@@ -511,7 +513,7 @@ async function unpairDrawer() {
           <h2 class="text-lg font-semibold text-gray-900">{{ t('settings.localization') }}</h2>
           <div>
             <label class="label">{{ t('settings.language') }}</label>
-            <select v-model="localization.language" class="input"><option value="fr">Français</option><option value="ar">العربية</option></select>
+            <select v-model="localization.language" class="input"><!-- i18n-ignore: language names --><option value="fr">Français</option><option value="en">English</option><option value="ar">العربية</option></select>
           </div>
           <div>
             <label class="label">{{ t('settings.dateFormat') }}</label>

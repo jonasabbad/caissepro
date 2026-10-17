@@ -128,7 +128,7 @@ onUnmounted(() => document.removeEventListener('click', onOutside, true));
         v-model="search"
         type="text"
         class="ss-input min-w-0 flex-1 border-none bg-transparent p-0 text-sm outline-none focus:ring-0"
-        :placeholder="selectedLabel || placeholder || 'Rechercher...'"
+        :placeholder="selectedLabel || placeholder || $t('common.searchPlaceholder')"
         @keydown="onKeydown"
       />
       <span v-else :class="['min-w-0 flex-1 truncate', modelValue ? 'text-gray-900' : 'text-gray-400']">{{ selectedLabel || placeholder || '-' }}</span>
@@ -170,7 +170,7 @@ onUnmounted(() => document.removeEventListener('click', onOutside, true));
           <li v-if="canCreate" class="cursor-pointer px-3 py-2 font-medium text-primary-700 hover:bg-gray-100" @mousedown.prevent="create">
             Ajouter « {{ search.trim() }} »
           </li>
-          <li v-if="filtered.length === 0 && !canCreate" class="px-3 py-2 text-gray-400">Aucun résultat</li>
+          <li v-if="filtered.length === 0 && !canCreate" class="px-3 py-2 text-gray-400">{{ $t('common.noResults') }}</li>
         </ul>
       </div>
     </Transition>
