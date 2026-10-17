@@ -16,8 +16,8 @@ const messages = new Set();
 for (const f of walk(serverSrc).filter((f) => f.endsWith('.ts'))) {
   const s = fs.readFileSync(f, 'utf8');
   // Error helpers and zod messages.
-  for (const m of s.matchAll(/(?:badRequest|conflict|forbidden|unauthorized)\(\s*(['`])((?:(?!\1).)*)\1/g)) messages.add(m[2]);
-  for (const m of s.matchAll(/\.(?:min|max|email|regex|refine|positive|nonempty|int)\([^)]*?(['`])((?:(?!\1).)*[a-zé](?:(?!\1).)*)\1\)/g)) messages.add(m[2]);
+  for (const m of s.matchAll(/(?:badRequest|conflict|forbidden|unauthorized)\(\s*(['"`])((?:(?!\1).)*)\1/g)) messages.add(m[2]);
+  for (const m of s.matchAll(/\.(?:min|max|email|regex|refine|positive|nonempty|int)\([^)'"`]*?(['"`])((?:(?!\1).)*[a-zé](?:(?!\1).)*)\1\)/g)) messages.add(m[2]);
 }
 let missing = 0;
 for (const raw of messages) {

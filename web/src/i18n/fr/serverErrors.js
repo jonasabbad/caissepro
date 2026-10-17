@@ -85,5 +85,13 @@ export default {
     imeiExists: "Un appareil avec l'IMEI {imei} existe déjà",
     notFound: 'Élément introuvable',
     serverError: 'Erreur du serveur',
+    noImpersonation: "Aucune session d'impersonation active",
+    customerNoDebt: "Ce client n'a aucune dette",
+    deviceDescriptionRequired: "La description de l'appareil est obligatoire",
+    pdfInBrowser: "L'export PDF est généré dans le navigateur",
+    deviceNotReserved: "Cet appareil n'est pas réservé",
+    noPaymentGateway: "Aucune passerelle de paiement n'est configurée sur ce serveur.",
+    orderCannotBeReceived: "Cette commande ne peut pas être réceptionnée",
+    returnCannotBeCancelled: "Un retour ne peut pas être annulé",
   },
 };

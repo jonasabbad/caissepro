@@ -83,5 +83,13 @@ export default {
     imeiExists: 'يوجد جهاز بـ IMEI {imei}',
     notFound: 'العنصر غير موجود',
     serverError: 'خطأ في الخادم',
+    noImpersonation: "لا توجد جلسة انتحال هوية نشطة",
+    customerNoDebt: "هذا العميل ليس عليه أي دين",
+    deviceDescriptionRequired: "وصف الجهاز مطلوب",
+    pdfInBrowser: "يتم إنشاء ملف PDF في المتصفح",
+    deviceNotReserved: "هذا الجهاز غير محجوز",
+    noPaymentGateway: "لا توجد بوابة دفع مهيأة على هذا الخادم.",
+    orderCannotBeReceived: "لا يمكن استلام هذه الطلبية",
+    returnCannotBeCancelled: "لا يمكن إلغاء عملية إرجاع",
   },
 };

@@ -83,5 +83,13 @@ export default {
     imeiExists: 'A device with IMEI {imei} already exists',
     notFound: 'Item not found',
     serverError: 'Server error',
+    noImpersonation: "No active impersonation session",
+    customerNoDebt: "This customer has no debt",
+    deviceDescriptionRequired: "The device description is required",
+    pdfInBrowser: "The PDF export is generated in the browser",
+    deviceNotReserved: "This device is not reserved",
+    noPaymentGateway: "No payment gateway is configured on this server.",
+    orderCannotBeReceived: "This order cannot be received",
+    returnCannotBeCancelled: "A return cannot be cancelled",
   },
 };
