@@ -531,16 +531,20 @@ model RepairExpense {
 // ─── Labels, announcements, misc ─────────────────────────────────────────────
 
 model LabelTemplate {
-  id        String   @id @default(uuid())
-  tenantId  String
-  key       String // products | sold_units | repairs | sold_units:<variant>
-  name      String
-  config    String   @default("{}") // JSON layout definition
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id         String   @id @default(uuid())
+  tenantId   String
+  categoryId String // product category id, or "__sold_units__" for devices
+  brand      String? // device variants only
+  deviceType String? // device variants only
+  name       String
+  template   String   @default("{}") // JSON layout + include* flags
+  isDefault  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
-  @@unique([tenantId, key])
+  @@index([tenantId, categoryId])
 }
+
 
 model Announcement {
   id        String    @id @default(uuid())
