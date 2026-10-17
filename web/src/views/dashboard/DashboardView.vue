@@ -182,7 +182,7 @@ const PRESETS = computed(() => [
     <div v-if="pnl" class="card p-5 mb-6">
       <h2 class="font-semibold text-gray-900 mb-1">{{ t('dashboard.profitStatement') }}</h2>
       <p class="text-xs text-gray-500 mb-4">{{ t('dashboard.profitStatementHint') }}</p>
-      <div class="grid grid-cols-2 md:grid-cols-5 gap-3 text-sm">
+      <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 text-sm">
         <div class="rounded-lg bg-gray-50 p-3">
           <p class="text-gray-500">{{ t('dashboard.revenue') }}</p>
           <p class="text-lg font-bold text-gray-900">{{ formatCurrency(pnl.totals.revenue) }}</p>
@@ -191,7 +191,12 @@ const PRESETS = computed(() => [
         <div class="rounded-lg bg-gray-50 p-3">
           <p class="text-gray-500">{{ t('dashboard.cogs') }}</p>
           <p class="text-lg font-bold text-gray-900">{{ formatCurrency(pnl.totals.cogs, 'DH', '−') }}</p>
-          <p class="text-xs text-gray-500">{{ t('dashboard.repairParts') }} {{ formatCurrency(pnl.repairs.partsCost) }}</p>
+          <p class="text-xs text-gray-500">{{ t('dashboard.cogsHint') }}</p>
+        </div>
+        <div class="rounded-lg bg-gray-50 p-3">
+          <p class="text-gray-500">{{ t('dashboard.repairCosts') }}</p>
+          <p class="text-lg font-bold text-gray-900">{{ formatCurrency(pnl.totals.repairCosts ?? 0, 'DH', '−') }}</p>
+          <p class="text-xs text-gray-500">{{ t('dashboard.repairCostsHint', { parts: formatCurrency(pnl.repairs.partsCost), other: formatCurrency(pnl.repairs.laborCost + pnl.repairs.otherCost) }) }}</p>
         </div>
         <div class="rounded-lg bg-gray-50 p-3">
           <p class="text-gray-500">{{ t('dashboard.grossProfit') }}</p>
@@ -200,13 +205,13 @@ const PRESETS = computed(() => [
         <div class="rounded-lg bg-gray-50 p-3">
           <p class="text-gray-500">{{ t('dashboard.directExpenses') }}</p>
           <p class="text-lg font-bold text-gray-900">{{ formatCurrency(pnl.totals.directExpenses, 'DH', '−') }}</p>
-          <p class="text-xs text-gray-500">{{ t('expenses.businessExpenses') }} {{ formatCurrency(pnl.totals.businessExpenses ?? 0) }} · {{ t('expenses.repairCosts') }} {{ formatCurrency(pnl.totals.repairDirectCosts ?? pnl.totals.directExpenses) }}</p>
+          <p class="text-xs text-gray-500">{{ t('dashboard.directExpensesHint') }}</p>
           <div v-if="canManageExpenses" class="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs font-medium">
             <RouterLink :to="{ name: 'expenses', query: { new: 1 } }" class="text-primary-600 hover:underline">+ {{ t('expenses.add') }}</RouterLink>
             <RouterLink :to="{ name: 'expenses' }" class="text-gray-600 hover:underline">{{ t('expenses.manage') }}</RouterLink>
           </div>
         </div>
-        <div :class="['rounded-lg p-3 col-span-2 md:col-span-1', pnl.totals.netProfit >= 0 ? 'bg-success-50' : 'bg-danger-50']">
+        <div :class="['rounded-lg p-3', pnl.totals.netProfit >= 0 ? 'bg-success-50' : 'bg-danger-50']">
           <p class="text-gray-500">{{ t('dashboard.netProfit') }}</p>
           <p :class="['text-lg font-bold', pnl.totals.netProfit >= 0 ? 'text-success-700' : 'text-danger-700']">{{ formatCurrency(pnl.totals.netProfit) }}</p>
           <p class="text-xs text-gray-500">{{ pnl.totals.margin.toFixed(1) }}% {{ t('dashboard.margin') }}</p>

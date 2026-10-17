@@ -13,7 +13,8 @@ The code lives in `server/src/lib/profit.ts`; every screen and report uses those
 | Sales gross profit | Margin of the sales (price − cost) plus the margin effect of returns (the retained part of a refund counts, the margin of what came back is removed). |
 | Cost of goods sold | Net sales − sales gross profit. |
 
-A device's cost is its purchase price **plus the cost of repairs done on it while in stock** (see below).
+A device's cost is its purchase price (plus, for repairs recorded before 2026-10-17 only, the cost of repairs done on it
+while in stock — see below).
 
 ## Repairs
 
@@ -40,22 +41,31 @@ That moment is stored as `realizedAt` and is the date used by every report. Cons
 a reference). They are never POS sales, so repair revenue cannot be counted twice. Cash payments go into the drawer
 as `sale` movements ("Paiement réparation - REP-…").
 
-**Costs paid from the drawer.** A bought part or a technician cost can be marked *paid from the drawer*: it is taken
-out of the cash drawer (`cash_out`). Removing that cost puts the money back.
+**Repair costs are not business expenses.** The *Repair cost* field of the New Repair form and every cost line of a
+repair (purchased part, part from stock, technician, other) belong to that repair: they are deducted from its price to
+give its profit (example: price 500 − parts 150 − other 0 = profit 350). They never create an entry on the Expenses
+page and are never added to *Direct expenses*, so they cannot be deducted twice.
 
-**Repairs on the shop's own stock devices** (repairs linked to a device in stock) are refurbishments. Their cost is
-added to the device's cost and is counted when the device is sold. They are therefore **excluded from repair costs
-and repair profit**, which avoids counting the same cost twice.
+**Cash.** A repair cost does not touch the cash drawer, unless a bought part or a technician cost is explicitly marked
+*paid from the drawer*: it is then taken out once (`cash_out`), and removing that cost puts the money back. A part taken
+from stock only decreases the stock (it was paid when the stock was purchased). Unpaid repair revenue is never cash:
+only recorded payments move the drawer.
+
+**Repairs linked to a device in stock** keep their costs in the repair's profit as well; the device's cost is not raised,
+so selling the device does not count those costs again. Legacy: repairs recorded before 2026-10-17 on a stock device
+had their costs added to the device's cost instead (`costsCapitalized`). A one-time data migration flags those repairs
+so their history is unchanged: they stay out of repair costs and repair profit, and the device's cost keeps them.
 
 ## Whole business (dashboard "Gains réels", profit reports)
 
 | Figure | Definition |
 |---|---|
 | Revenue | Net sales + realized repair revenue |
-| Cost of goods | Cost of goods sold + repair parts |
-| **Gross profit** | Revenue − cost of goods |
-| Direct expenses | Repair technician/external costs + other repair costs + business expenses (Expenses page, by expense date) |
-| **Net profit** | Gross profit − direct expenses = sales gross profit + repair profit − business expenses |
+| Cost of goods | Cost of goods sold (products and devices sold) |
+| Repair costs | Parts + technician/external + other direct costs of the realized repairs |
+| **Gross profit** | Revenue − cost of goods − repair costs = sales gross profit + repair profit |
+| Direct expenses | Business expenses only (Expenses page, by expense date) |
+| **Net profit** | Gross profit − direct expenses |
 | Margin | Net profit ÷ revenue |
 
 The dashboard's sales KPI ("Ventes du jour") stays sales only. Repair revenue and profit have their own figures and

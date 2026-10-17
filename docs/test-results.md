@@ -250,3 +250,19 @@ of moved products is kept.
 - Product labels now follow each category's template size; the size picker they had is gone (set the size per
   category in Settings → Label templates).
 - Test data left: expense "water" (yours, 30 DH) untouched; TEST category "TEST Quick Cat" with product "TEST Watch Band".
+
+## Repair cost accounting (2026-10-17)
+
+Automated (`npm test -w server`, 57 tests pass), including:
+
+- New Repair with price 500 and Repair Cost 150 → repair profit 350; no Expense created; drawer unchanged until the
+  customer pays; after completion and a 500 cash payment the drawer moves by +500 only; dashboard and reports show
+  revenue 500, repair costs 150, gross/net profit 350, direct expenses 0.
+- A repair linked to a stock device keeps its costs in the repair; the device cost is unchanged and its sale is not
+  charged the repair cost again. A legacy (`costsCapitalized`) repair still feeds the device cost.
+
+In the app (local dev data, TEST customer): New Repair "TEST Samsung A54", price 500, Repair Cost 150 → detail shows
+profit 350 (70%). Before → after completion and 500 cash payment: direct expenses 30 → 30, Expenses page 30 → 30,
+drawer 5,493 → 5,993 (one movement "Paiement réparation", +500), repair profit 724 → 1,074 (+350), revenue
+5,613 → 6,113, repair costs 326 → 476, net profit 1,869 → 2,219. The existing repair on a stock device kept its 120 DH
+in the device cost after the migration.

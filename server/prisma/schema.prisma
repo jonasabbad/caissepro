@@ -519,6 +519,8 @@ model Repair {
   payments          String    @default("[]") // JSON [{id, amount, method, reference?, paidAt, userId}]
   // When the repair became realized income: completed/delivered AND fully paid. Null otherwise.
   realizedAt        DateTime?
+  /// Legacy: costs added to the linked stock device's cost instead of the repair (repairs before 2026-10-17 only).
+  costsCapitalized  Boolean   @default(false)
   estimatedCompletionAt DateTime?
   trackingToken     String?   @unique // public status link encoded in the repair QR code
   createdAt         DateTime  @default(now())
@@ -660,4 +662,10 @@ model PlatformSettings {
   supportWhatsapp       String?
   trialDays             Int      @default(7)
   updatedAt             DateTime @updatedAt
+}
+
+/// One-time data migrations already applied (see src/lib/dataMigrations.ts).
+model DataMigration {
+  id    String   @id
+  ranAt DateTime @default(now())
 }

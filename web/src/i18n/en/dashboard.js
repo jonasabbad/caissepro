@@ -40,9 +40,12 @@ export default {
     repairsShort: 'Repairs',
     cogs: 'Cost of goods sold',
     repairParts: 'of which parts',
+    repairCosts: 'Repair costs',
+    repairCostsHint: 'Parts {parts} · other {other}',
+    cogsHint: 'Products and devices sold',
     grossProfit: 'Gross profit',
     directExpenses: 'Direct expenses',
-    directExpensesHint: 'Labor and other repair costs',
+    directExpensesHint: 'Business expenses (Expenses page)',
     netProfit: 'Net profit',
   },
 };

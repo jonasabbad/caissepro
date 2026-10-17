@@ -93,12 +93,15 @@ async function present(rows: RepairRow[]) {
   );
 }
 
-/** Repair spending on a stock device raises its cost: repairCost = Σ cost of its non-cancelled repairs. */
+/**
+ * Device cost from repairs: only legacy repairs (costsCapitalized) still add their costs to the device. Since
+ * 2026-10-17 a repair's costs stay in the repair's own profit, so they are not counted again when the device is sold.
+ */
 async function syncUnitRepairCost(tx: Tx, soldUnitId: string | null | undefined) {
   if (!soldUnitId) return;
   const unit = await tx.soldUnit.findUnique({ where: { id: soldUnitId } });
   if (!unit) return;
-  const repairs = await tx.repair.findMany({ where: { soldUnitId, status: { not: 'cancelled' } }, select: { totalCost: true } });
+  const repairs = await tx.repair.findMany({ where: { soldUnitId, status: { not: 'cancelled' }, costsCapitalized: true }, select: { totalCost: true } });
   const repairCost = r2(repairs.reduce((s, r) => s + num(r.totalCost), 0));
   await tx.soldUnit.update({
     where: { id: unit.id },

@@ -352,9 +352,10 @@ async function exportPdf() {
               <tr class="font-semibold"><td class="py-2">{{ t('reports.totalRevenue') }}</td><td class="py-2 text-end">{{ formatCurrency(sales.profit.totals.revenue) }}</td></tr>
               <tr><td class="py-2 text-gray-600">{{ t('reports.cogs') }}</td><td class="py-2 text-end text-danger-600">{{ formatCurrency(sales.profit.sales.cogs, 'DH', '−') }}</td></tr>
               <tr><td class="py-2 text-gray-600">{{ t('reports.partsCost') }}</td><td class="py-2 text-end text-danger-600">{{ formatCurrency(sales.profit.repairs.partsCost, 'DH', '−') }}</td></tr>
-              <tr class="font-semibold"><td class="py-2">{{ t('reports.grossProfit') }}</td><td class="py-2 text-end">{{ formatCurrency(sales.profit.totals.grossProfit) }}</td></tr>
               <tr><td class="py-2 text-gray-600">{{ t('reports.laborCost') }}</td><td class="py-2 text-end text-danger-600">{{ formatCurrency(sales.profit.repairs.laborCost, 'DH', '−') }}</td></tr>
               <tr><td class="py-2 text-gray-600">{{ t('reports.otherCost') }}</td><td class="py-2 text-end text-danger-600">{{ formatCurrency(sales.profit.repairs.otherCost, 'DH', '−') }}</td></tr>
+              <tr class="font-semibold"><td class="py-2">{{ t('reports.grossProfit') }}</td><td class="py-2 text-end">{{ formatCurrency(sales.profit.totals.grossProfit) }}</td></tr>
+              <tr><td class="py-2 text-gray-600">{{ t('dashboard.directExpenses') }}</td><td class="py-2 text-end text-danger-600">{{ formatCurrency(sales.profit.totals.directExpenses, 'DH', '−') }}</td></tr>
               <tr :class="['font-bold text-base', sales.profit.totals.netProfit >= 0 ? 'text-success-700' : 'text-danger-700']">
                 <td class="py-2">{{ t('reports.netProfit') }}</td>
                 <td class="py-2 text-end">{{ formatCurrency(sales.profit.totals.netProfit) }} <span class="text-xs font-normal text-gray-500">({{ sales.profit.totals.margin.toFixed(1) }}%)</span></td>
@@ -1089,9 +1090,10 @@ async function exportPdf() {
           <table class="w-full text-sm">
             <tbody class="divide-y divide-gray-100">
               <tr><td class="py-2 text-gray-600">{{ t('dashboard.revenue') }}</td><td class="py-2 text-end">{{ formatCurrency(expensesReport.profit.totals.revenue) }}</td></tr>
+              <tr><td class="py-2 text-gray-600">{{ t('dashboard.cogs') }}</td><td class="py-2 text-end text-danger-600">{{ formatCurrency(expensesReport.profit.totals.cogs, 'DH', '−') }}</td></tr>
+              <tr><td class="py-2 text-gray-600">{{ t('dashboard.repairCosts') }}</td><td class="py-2 text-end text-danger-600">{{ formatCurrency(expensesReport.profit.totals.repairCosts, 'DH', '−') }}</td></tr>
               <tr><td class="py-2 text-gray-600">{{ t('dashboard.grossProfit') }}</td><td class="py-2 text-end">{{ formatCurrency(expensesReport.profit.totals.grossProfit) }}</td></tr>
-              <tr><td class="py-2 text-gray-600">{{ t('expenses.repairCosts') }}</td><td class="py-2 text-end text-danger-600">{{ formatCurrency(expensesReport.profit.totals.repairDirectCosts, 'DH', '−') }}</td></tr>
-              <tr><td class="py-2 text-gray-600">{{ t('expenses.businessExpenses') }}</td><td class="py-2 text-end text-danger-600">{{ formatCurrency(expensesReport.profit.totals.businessExpenses, 'DH', '−') }}</td></tr>
+              <tr><td class="py-2 text-gray-600">{{ t('expenses.businessExpenses') }}</td><td class="py-2 text-end text-danger-600">{{ formatCurrency(expensesReport.profit.totals.directExpenses, 'DH', '−') }}</td></tr>
               <tr class="font-semibold"><td class="py-2">{{ t('dashboard.netProfit') }}</td><td class="py-2 text-end">{{ formatCurrency(expensesReport.profit.totals.netProfit) }}</td></tr>
             </tbody>
           </table>

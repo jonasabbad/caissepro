@@ -48,7 +48,7 @@ describe('repairs', () => {
     expect((await api.post(`/repairs/${id}/expenses`, { description: 'x', amount: 1 })).status).toBe(400);
   });
 
-  it('expenses roll up into totalCost and into the linked stock device cost', async () => {
+  it('cost lines roll up into the repair total and do not change the linked device cost', async () => {
     const { api, customer, unit } = await setup();
     const repair = (
       await api.post('/repairs', { customerId: customer.id, deviceDescription: 'iPhone 13 - batterie', soldUnitId: unit.id, fixedPrice: 400 })
@@ -61,13 +61,13 @@ describe('repairs', () => {
     r = (await api.post(`/repairs/${repair.id}/expenses`, { description: 'Pose', amount: 50, type: 'labor' })).body.data.repair;
     expect([r.totalCost, r.expenses.length]).toEqual(['200.00', 2]);
     let u = (await api.get(`/phone-seller/sold-units/${unit.id}`)).body.data.unit;
-    expect([u.repairCost, u.profit]).toEqual(['200.00', '600.00']);
+    expect([u.repairCost, u.profit]).toEqual(['0.00', '800.00']); // counted in the repair's profit, not in the device
 
     r = (await api.delete(`/repairs/${repair.id}/expenses/${r.expenses[1].id}`)).body.data.repair;
     expect(r.totalCost).toBe('150.00');
     expect((await api.get(`/repairs/by-unit/${unit.id}`)).body.data.repairs).toHaveLength(1);
 
-    // Cancelling drops the cost from the device again.
+    // Cancelling leaves the device unchanged.
     await api.patch(`/repairs/${repair.id}/status`, { status: 'cancelled' });
     u = (await api.get(`/phone-seller/sold-units/${unit.id}`)).body.data.unit;
     expect([u.repairCost, u.profit]).toEqual(['0.00', '800.00']);
@@ -75,12 +75,12 @@ describe('repairs', () => {
     expect((await api.post('/repairs', { customerId: customer.id, deviceDescription: 'again', soldUnitId: unit.id })).status).toBe(201);
   });
 
-  it('device repair cost flows into the POS line cost', async () => {
+  it('repair costs on a device are not added again to its sale cost', async () => {
     const { api, customer, unit } = await setup();
     const repair = (await api.post('/repairs', { customerId: customer.id, deviceDescription: 'x', soldUnitId: unit.id, fixedPrice: 100 })).body.data.repair;
     await api.post(`/repairs/${repair.id}/expenses`, { description: 'Écran', amount: 300 });
     const tx = (await api.post('/checkout', { items: [{ soldUnitId: unit.id, quantity: 1, unitPrice: 3800 }], payments: [{ method: 'cash', amount: 3800 }] })).body.data.transaction;
-    expect([tx.totalCost, tx.totalProfit]).toEqual(['3300.00', '500.00']);
+    expect([tx.totalCost, tx.totalProfit]).toEqual(['3000.00', '800.00']);
   });
 
   it('deletes a repair', async () => {

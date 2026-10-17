@@ -35,7 +35,6 @@ describe('direct expenses', () => {
 
     // Dashboard: direct expenses include the expenses; net profit goes down by the same amount.
     const kpis = (await api.get(`/dashboard/kpis?startDate=${today()}&endDate=${today()}`)).body.data.kpis;
-    expect(kpis.profitBreakdown.totals.businessExpenses).toBe(3200);
     expect(kpis.profitBreakdown.totals.directExpenses).toBe(3200);
     expect(kpis.profitBreakdown.totals.netProfit).toBe(-3200);
 
@@ -56,7 +55,7 @@ describe('direct expenses', () => {
     const report = (await api.get(`/reports?type=expenses&startDate=${today()}&endDate=${today()}`)).body.data.report;
     expect(report.summary).toMatchObject({ total: 3250, count: 2 });
     expect(report.byCategory[0]).toMatchObject({ key: 'rent', amount: 3000 });
-    expect(report.profit.totals.businessExpenses).toBe(3250);
+    expect(report.profit.totals.directExpenses).toBe(3250);
 
     // Delete: soft delete, excluded everywhere; a cash expense gives the money back to the drawer.
     await api.put(`/expenses/${fuel.id}`, { paymentMethod: 'cash' });
@@ -66,7 +65,7 @@ describe('direct expenses', () => {
     expect((await prisma.expense.findUniqueOrThrow({ where: { id: fuel.id } })).deletedAt).not.toBeNull();
     expect((await api.get('/expenses')).body.data.totals.amount).toBe(3000);
     const after = (await api.get(`/dashboard/kpis?startDate=${today()}&endDate=${today()}`)).body.data.kpis;
-    expect(after.profitBreakdown.totals.businessExpenses).toBe(3000);
+    expect(after.profitBreakdown.totals.directExpenses).toBe(3000);
 
     // The drawer history shows each step.
     const moves = (await api.get(`/stores/${store.id}/caisse`)).body.data.movements.map((m: any) => [m.type, Number(m.amount), m.reason]);

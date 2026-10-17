@@ -40,9 +40,12 @@ export default {
     repairsShort: "Réparations",
     cogs: "Coût des marchandises",
     repairParts: "dont pièces",
+    repairCosts: "Coûts des réparations",
+    repairCostsHint: "Pièces {parts} · autres {other}",
+    cogsHint: "Produits et appareils vendus",
     grossProfit: "Marge brute",
     directExpenses: "Charges directes",
-    directExpensesHint: "Main d’œuvre et autres coûts de réparation",
+    directExpensesHint: "Dépenses de l’entreprise (page Dépenses)",
     netProfit: "Bénéfice net",
   },
 };

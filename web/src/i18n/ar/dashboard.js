@@ -40,9 +40,12 @@ export default {
     repairsShort: "الإصلاحات",
     cogs: "تكلفة البضائع",
     repairParts: "منها قطع الغيار",
+    repairCosts: "تكاليف الإصلاحات",
+    repairCostsHint: "القطع {parts} · أخرى {other}",
+    cogsHint: "المنتجات والأجهزة المباعة",
     grossProfit: "الهامش الإجمالي",
     directExpenses: "المصاريف المباشرة",
-    directExpensesHint: "اليد العاملة وتكاليف الإصلاح الأخرى",
+    directExpensesHint: "مصاريف النشاط (صفحة المصاريف)",
     netProfit: "الربح الصافي",
   },
 };

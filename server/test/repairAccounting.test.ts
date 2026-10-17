@@ -62,7 +62,8 @@ describe('repair accounting', () => {
     expect(k.realProfit.total).toBe(370);
     expect(k.repairs).toEqual(expect.objectContaining({ revenue: 900, profit: 330, count: 1 }));
     expect(k.dailySales.total).toBe(50); // sales KPI stays sales-only: repair revenue is not mixed into it
-    expect(k.profitBreakdown.totals).toEqual({ revenue: 950, cogs: 360, grossProfit: 590, directExpenses: 220, repairDirectCosts: 220, businessExpenses: 0, netProfit: 370, margin: 38.95 });
+    // Repair costs stay in the repair; direct expenses are business expenses only (none here).
+    expect(k.profitBreakdown.totals).toEqual({ revenue: 950, cogs: 10, repairCosts: 570, grossProfit: 370, directExpenses: 0, netProfit: 370, margin: 38.95 });
     const trend = (await api.get('/dashboard/sales-trend?days=7')).body.data.trend.at(-1);
     expect([trend.sales, trend.repairRevenue, trend.repairProfit, trend.profit]).toEqual([50, 900, 330, 370]);
 
@@ -106,15 +107,53 @@ describe('repair accounting', () => {
     expect(rep.summary).toEqual(expect.objectContaining({ realizedCount: 0, profit: 0, receivedCount: 3, pendingCount: 2, pendingRevenue: 700, collectedNotRealized: 50, cancelledCount: 1 }));
   });
 
-  it('does not double count repairs on the shop’s own stock devices', async () => {
+  it('New Repair "Repair Cost": 500 charged, 150 spare parts → profit 350, no business expense, no extra cash movement', async () => {
+    const { api, customer, caisse } = await setup();
+    // What the New Repair form sends: the repair, then its Repair Cost as a spare-part cost line (not paid from the drawer).
+    const repair = (await api.post('/repairs', { customerId: customer.id, deviceDescription: 'Samsung A54 - écran', fixedPrice: 500 })).body.data.repair;
+    let r = (await api.post(`/repairs/${repair.id}/expenses`, { type: 'part', description: 'Repair cost', amount: 150 })).body.data.repair;
+    expect(r.financials).toEqual(expect.objectContaining({ revenue: 500, partsCost: 150, otherCost: 0, laborCost: 0, profit: 350 }));
+    expect(await prisma.expense.count({ where: { tenantId: repair.tenantId } })).toBe(0);
+    expect(await caisse()).toBe(0); // the cost does not leave the drawer
+
+    // Not collected yet: no revenue, no profit, no cash.
+    await api.patch(`/repairs/${repair.id}/status`, { status: 'in_progress' });
+    await api.patch(`/repairs/${repair.id}/status`, { status: 'completed' });
+    let k = (await api.get('/dashboard/kpis')).body.data.kpis;
+    expect([k.repairs.revenue, k.realProfit.total, k.profitBreakdown.totals.directExpenses]).toEqual([0, 0, 0]);
+
+    r = (await api.post(`/repairs/${repair.id}/payments`, { amount: 500, method: 'cash' })).body.data.repair;
+    expect(await caisse()).toBe(500); // only the customer's payment moves the drawer
+    k = (await api.get('/dashboard/kpis')).body.data.kpis;
+    expect(k.repairs).toEqual(expect.objectContaining({ revenue: 500, profit: 350, count: 1 }));
+    expect(k.profitBreakdown.totals).toEqual(expect.objectContaining({ revenue: 500, cogs: 0, repairCosts: 150, grossProfit: 350, directExpenses: 0, netProfit: 350 }));
+    const rep = (await api.get(`/reports?type=repairs&dateFrom=${day()}&dateTo=${day()}`)).body.data.report;
+    expect(rep.summary).toEqual(expect.objectContaining({ revenue: 500, partsCost: 150, profit: 350 }));
+    const exp = (await api.get(`/reports?type=expenses&dateFrom=${day()}&dateTo=${day()}`)).body.data.report;
+    expect([exp.summary.total, exp.profit.totals.netProfit]).toEqual([0, 350]);
+  });
+
+  it('keeps repair costs in the repair when a device is linked; legacy capitalized repairs keep their treatment', async () => {
     const { api, customer } = await setup();
     const unit = (await api.post('/phone-seller/sold-units', { brand: 'Apple', model: 'iPhone 12', condition: 'grade_a', purchasePrice: 3000, salePrice: 3800 })).body.data.unit;
-    const refurb = (await api.post('/repairs', { customerId: customer.id, deviceDescription: 'Batterie', soldUnitId: unit.id, fixedPrice: 0 })).body.data.repair;
-    const r = (await api.post(`/repairs/${refurb.id}/expenses`, { type: 'labor', description: 'Batterie', amount: 100 })).body.data.repair;
-    expect([r.financials.costsCapitalized, r.financials.capitalizedCost, r.financials.profit]).toEqual([true, 100, 0]);
-    // The cost is in the device: selling it at 3800 earns 3800 − 3000 − 100 = 700, once.
+    const repair = (await api.post('/repairs', { customerId: customer.id, deviceDescription: 'Batterie', soldUnitId: unit.id, fixedPrice: 300 })).body.data.repair;
+    const r = (await api.post(`/repairs/${repair.id}/expenses`, { type: 'part', description: 'Batterie', amount: 100 })).body.data.repair;
+    expect([r.financials.costsCapitalized, r.financials.profit]).toEqual([false, 200]);
+    // The device's cost is not raised, so selling it does not count the 100 again.
+    expect((await api.get(`/phone-seller/sold-units/${unit.id}`)).body.data.unit.repairCost).toBe('0.00');
+    await api.patch(`/repairs/${repair.id}/status`, { status: 'in_progress' });
+    await api.patch(`/repairs/${repair.id}/status`, { status: 'completed' });
+    await api.post(`/repairs/${repair.id}/payments`, { amount: 300, method: 'cash' });
     await api.post('/checkout', { items: [{ soldUnitId: unit.id, quantity: 1, unitPrice: 3800 }], payments: [{ method: 'cash', amount: 3800 }] });
     const k = (await api.get('/dashboard/kpis')).body.data.kpis;
-    expect([k.realProfit.total, k.repairs.profit]).toEqual([700, 0]);
+    expect([k.realProfit.total, k.repairs.profit]).toEqual([800 + 200, 200]);
+
+    // A repair from before the change (flagged by the data migration) still feeds the device cost, not the repair.
+    const unit2 = (await api.post('/phone-seller/sold-units', { brand: 'Apple', model: 'iPhone 11', condition: 'grade_a', purchasePrice: 2000, salePrice: 2600 })).body.data.unit;
+    const legacy = (await api.post('/repairs', { customerId: customer.id, deviceDescription: 'Écran', soldUnitId: unit2.id, fixedPrice: 0 })).body.data.repair;
+    await prisma.repair.update({ where: { id: legacy.id }, data: { costsCapitalized: true } });
+    const lr = (await api.post(`/repairs/${legacy.id}/expenses`, { type: 'labor', description: 'Pose', amount: 100 })).body.data.repair;
+    expect([lr.financials.costsCapitalized, lr.financials.capitalizedCost, lr.financials.profit]).toEqual([true, 100, 0]);
+    expect((await api.get(`/phone-seller/sold-units/${unit2.id}`)).body.data.unit.repairCost).toBe('100.00');
   });
 });
