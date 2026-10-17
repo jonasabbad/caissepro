@@ -446,32 +446,33 @@ model CaisseMovement {
 // ─── Invoices ────────────────────────────────────────────────────────────────
 
 model Invoice {
-  id            String    @id @default(uuid())
-  tenantId      String
-  storeId       String?
-  invoiceNumber String
-  kind          String    @default("transaction") // transaction | standalone
-  transactionId String?
-  customerId    String?
-  customerName  String?
-  customerIce   String?
+  id              String    @id @default(uuid())
+  tenantId        String
+  storeId         String?
+  invoiceNumber   String
+  type            String    @default("transaction") // transaction | standalone
+  transactionId   String?
+  customerId      String?
+  customerName    String?
+  customerTaxId   String?
   customerAddress String?
-  customerPhone String?
-  items         String    @default("[]") // JSON [{description, quantity, unitPrice, taxRate, total}]
-  subtotal      Decimal   @default(0)
-  taxRate       Decimal   @default(0)
-  taxAmount     Decimal   @default(0)
-  totalAmount   Decimal   @default(0)
-  status        String    @default("issued") // draft | issued | paid | cancelled
-  notes         String?
-  issuedAt      DateTime  @default(now())
-  dueAt         DateTime?
-  archivedAt    DateTime?
-  createdBy     String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  items           String    @default("[]") // JSON [{id, description, quantity, unitPrice, subtotal}]
+  subtotal        Decimal   @default(0)
+  discountAmount  Decimal   @default(0)
+  taxRate         Decimal   @default(0)
+  taxAmount       Decimal   @default(0)
+  totalAmount     Decimal   @default(0)
+  notes           String?
+  date            DateTime  @default(now())
+  isArchived      Boolean   @default(false)
+  archivedAt      DateTime?
+  createdBy       String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
-  @@index([tenantId, issuedAt])
+  @@unique([tenantId, invoiceNumber])
+  @@index([tenantId, date])
+  @@index([transactionId])
 }
 
 // ─── Repairs ─────────────────────────────────────────────────────────────────
