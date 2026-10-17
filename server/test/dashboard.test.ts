@@ -42,8 +42,8 @@ describe('dashboard', () => {
 
     const trend = (await api.get('/dashboard/sales-trend?days=30')).body.data.trend;
     expect(trend).toHaveLength(30);
-    expect(trend.at(-1)).toEqual({ date: today, sales: 290, profit: 190, count: 3 });
-    expect(trend.at(-2)).toEqual({ date: yesterday, sales: 100, profit: 80, count: 1 });
+    expect(trend.at(-1)).toEqual({ date: today, sales: 290, profit: 190, count: 3, repairRevenue: 0, repairProfit: 0 });
+    expect(trend.at(-2)).toEqual({ date: yesterday, sales: 100, profit: 80, count: 1, repairRevenue: 0, repairProfit: 0 });
 
     const top = (await api.get('/dashboard/top-products?limit=5')).body.data.products;
     expect(top.map((p: any) => [p.productName, p.quantity])).toEqual([['Coque', 6], ['Câble', 2]]);
