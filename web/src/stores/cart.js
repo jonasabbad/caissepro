@@ -14,6 +14,7 @@ function productSnapshot(p) {
     costPrice: p.costPrice,
     stockQuantity: p.stockQuantity,
     variants: p.variants,
+    imageUrl: p.imageUrl || null,
   };
 }
 

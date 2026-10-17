@@ -31,6 +31,7 @@ import { settingsApi } from '@/api/misc';
 import { employeesApi } from '@/api/employees';
 import { customersApi } from '@/api/customers';
 import { productsApi } from '@/api/products';
+import ProductImage from '@/components/products/ProductImage.vue';
 import { soldUnitsApi, formatImei } from '@/api/soldUnits';
 import { transactionsApi } from '@/api/transactions';
 import { checkoutApi } from '@/api/checkout';
@@ -205,10 +206,29 @@ const repairsByUnit = computed(() => {
   return m;
 });
 
+// Category chips: only categories that have sellable products, in catalogue order.
+const categoryFilter = ref('');
+const posCategories = computed(() => {
+  const m = new Map();
+  for (const p of products.value) {
+    if (!p.category) continue;
+    const c = m.get(p.category.id) || { ...p.category, count: 0 };
+    c.count++;
+    m.set(p.category.id, c);
+  }
+  return [...m.values()].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.name.localeCompare(b.name));
+});
 const filteredProducts = computed(() => {
-  if (!search.value || search.value.length < 2) return products.value;
+  const list = categoryFilter.value ? products.value.filter((p) => p.categoryId === categoryFilter.value) : products.value;
+  if (!search.value || search.value.length < 2) return list;
   const q = search.value.toLowerCase();
-  return products.value.filter((p) => p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q) || p.barcode?.toLowerCase().includes(q));
+  return list.filter((p) => p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q) || p.barcode?.toLowerCase().includes(q));
+});
+/** Pieces of each catalogue product already in the cart (pack lines included), for the badge on its card. */
+const inCart = computed(() => {
+  const m = new Map();
+  for (const i of cart.items) if (!i.soldUnit) m.set(i.realProductId ?? i.productId, (m.get(i.realProductId ?? i.productId) || 0) + i.quantity);
+  return m;
 });
 const filteredUnits = computed(() => {
   if (!inventoryUnits.value) return [];
@@ -360,6 +380,7 @@ const productSnapshot = (p) => ({
   packSize: p.packSize,
   packCostPrice: p.packCostPrice,
   packRetailPrice: p.packRetailPrice,
+  imageUrl: p.imageUrl,
 });
 function selectProduct(p) {
   if (isPhoneSeller.value && isCatalogDevice(p)) {
@@ -794,6 +815,23 @@ const customerLocked = computed(() => cart.isReturnMode && !cart.isEmpty);
         </button>
       </div>
 
+      <div v-if="!cart.isReturnMode && posCategories.length > 1" class="mb-3 -mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+        <button
+          :class="['shrink-0 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors', !categoryFilter ? 'border-black bg-black text-white' : 'border-gray-200 bg-white text-gray-600 hover:border-gray-400']"
+          @click="categoryFilter = ''"
+        >
+          {{ t('pos.allCategories') }} <span class="opacity-60">{{ products.length }}</span>
+        </button>
+        <button
+          v-for="c in posCategories"
+          :key="c.id"
+          :class="['shrink-0 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors', categoryFilter === c.id ? 'border-black bg-black text-white' : 'border-gray-200 bg-white text-gray-600 hover:border-gray-400']"
+          @click="categoryFilter = categoryFilter === c.id ? '' : c.id"
+        >
+          {{ c.name }} <span class="opacity-60">{{ c.count }}</span>
+        </button>
+      </div>
+
       <div :class="['flex-1 flex flex-col rounded-xl shadow-sm border overflow-hidden min-h-[16rem]', cart.isReturnMode ? 'bg-red-50 border-red-200' : 'bg-white border-gray-200']">
         <div class="flex-1 overflow-y-auto p-4">
           <div v-if="cart.isReturnMode" class="mb-4 p-3 bg-red-100 border border-red-200 rounded-lg">
@@ -809,7 +847,8 @@ const customerLocked = computed(() => cart.isReturnMode && !cart.isEmpty);
             <p>{{ t('returnMode.noSoldItems') }}</p>
           </div>
           <div v-else-if="!cart.isReturnMode && !filteredProducts.length && (!isPhoneSeller || !filteredUnits.length)" class="flex flex-col items-center justify-center h-32 text-gray-400">
-            <p v-if="search">Aucun résultat pour "{{ search }}"</p>
+            <p v-if="search">{{ t('pos.noResultsFor', { q: search }) }}</p>
+            <p v-else-if="categoryFilter">{{ t('pos.noProductsInCategory') }}</p>
             <p v-else>{{ t('products.noProducts') }}</p>
           </div>
 
@@ -860,18 +899,41 @@ const customerLocked = computed(() => cart.isReturnMode && !cart.isEmpty);
           </div>
 
           <!-- Sale mode: products + devices in stock -->
-          <div v-else class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+          <div v-else class="grid grid-cols-[repeat(auto-fill,minmax(9.5rem,1fr))] gap-3">
             <button
               v-for="p in filteredProducts"
               :key="p.id"
-              class="bg-gray-50 hover:bg-gray-100 rounded-lg p-3 text-start border border-gray-200 hover:border-black transition-all"
+              :class="[
+                'group flex flex-col overflow-hidden rounded-xl border bg-white text-start transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-black',
+                p.stockQuantity > 0 ? 'border-gray-200 hover:-translate-y-0.5 hover:border-black hover:shadow-md' : 'border-gray-200 opacity-60',
+                inCart.get(p.id) && 'ring-2 ring-black',
+              ]"
+              :title="p.name"
               @click="selectProduct(p)"
             >
-              <p class="font-medium text-gray-900 text-sm line-clamp-2">{{ p.name }}</p>
-              <p class="text-xs text-gray-400 font-mono mt-1">{{ p.sku }}</p>
-              <div class="flex items-center justify-between mt-2">
-                <p class="font-bold text-black">{{ formatCurrency(p.retailPrice) }}</p>
-                <span :class="['text-xs px-1.5 py-0.5 rounded', p.stockQuantity > 5 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700']">{{ p.stockQuantity }}</span>
+              <div class="relative aspect-[4/3] w-full overflow-hidden bg-gray-50">
+                <ProductImage :src="p.imageUrl" :name="p.name" />
+                <span
+                  :class="[
+                    'absolute top-2 end-2 rounded-full px-2 py-0.5 text-[11px] font-semibold shadow-sm',
+                    p.stockQuantity <= 0 ? 'bg-red-600 text-white' : p.stockQuantity <= (p.minStockLevel ?? 5) ? 'bg-amber-100 text-amber-800' : 'bg-white/90 text-gray-700',
+                  ]"
+                >
+                  {{ p.stockQuantity <= 0 ? t('pos.outOfStock') : t('pos.inStockShort', { n: p.stockQuantity }) }}
+                </span>
+                <span v-if="inCart.get(p.id)" class="absolute top-2 start-2 flex h-6 min-w-6 items-center justify-center rounded-full bg-black px-1.5 text-xs font-bold text-white shadow">
+                  {{ inCart.get(p.id) }}
+                </span>
+              </div>
+              <div class="flex flex-1 flex-col p-2.5">
+                <p class="line-clamp-2 min-h-[2.5rem] text-sm font-medium leading-5 text-gray-900">{{ p.name }}</p>
+                <p v-if="p.category" class="mt-0.5 truncate text-[11px] text-gray-400">{{ p.category.name }}</p>
+                <div class="mt-auto flex items-center justify-between pt-2">
+                  <p class="font-bold text-black">{{ formatCurrency(p.retailPrice) }}</p>
+                  <span class="flex h-7 w-7 items-center justify-center rounded-full bg-gray-100 text-gray-700 transition-colors group-hover:bg-black group-hover:text-white">
+                    <PlusIcon class="h-4 w-4" />
+                  </span>
+                </div>
               </div>
             </button>
             <template v-if="isPhoneSeller">
@@ -962,8 +1024,11 @@ const customerLocked = computed(() => cart.isReturnMode && !cart.isEmpty);
           <p class="text-sm">{{ cart.isReturnMode ? t('returnMode.addItemsToReturn') : t('pos.addProducts') }}</p>
         </div>
         <div v-for="item in cart.items" :key="item.productId" :class="['rounded-lg p-3', cart.isReturnMode ? 'bg-white border border-red-200' : 'bg-gray-50']">
-          <div class="flex items-start justify-between mb-2">
-            <div>
+          <div class="flex items-start justify-between mb-2 gap-3">
+            <div v-if="!cart.isReturnMode" class="h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-gray-200 bg-white">
+              <ProductImage :src="item.product.imageUrl" :name="item.product.name" size="sm" />
+            </div>
+            <div class="min-w-0 flex-1">
               <p class="font-medium text-gray-900 text-sm">{{ item.product.name }}</p>
               <p class="text-xs text-gray-500">{{ item.product.sku }}</p>
               <p v-if="item.saleMode === 'pack'" class="text-xs text-primary-600 font-medium mt-1">
@@ -1017,6 +1082,9 @@ const customerLocked = computed(() => cart.isReturnMode && !cart.isEmpty);
         <template v-else>
           <div class="flex items-center justify-between text-sm">
             <span class="text-gray-500">{{ t('pos.subtotal') }}</span><span class="font-medium">{{ formatCurrency(cart.subtotal) }}</span>
+          </div>
+          <div v-if="cart.discountAmount > 0" class="flex items-center justify-between text-sm text-danger-600">
+            <span>{{ t('pos.discount') }}</span><span class="font-medium">- {{ formatCurrency(cart.discountAmount) }}</span>
           </div>
           <div v-if="cart.applyTva" class="flex items-center justify-between text-sm">
             <span class="text-gray-500">{{ t('pos.tax') }} ({{ cart.taxRate }}%)</span><span class="font-medium">{{ formatCurrency(cart.taxAmount) }}</span>

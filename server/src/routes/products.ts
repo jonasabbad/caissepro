@@ -8,6 +8,7 @@ import { pageMeta, pageParams, qBool, qStr } from '../lib/pagination.js';
 import { makeRef } from '../lib/refs.js';
 import { moveStock, stockStatus } from '../lib/stock.js';
 import { resolveStoreId } from '../lib/tenant.js';
+import { isAllowedImageUrl, removeUpload } from '../lib/uploads.js';
 
 const money = z.coerce.number().min(0);
 const optMoney = z.union([z.coerce.number().min(0), z.null()]).optional();
@@ -26,7 +27,7 @@ const productSchema = z.object({
   packCostPrice: optMoney,
   packRetailPrice: optMoney,
   variants: z.record(z.any()).optional().nullable(),
-  imageUrl: z.string().optional().nullable(),
+  imageUrl: z.string().max(500).optional().nullable(),
   isTracked: z.boolean().optional(),
 });
 type ProductInput = z.infer<typeof productSchema>;
@@ -41,7 +42,12 @@ async function assertUniqueBarcode(tenantId: string, barcode: string | null | un
   if (clash) throw conflict(`Le code-barres ${barcode} est déjà utilisé par « ${clash.name} »`);
 }
 
+function checkImage(tenantId: string, url: string | null | undefined) {
+  if (url && !isAllowedImageUrl(tenantId, url)) throw badRequest('URL d’image invalide');
+}
+
 async function createProduct(tx: Prisma.TransactionClient, tenantId: string, storeId: string | null, userId: string, input: ProductInput) {
+  checkImage(tenantId, input.imageUrl);
   const stock = input.stockQuantity ?? 0;
   const minStock = input.minStockLevel ?? 5;
   const product = await tx.product.create({
@@ -159,6 +165,7 @@ export default async function productRoutes(app: FastifyInstance) {
     // Stock is changed through adjustments only; a quantity sent here is ignored.
     const input = productSchema.partial().parse(req.body);
     await assertUniqueBarcode(req.auth.tenantId, input.barcode, existing.id);
+    checkImage(req.auth.tenantId, input.imageUrl);
     const minStock = input.minStockLevel ?? existing.minStockLevel;
     const product = await prisma.product.update({
       where: { id: existing.id },
@@ -180,6 +187,8 @@ export default async function productRoutes(app: FastifyInstance) {
       },
       include,
     });
+    // A replaced or removed image is no longer referenced by anything.
+    if (input.imageUrl !== undefined && input.imageUrl !== existing.imageUrl) await removeUpload(req.auth.tenantId, existing.imageUrl);
     return ok({ product: serialize(product) });
   });
 
@@ -238,6 +247,7 @@ export default async function productRoutes(app: FastifyInstance) {
       return ok({ archived: true });
     }
     await prisma.product.delete({ where: { id: existing.id } });
+    await removeUpload(req.auth.tenantId, existing.imageUrl);
     return ok({ deleted: true });
   });
 }

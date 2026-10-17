@@ -7,6 +7,8 @@ import path from 'node:path';
 import { ZodError } from 'zod';
 import { HttpError } from './lib/errors.js';
 import { routes } from './routes/index.js';
+import { UPLOAD_DIR } from './lib/uploads.js';
+import { mkdirSync } from 'node:fs';
 
 export async function buildApp(opts: { logger?: boolean } = {}): Promise<FastifyInstance> {
   const app = Fastify({ logger: opts.logger ?? false, bodyLimit: 10 * 1024 * 1024 });
@@ -53,12 +55,23 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
 
   await app.register(routes, { prefix: '/api/v1' });
 
+  // Uploaded product images. File names are random UUIDs, so they can be cached forever.
+  mkdirSync(UPLOAD_DIR, { recursive: true });
+  await app.register(fastifyStatic, {
+    root: UPLOAD_DIR,
+    prefix: '/uploads/',
+    decorateReply: false,
+    index: false,
+    maxAge: '365d',
+    immutable: true,
+  });
+
   // Serve the built SPA in production (web/dist), with history-API fallback.
   const webDist = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../web/dist');
   if (existsSync(webDist)) {
     await app.register(fastifyStatic, { root: webDist, wildcard: false });
     app.setNotFoundHandler((req, reply) => {
-      if (req.url.startsWith('/api/')) {
+      if (req.url.startsWith('/api/') || req.url.startsWith('/uploads/')) {
         return reply.status(404).send({ success: false, message: `Cannot ${req.method} ${req.url}`, error: 'Not Found', statusCode: 404 });
       }
       return reply.sendFile('index.html');

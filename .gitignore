@@ -7,3 +7,4 @@ server/prisma/*.db-journal
 server/uploads/
 coverage/
 .DS_Store
+server/uploads-test/

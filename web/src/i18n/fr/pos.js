@@ -22,6 +22,11 @@ export default {
     uniqueItem: 'Article unique',
     quick: 'Rapide',
     detailed: 'Détaillé',
+    "allCategories": "Tout",
+    "noResultsFor": "Aucun résultat pour « {q} »",
+    "noProductsInCategory": "Aucun produit dans cette catégorie",
+    "outOfStock": "Rupture",
+    "inStockShort": "{n} en stock",
   },
   returnMode: {
     toggle: 'Mode Retour',

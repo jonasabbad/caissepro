@@ -22,6 +22,7 @@ import dashboardRoutes from './dashboard.js';
 import reportRoutes from './reports.js';
 import userRoutes from './users.js';
 import labelTemplateRoutes from './labelTemplates.js';
+import uploadRoutes from './uploads.js';
 
 /** Every API module, mounted under /api/v1. Each module registers its own auth hook. */
 export async function routes(app: FastifyInstance) {
@@ -49,4 +50,5 @@ export async function routes(app: FastifyInstance) {
   await app.register(reportRoutes);
   await app.register(userRoutes);
   await app.register(labelTemplateRoutes);
+  await app.register(uploadRoutes);
 }

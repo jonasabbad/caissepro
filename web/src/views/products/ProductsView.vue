@@ -18,6 +18,7 @@ import { apiErrorMessage } from '@/api/http';
 import StockAdjustModal from '@/components/products/StockAdjustModal.vue';
 import ProductQRCode from '@/components/products/ProductQRCode.vue';
 import Toast from '@/components/ui/Toast.vue';
+import ProductImage from '@/components/products/ProductImage.vue';
 import ConfirmModal from '@/components/ui/ConfirmModal.vue';
 
 const { t } = useI18n();
@@ -167,8 +168,13 @@ const adjustMutation = useMutation({
             <tr v-else-if="products.length === 0"><td colspan="7" class="px-4 py-8 text-center text-gray-500">{{ t('products.noProducts') }}</td></tr>
             <tr v-for="p in products" :key="p.id" class="hover:bg-gray-50">
               <td class="px-4 py-3">
-                <p class="font-medium text-gray-900">{{ p.name }}</p>
-                <p v-if="p.barcode" class="text-sm text-gray-500">{{ p.barcode }}</p>
+                <div class="flex items-center gap-3">
+                  <div class="h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-gray-100"><ProductImage :src="p.imageUrl" :name="p.name" size="sm" /></div>
+                  <div class="min-w-0">
+                    <p class="font-medium text-gray-900">{{ p.name }}</p>
+                    <p v-if="p.barcode" class="text-sm text-gray-500">{{ p.barcode }}</p>
+                  </div>
+                </div>
               </td>
               <td class="px-4 py-3 text-gray-500">{{ p.sku }}</td>
               <td class="px-4 py-3 font-medium">{{ formatCurrency(p.costPrice) }}</td>

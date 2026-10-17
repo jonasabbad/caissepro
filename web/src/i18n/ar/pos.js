@@ -22,6 +22,11 @@ export default {
     uniqueItem: 'منتج فريد',
     quick: 'سريع',
     detailed: 'مفصّل',
+    "allCategories": "الكل",
+    "noResultsFor": "لا توجد نتائج لـ «{q}»",
+    "noProductsInCategory": "لا توجد منتجات في هذه الفئة",
+    "outOfStock": "نفد",
+    "inStockShort": "{n} في المخزون",
   },
   returnMode: {
     toggle: 'وضع الإرجاع',

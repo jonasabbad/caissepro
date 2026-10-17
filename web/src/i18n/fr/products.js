@@ -136,6 +136,7 @@ export default {
         other: 'Autre',
       },
     },
+    "image": {"label":"Photo du produit","add":"Ajouter","choose":"Choisir une photo","replace":"Remplacer","remove":"Retirer","hint":"JPEG, PNG ou WebP. La photo est redimensionnée automatiquement pour garder la caisse rapide.","invalid":"Ce fichier n’est pas une image","failed":"Impossible d’envoyer la photo"},
   },
   inventoryMovements: {
     title: 'Mouvements de stock',

@@ -8,6 +8,7 @@ import { productsApi, categoriesApi, accessoryCatalogApi } from '@/api/products'
 import { useActivity } from '@/composables/useActivity';
 import { formatCurrency } from '@/utils/format';
 import Toast from '@/components/ui/Toast.vue';
+import ProductImageInput from '@/components/products/ProductImageInput.vue';
 
 const { t } = useI18n();
 const route = useRoute();
@@ -50,6 +51,7 @@ const form = ref({
   minStockLevel: 5,
   categoryId: '',
   sku: '',
+  imageUrl: '',
   variants: emptyVariants(),
 });
 if (!isEdit.value && typeof route.query.barcode === 'string' && route.query.barcode) form.value.barcode = route.query.barcode;
@@ -127,6 +129,7 @@ watch(
       minStockLevel: p.minStockLevel,
       categoryId: p.categoryId || '',
       sku: p.sku || '',
+      imageUrl: p.imageUrl || '',
       variants: p.variants || emptyVariants(),
     };
     packEnabled.value = Number(p.packSize) >= 2;
@@ -204,6 +207,7 @@ const saveMutation = useMutation({
     for (const [k, v] of Object.entries(values.variants)) if (v != null && v !== '') variants[k] = v;
     const payload = {
       ...values,
+      imageUrl: values.imageUrl || null,
       variants: Object.keys(variants).length > 0 ? variants : undefined,
       packSize: packEnabled.value ? pack.value.packSize : null,
       packCostPrice: packEnabled.value ? pack.value.packCostPrice : null,
@@ -300,6 +304,7 @@ const chip = (active) =>
               </select>
               <p v-if="errors.categoryId" class="mt-1 text-sm text-danger-600">{{ errors.categoryId }}</p>
             </div>
+            <ProductImageInput v-model="form.imageUrl" :name="form.name" />
             <p v-if="hasMatrix" class="text-sm text-gray-500">{{ t('products.variantBarcodeHint') }}</p>
             <div v-else>
               <label class="label">{{ t('products.barcode') }}</label>

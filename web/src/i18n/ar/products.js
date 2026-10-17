@@ -136,6 +136,7 @@ export default {
         other: 'أخرى',
       },
     },
+    "image": {"label":"صورة المنتج","add":"إضافة","choose":"اختيار صورة","replace":"استبدال","remove":"إزالة","hint":"JPEG أو PNG أو WebP. يتم تصغير الصورة تلقائياً للحفاظ على سرعة نقطة البيع.","invalid":"هذا الملف ليس صورة","failed":"تعذر رفع الصورة"},
   },
   inventoryMovements: {
     title: 'حركات المخزون',
