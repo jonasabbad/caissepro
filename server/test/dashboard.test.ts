@@ -29,7 +29,8 @@ describe('dashboard', () => {
     expect(k.dailySales).toEqual({ total: 290, count: 3, comparison: 190 });
     // 120 + 30 + 80 − 40 (the returned coque's margin) = 190
     expect(k.realProfit.total).toBe(190);
-    expect(k.realProfit.margin).toBeCloseTo(65.52, 1);
+    // Margin = net profit / net revenue (290 sales − 50 refunded).
+    expect(k.realProfit.margin).toBeCloseTo(79.17, 1);
     expect(k.customerDebt).toEqual({ total: 80, count: 1, overdue: 0 });
     expect(k.supplierDebt).toEqual({ total: 100, count: 1 });
     expect(k.newCustomersToday).toBe(1);

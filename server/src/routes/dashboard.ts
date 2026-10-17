@@ -5,6 +5,7 @@ import { authed, ok, type Req } from '../lib/route.js';
 import { endOfDay, qStr, startOfDay } from '../lib/pagination.js';
 import { customerStats } from './customers.js';
 import { supplierStats } from './suppliers.js';
+import { businessPnl, repairsPnl } from '../lib/profit.js';
 
 const pad = (n: number) => String(n).padStart(2, '0');
 export const isoDay = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -66,9 +67,11 @@ export default async function dashboardRoutes(app: FastifyInstance) {
     const t = req.auth.tenantId;
     const storeId = qStr(req.query.storeId);
     const p = period(req.query);
-    const [cur, prev, customers, suppliers, debtPayments, newCustomers, collected] = await Promise.all([
+    const [cur, prev, pnl, prevPnl, customers, suppliers, debtPayments, newCustomers, collected] = await Promise.all([
       salesAndProfit(t, p.from, p.to, storeId),
       salesAndProfit(t, p.prevFrom, p.prevTo, storeId),
+      businessPnl(t, p.from, p.to, storeId),
+      businessPnl(t, p.prevFrom, p.prevTo, storeId),
       prisma.customer.findMany({ where: { tenantId: t }, select: { id: true } }),
       prisma.supplier.findMany({ where: { tenantId: t }, select: { id: true } }),
       prisma.customerPayment.aggregate({ where: { tenantId: t, createdAt: { gte: p.from, lte: p.to } }, _sum: { amount: true }, _count: true }),
@@ -80,7 +83,10 @@ export default async function dashboardRoutes(app: FastifyInstance) {
     return ok({
       kpis: {
         dailySales: { total: cur.sales, count: cur.count, comparison: pct(cur.sales, prev.sales) },
-        realProfit: { total: cur.profit, margin: cur.sales ? r2((cur.profit / cur.sales) * 100) : 0, comparison: pct(cur.profit, prev.profit) },
+        // Net profit of the whole business: sales margin + realized repair profit (see lib/profit.ts).
+        realProfit: { total: pnl.totals.netProfit, margin: pnl.totals.margin, comparison: pct(pnl.totals.netProfit, prevPnl.totals.netProfit) },
+        repairs: { revenue: pnl.repairs.revenue, profit: pnl.repairs.profit, count: pnl.repairs.count, comparison: pct(pnl.repairs.profit, prevPnl.repairs.profit) },
+        profitBreakdown: pnl,
         customerDebt: { total: r2(cStats.reduce((s: number, c: any) => s - c.balance, 0)), count: cStats.length, overdue: 0 },
         supplierDebt: { total: r2(sStats.reduce((s, x) => s - x.balance, 0)), count: sStats.length },
         debtPayments: { total: r2(num(debtPayments._sum.amount)), count: debtPayments._count },
@@ -97,8 +103,9 @@ export default async function dashboardRoutes(app: FastifyInstance) {
       prisma.transaction.findMany({ where: revenueWhere(req.auth.tenantId, w.from, w.to, storeId), select: { createdAt: true, totalAmount: true, totalProfit: true } }),
       prisma.transaction.findMany({ where: returnsWhere(req.auth.tenantId, w.from, w.to, storeId), select: { createdAt: true, totalProfit: true } }),
     ]);
-    const days = new Map<string, { date: string; sales: number; profit: number; count: number }>();
-    for (let d = new Date(w.from); d <= w.to; d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)) days.set(isoDay(d), { date: isoDay(d), sales: 0, profit: 0, count: 0 });
+    const days = new Map<string, { date: string; sales: number; profit: number; count: number; repairRevenue: number; repairProfit: number }>();
+    for (let d = new Date(w.from); d <= w.to; d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1))
+      days.set(isoDay(d), { date: isoDay(d), sales: 0, profit: 0, count: 0, repairRevenue: 0, repairProfit: 0 });
     for (const r of rows) {
       const e = days.get(isoDay(r.createdAt));
       if (!e) continue;
@@ -109,6 +116,14 @@ export default async function dashboardRoutes(app: FastifyInstance) {
     for (const r of returns) {
       const e = days.get(isoDay(r.createdAt));
       if (e) e.profit = r2(e.profit + num(r.totalProfit));
+    }
+    // Realized repairs, on the day they became income. `profit` is the business total (sales + repairs).
+    for (const r of (await repairsPnl(req.auth.tenantId, w.from, w.to, { storeId })).rows) {
+      const e = days.get(isoDay(r.repair.realizedAt!));
+      if (!e) continue;
+      e.repairRevenue = r2(e.repairRevenue + r.revenue);
+      e.repairProfit = r2(e.repairProfit + r.profit);
+      e.profit = r2(e.profit + r.profit);
     }
     return ok({ trend: [...days.values()] });
   });
@@ -161,15 +176,17 @@ export default async function dashboardRoutes(app: FastifyInstance) {
     const breakdown = [];
     for (const s of stores) {
       const r = await salesAndProfit(req.auth.tenantId, p.from, p.to, s.id);
+      const pnl = await businessPnl(req.auth.tenantId, p.from, p.to, s.id);
       breakdown.push({
         storeId: s.id,
         storeName: s.name,
         storeCode: s.code,
         sales: r.sales,
         transactionCount: r.count,
-        profit: r.profit,
+        profit: pnl.totals.netProfit,
+        repairRevenue: pnl.repairs.revenue,
         caisseBalance: num(s.caisseBalance),
-        margin: r.sales ? r2((r.profit / r.sales) * 100) : 0,
+        margin: pnl.totals.margin,
       });
     }
     return ok({ breakdown });

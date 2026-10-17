@@ -13,7 +13,7 @@ const sub = useSubscriptionStore();
 const auth = useAuthStore();
 
 const gatewayEnabled = computed(() => sub.status?.platformSettings?.paymentGatewayEnabled ?? true);
-const isExpired = computed(() => (sub.status?.expiresAt ? new Date(sub.status.expiresAt) < new Date() : false));
+const isExpired = computed(() => sub.status?.status === 'active' && !!sub.status?.plan && !!sub.status?.expiresAt && new Date(sub.status.expiresAt) < new Date());
 const isSuspended = computed(() => sub.status?.status === 'suspended');
 const isCancelled = computed(() => sub.status?.status === 'cancelled');
 

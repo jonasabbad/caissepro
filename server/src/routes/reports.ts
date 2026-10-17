@@ -7,6 +7,8 @@ import { endOfDay, qStr, startOfDay } from '../lib/pagination.js';
 import { customerStats } from './customers.js';
 import { supplierStats } from './suppliers.js';
 import { isoDay, revenueWhere } from './dashboard.js';
+import { businessPnl, repairFinancials } from '../lib/profit.js';
+import { parseJson } from '../lib/serialize.js';
 
 type Period = { from: Date; to: Date; fromStr: string; toStr: string };
 
@@ -82,8 +84,10 @@ async function salesReport(tenantId: string, p: Period) {
     )
     .slice(0, 20);
   const collected = r2(txs.reduce((s, t) => s + num(t.amountPaid), 0));
+  const profit = await businessPnl(tenantId, p.from, p.to);
   return {
     period: { from: p.fromStr, to: p.toStr },
+    profit,
     summary: {
       totalSales,
       totalTransactions: txs.length,
@@ -314,7 +318,93 @@ async function suppliersReport(tenantId: string, p: Period) {
   };
 }
 
-const BUILDERS = { sales: salesReport, inventory: inventoryReport, customers: customersReport, suppliers: suppliersReport } as const;
+/**
+ * Repairs over a period. `realized` = income recognized in the period (completed/delivered AND fully paid, dated when
+ * that happened); `repairs` = every repair received in the period, with its own financials, for follow-up.
+ * Filters: repairerId (technician), status, paymentStatus.
+ */
+async function repairsReport(tenantId: string, p: Period, q: Record<string, string> = {}) {
+  const filters = { repairerId: qStr(q.repairerId), status: qStr(q.status), paymentStatus: qStr(q.paymentStatus) };
+  const [received, realizedRows, repairers] = await Promise.all([
+    prisma.repair.findMany({
+      where: {
+        tenantId,
+        receivedAt: { gte: p.from, lte: p.to },
+        ...(filters.repairerId && { repairerId: filters.repairerId }),
+        ...(filters.status && { status: filters.status }),
+        ...(filters.paymentStatus && { paymentStatus: filters.paymentStatus }),
+      },
+      include: { expenses: true },
+      orderBy: { receivedAt: 'desc' },
+    }),
+    prisma.repair.findMany({
+      where: {
+        tenantId,
+        realizedAt: { gte: p.from, lte: p.to },
+        ...(filters.repairerId && { repairerId: filters.repairerId }),
+        ...(filters.status && { status: filters.status }),
+        ...(filters.paymentStatus && { paymentStatus: filters.paymentStatus }),
+      },
+      include: { expenses: true },
+    }),
+    prisma.repairer.findMany({ where: { tenantId }, select: { id: true, name: true } }),
+  ]);
+  const customerIds = [...new Set(received.map((r) => r.customerId).filter(Boolean))] as string[];
+  const customers = new Map((await prisma.customer.findMany({ where: { id: { in: customerIds } } })).map((c) => [c.id, fullName(c)]));
+  const tech = new Map(repairers.map((r) => [r.id, r.name]));
+  const realized = realizedRows.map((r) => ({ r, f: repairFinancials(r, r.expenses) }));
+  const sum = (k: 'revenue' | 'partsCost' | 'laborCost' | 'otherCost' | 'profit') => r2(realized.reduce((s, x) => s + x.f[k], 0));
+  const byTech = new Map<string, { repairerId: string | null; name: string; count: number; revenue: number; laborCost: number; profit: number }>();
+  for (const { r, f } of realized) {
+    const key = r.repairerId ?? 'none';
+    const e = byTech.get(key) ?? { repairerId: r.repairerId, name: r.repairerId ? (tech.get(r.repairerId) ?? '—') : 'Atelier', count: 0, revenue: 0, laborCost: 0, profit: 0 };
+    e.count++;
+    e.revenue = r2(e.revenue + f.revenue);
+    e.laborCost = r2(e.laborCost + f.laborCost);
+    e.profit = r2(e.profit + f.profit);
+    byTech.set(key, e);
+  }
+  const pending = received.filter((r) => r.status !== 'cancelled' && !r.realizedAt);
+  return {
+    period: { from: p.fromStr, to: p.toStr },
+    filters,
+    summary: {
+      realizedCount: realized.length,
+      revenue: sum('revenue'),
+      partsCost: sum('partsCost'),
+      laborCost: sum('laborCost'),
+      otherCost: sum('otherCost'),
+      grossProfit: r2(sum('revenue') - sum('partsCost')),
+      profit: sum('profit'),
+      margin: sum('revenue') ? r2((sum('profit') / sum('revenue')) * 100) : 0,
+      receivedCount: received.length,
+      pendingCount: pending.length,
+      // Charged but not yet income: unpaid/partly paid or not finished.
+      pendingRevenue: r2(pending.reduce((s, r) => s + num(r.fixedPrice), 0)),
+      collectedNotRealized: r2(pending.reduce((s, r) => s + num(r.amountPaid), 0)),
+      cancelledCount: received.filter((r) => r.status === 'cancelled').length,
+    },
+    byTechnician: [...byTech.values()].sort((a, b) => b.profit - a.profit),
+    repairs: received.map((r) => {
+      const f = repairFinancials(r, r.expenses);
+      return {
+        id: r.id,
+        repairNumber: r.repairNumber,
+        customer: r.customerId ? (customers.get(r.customerId) ?? null) : null,
+        deviceDescription: r.deviceDescription,
+        technician: r.repairerId ? (tech.get(r.repairerId) ?? null) : null,
+        status: r.status,
+        paymentStatus: r.paymentStatus,
+        receivedAt: r.receivedAt.toISOString(),
+        realizedAt: r.realizedAt?.toISOString() ?? null,
+        payments: parseJson<unknown[]>(r.payments, []).length,
+        ...f,
+      };
+    }),
+  };
+}
+
+const BUILDERS = { sales: salesReport, inventory: inventoryReport, customers: customersReport, suppliers: suppliersReport, repairs: repairsReport } as const;
 type ReportType = keyof typeof BUILDERS;
 
 const csvCell = (v: unknown) => {
@@ -328,7 +418,7 @@ export default async function reportRoutes(app: FastifyInstance) {
   app.get('/reports', async (req: Req<unknown, Record<string, string>>) => {
     const type = (qStr(req.query.type) ?? 'sales') as ReportType;
     if (!BUILDERS[type]) throw badRequest('Type de rapport invalide');
-    return ok({ report: await BUILDERS[type](req.auth.tenantId, period(req.query)) });
+    return ok({ report: await BUILDERS[type](req.auth.tenantId, period(req.query), req.query) });
   });
 
   /** Spreadsheet export (CSV, ";"-separated with a BOM so Excel opens it with accents). The PDF is built in the browser. */
@@ -337,7 +427,7 @@ export default async function reportRoutes(app: FastifyInstance) {
     if (!BUILDERS[type]) throw badRequest('Type de rapport invalide');
     if (qStr(req.query.format) === 'pdf') throw badRequest("L'export PDF est généré dans le navigateur");
     const p = period(req.query);
-    const r: any = await BUILDERS[type](req.auth.tenantId, p);
+    const r: any = await BUILDERS[type](req.auth.tenantId, p, req.query);
     const rows: unknown[][] = [];
     for (const [k, v] of Object.entries(r.summary)) rows.push([k, v]);
     rows.push([]);
@@ -350,6 +440,9 @@ export default async function reportRoutes(app: FastifyInstance) {
     } else if (type === 'customers') {
       rows.push(['Client', 'Achats', 'Reprises', 'Retours', 'Total dépensé'], ...r.topCustomers.map((c: any) => [c.name, c.purchases, c.exchanges, c.returns, c.spent]));
       rows.push([], ['Client', 'Dette'], ...r.debtors.map((d: any) => [d.name, d.debt]));
+    } else if (type === 'repairs') {
+      rows.push(['Réparation', 'Client', 'Technicien', 'Statut', 'Paiement', 'Prix', 'Pièces', 'Main d’œuvre', 'Autres', 'Profit', 'Réalisée le']);
+      for (const x of r.repairs) rows.push([x.repairNumber, x.customer, x.technician, x.status, x.paymentStatus, x.revenue, x.partsCost, x.laborCost, x.otherCost, x.profit, x.realizedAt?.slice(0, 10) ?? '']);
     } else {
       rows.push(['Fournisseur', 'Commandes', 'Dépensé', 'Dette'], ...r.topSuppliers.map((s: any) => [s.name, s.orders, s.spent, s.debt]));
     }

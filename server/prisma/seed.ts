@@ -46,8 +46,8 @@ async function main() {
       name: 'Demo',
       slug: 'demo',
       activityType: 'phone_seller',
-      status: 'trial',
-      subscriptionExpiresAt: new Date(Date.now() + 7 * 86400_000),
+      status: 'active',
+      subscriptionExpiresAt: null,
     },
   });
 

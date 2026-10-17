@@ -179,24 +179,6 @@ const supportLink = `https://wa.me/${APP_CONFIG.support.whatsapp}?text=${encodeU
       </nav>
       <div class="space-y-2 border-t border-primary-700 p-4">
         <template v-if="!auth.sellerMode">
-          <RouterLink
-            v-if="sub.status?.status === 'trial'"
-            to="/app/subscription"
-            :class="[
-              'block rounded-lg px-3 py-2 text-sm transition-colors hover:opacity-90',
-              sub.daysUntilExpiry != null && sub.daysUntilExpiry <= 0
-                ? 'bg-red-500/20 text-red-200'
-                : sub.isExpiringSoon
-                  ? 'bg-amber-500/20 text-amber-200'
-                  : 'bg-blue-500/20 text-blue-200',
-            ]"
-            @click="sidebarOpen = false"
-          >
-            <div class="font-medium">{{ t('subscription.status.trial') }}</div>
-            <div v-if="sub.daysUntilExpiry != null" class="mt-0.5 text-xs opacity-80">
-              {{ sub.daysUntilExpiry <= 0 ? t('subscription.trialExpired') : t('subscription.daysRemaining', { days: sub.daysUntilExpiry }) }}
-            </div>
-          </RouterLink>
           <RouterLink to="/app/settings" class="sidebar-link" :class="isActive('/app/settings') && 'sidebar-link-active'">
             <Cog6ToothIcon class="h-5 w-5" />
             <span>{{ t('nav.settings') }}</span>

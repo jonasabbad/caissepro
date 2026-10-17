@@ -1,12 +1,16 @@
 import type { FastifyInstance } from 'fastify';
+import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { prisma, Prisma, type Tx } from '../lib/prisma.js';
 import { badRequest, conflict, notFound } from '../lib/errors.js';
-import { num, r2, serialize } from '../lib/serialize.js';
+import { num, parseJson, r2, serialize } from '../lib/serialize.js';
 import { authed, ok, type Req } from '../lib/route.js';
 import { makeRef } from '../lib/refs.js';
-import { qStr } from '../lib/pagination.js';
+import { endOfDay, qStr, startOfDay } from '../lib/pagination.js';
 import { resolveStoreId } from '../lib/tenant.js';
+import { moveStock } from '../lib/stock.js';
+import { moveCaisse } from '../lib/caisse.js';
+import { refreshRepairFinancials, repairFinancials } from '../lib/profit.js';
 
 const STATUSES = ['pending', 'in_progress', 'completed', 'delivered', 'cancelled'] as const;
 type Status = (typeof STATUSES)[number];
@@ -19,6 +23,7 @@ const NEXT: Record<Status, Status[]> = {
   delivered: [],
   cancelled: [],
 };
+const PAY_METHODS = ['cash', 'card', 'bank_transfer', 'check'] as const;
 
 const money = z.preprocess((v) => (v === '' || v === null ? undefined : v), z.coerce.number().min(0).optional());
 const repairSchema = z.object({
@@ -31,27 +36,53 @@ const repairSchema = z.object({
   notes: z.string().optional().nullable(),
 });
 const expenseSchema = z.object({
-  description: z.string().trim().min(1, 'La description est obligatoire').max(255),
-  amount: z.coerce.number().min(0),
-  type: z.enum(['part', 'labor', 'other']).default('part'),
+  description: z.string().trim().max(255).optional(),
+  amount: z.coerce.number().min(0).optional(),
+  type: z.enum(['part', 'stock_part', 'labor', 'other']).default('part'),
+  productId: z.string().optional().nullable(),
+  quantity: z.coerce.number().int().min(1).optional(),
+  repairerId: z.string().optional().nullable(),
+  paidFromDrawer: z.boolean().optional(),
+});
+const paymentSchema = z.object({
+  amount: z.coerce.number().positive('Montant invalide'),
+  method: z.enum(PAY_METHODS).default('cash'),
+  reference: z.string().trim().optional().nullable(),
 });
 
-const userSelect = { id: true, firstName: true, lastName: true, email: true } as const;
+interface RepairPayment {
+  id: string;
+  amount: number;
+  method: string;
+  reference?: string | null;
+  paidAt: string;
+  userId: string;
+}
 
-async function present(rows: Prisma.RepairGetPayload<{ include: { expenses: true } }>[]) {
+const userSelect = { id: true, firstName: true, lastName: true, email: true } as const;
+type RepairRow = Prisma.RepairGetPayload<{ include: { expenses: true } }>;
+
+async function present(rows: RepairRow[]) {
   const ids = (k: 'customerId' | 'repairerId' | 'soldUnitId' | 'createdBy') => [...new Set(rows.map((r) => r[k]).filter(Boolean))] as string[];
-  const [customers, repairers, units, users] = await Promise.all([
+  const productIds = [...new Set(rows.flatMap((r) => r.expenses.map((e) => e.productId)).filter(Boolean))] as string[];
+  const expenseRepairerIds = rows.flatMap((r) => r.expenses.map((e) => e.repairerId)).filter(Boolean) as string[];
+  const [customers, repairers, units, users, products] = await Promise.all([
     prisma.customer.findMany({ where: { id: { in: ids('customerId') } } }),
-    prisma.repairer.findMany({ where: { id: { in: ids('repairerId') } } }),
+    prisma.repairer.findMany({ where: { id: { in: [...new Set([...ids('repairerId'), ...expenseRepairerIds])] } } }),
     prisma.soldUnit.findMany({ where: { id: { in: ids('soldUnitId') } } }),
     prisma.user.findMany({ where: { id: { in: ids('createdBy') } }, select: userSelect }),
+    prisma.product.findMany({ where: { id: { in: productIds } }, select: { id: true, name: true, sku: true } }),
   ]);
   const by = <T extends { id: string }>(list: T[]) => new Map(list.map((x) => [x.id, x]));
-  const [c, rp, u, us] = [by(customers), by(repairers), by(units), by(users)];
+  const [c, rp, u, us, pr] = [by(customers), by(repairers), by(units), by(users), by(products)];
   return rows.map((r) =>
     serialize({
       ...r,
-      expenses: [...r.expenses].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime()),
+      payments: parseJson<RepairPayment[]>(r.payments, []),
+      expenses: [...r.expenses]
+        .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+        .map((e) => ({ ...e, product: e.productId ? (pr.get(e.productId) ?? null) : null, repairer: e.repairerId ? (rp.get(e.repairerId) ?? null) : null })),
+      financials: repairFinancials(r, r.expenses),
       customer: r.customerId ? (c.get(r.customerId) ?? null) : null,
       repairer: r.repairerId ? (rp.get(r.repairerId) ?? null) : null,
       soldUnit: r.soldUnitId ? (u.get(r.soldUnitId) ?? null) : null,
@@ -77,6 +108,28 @@ async function recomputeTotal(tx: Tx, repairId: string) {
   const expenses = await tx.repairExpense.findMany({ where: { repairId } });
   const repair = await tx.repair.update({ where: { id: repairId }, data: { totalCost: r2(expenses.reduce((s, e) => s + num(e.amount), 0)) } });
   await syncUnitRepairCost(tx, repair.soldUnitId);
+  await refreshRepairFinancials(tx, repairId);
+}
+
+/** Removes an expense and undoes its side effects: stock parts go back to inventory, drawer payments are put back. */
+async function undoExpense(tx: Tx, repair: { id: string; tenantId: string; storeId: string | null; repairNumber: string }, expenseId: string, userId: string, reason: string) {
+  const e = await tx.repairExpense.findUniqueOrThrow({ where: { id: expenseId } });
+  if (e.type === 'stock_part' && e.productId && e.quantity) {
+    await moveStock(tx, {
+      tenantId: repair.tenantId,
+      productId: e.productId,
+      delta: e.quantity,
+      type: 'return',
+      reference: repair.repairNumber,
+      notes: reason,
+      storeId: repair.storeId,
+      userId,
+    });
+  }
+  if (e.paidFromDrawer && num(e.amount) > 0) {
+    await moveCaisse(tx, { tenantId: repair.tenantId, storeId: repair.storeId, delta: num(e.amount), type: 'cash_in', reason: `Annulation dépense - ${repair.repairNumber}`, userId });
+  }
+  await tx.repairExpense.delete({ where: { id: e.id } });
 }
 
 export default async function repairRoutes(app: FastifyInstance) {
@@ -101,10 +154,19 @@ export default async function repairRoutes(app: FastifyInstance) {
     }
   }
 
+  /** Filters: query, status, repairerId (technician), paymentStatus, dateFrom/dateTo (intake date). */
   app.get('/repairs', async (req: Req<unknown, Record<string, string>>) => {
-    const query = qStr(req.query.query);
-    const status = qStr(req.query.status);
-    let where: Prisma.RepairWhereInput = { tenantId: req.auth.tenantId, ...(status && { status }) };
+    const q = req.query;
+    const query = qStr(q.query);
+    const from = qStr(q.dateFrom ?? q.startDate);
+    const to = qStr(q.dateTo ?? q.endDate);
+    let where: Prisma.RepairWhereInput = {
+      tenantId: req.auth.tenantId,
+      ...(qStr(q.status) && { status: q.status }),
+      ...(qStr(q.repairerId) && { repairerId: q.repairerId }),
+      ...(qStr(q.paymentStatus) && { paymentStatus: q.paymentStatus }),
+      ...((from || to) && { receivedAt: { ...(from && { gte: startOfDay(from) }), ...(to && { lte: endOfDay(to) }) } }),
+    };
     if (query) {
       const customers = await prisma.customer.findMany({
         where: { tenantId: req.auth.tenantId, OR: [{ firstName: { contains: query } }, { lastName: { contains: query } }, { phone: { contains: query } }] },
@@ -158,6 +220,7 @@ export default async function repairRoutes(app: FastifyInstance) {
     const body = repairSchema.partial().parse(req.body);
     if (body.soldUnitId !== undefined && body.soldUnitId !== existing.soldUnitId) await assertRefs(req.auth.tenantId, { soldUnitId: body.soldUnitId }, existing.id);
     await assertRefs(req.auth.tenantId, { customerId: body.customerId, repairerId: body.repairerId });
+    if ('fixedPrice' in body && (body.fixedPrice ?? 0) < num(existing.amountPaid)) throw badRequest('Le prix ne peut pas être inférieur au montant déjà encaissé');
     await prisma.$transaction(async (tx) => {
       await tx.repair.update({
         where: { id: existing.id },
@@ -175,18 +238,28 @@ export default async function repairRoutes(app: FastifyInstance) {
         await syncUnitRepairCost(tx, existing.soldUnitId);
         await syncUnitRepairCost(tx, body.soldUnitId);
       }
+      await refreshRepairFinancials(tx, existing.id);
     });
     return ok({ repair: await one(req.auth.tenantId, existing.id) });
   });
 
-  /** pending → in_progress → completed → delivered; cancel from pending / in_progress. Completing needs a price. */
+  /**
+   * pending → in_progress → completed → delivered; cancel from pending / in_progress. Completing needs a price.
+   * Cancelling is refused once money was taken, and puts unused stock parts back on the shelf.
+   */
   app.patch('/repairs/:id/status', async (req: Req<{ status: string }, unknown, { id: string }>) => {
     const existing = await load(req.auth.tenantId, req.params.id);
     const { status } = z.object({ status: z.enum(STATUSES) }).parse(req.body);
     const from = existing.status as Status;
     if (!NEXT[from]?.includes(status)) throw badRequest(`Transition de statut invalide (${from} → ${status})`);
     if (status === 'completed' && num(existing.fixedPrice) <= 0) throw badRequest('Définissez le prix de la réparation avant de la terminer');
+    if (status === 'cancelled' && num(existing.amountPaid) > 0) throw badRequest('Remboursez le client avant d’annuler une réparation déjà payée');
     await prisma.$transaction(async (tx) => {
+      if (status === 'cancelled') {
+        for (const e of existing.expenses.filter((x) => x.type === 'stock_part')) {
+          await undoExpense(tx, existing, e.id, req.auth.userId, 'Pièce remise en stock (réparation annulée)');
+        }
+      }
       await tx.repair.update({
         where: { id: existing.id },
         data: {
@@ -195,26 +268,107 @@ export default async function repairRoutes(app: FastifyInstance) {
           ...(status === 'delivered' && { deliveredAt: new Date() }),
         },
       });
-      if (status === 'cancelled') await syncUnitRepairCost(tx, existing.soldUnitId);
+      await recomputeTotal(tx, existing.id);
     });
+    return ok({ repair: await one(req.auth.tenantId, existing.id) });
+  });
+
+  /** Customer payment (deposit or balance). Cash goes into the drawer. */
+  app.post('/repairs/:id/payments', async (req: Req<z.infer<typeof paymentSchema>, unknown, { id: string }>, reply) => {
+    const existing = await load(req.auth.tenantId, req.params.id);
+    if (existing.status === 'cancelled') throw badRequest('Réparation annulée');
+    const body = paymentSchema.parse(req.body);
+    const price = num(existing.fixedPrice);
+    if (price <= 0) throw badRequest('Définissez le prix de la réparation avant d’encaisser');
+    const due = r2(price - num(existing.amountPaid));
+    if (due <= 0) throw badRequest('Réparation déjà payée');
+    if (body.method !== 'cash' && !body.reference?.trim()) throw badRequest('Référence requise pour ce mode de paiement');
+    const amount = r2(Math.min(body.amount, due));
+    const payments = parseJson<RepairPayment[]>(existing.payments, []);
+    payments.push({ id: randomUUID(), amount, method: body.method, reference: body.reference ?? null, paidAt: new Date().toISOString(), userId: req.auth.userId });
+    await prisma.$transaction(async (tx) => {
+      await tx.repair.update({ where: { id: existing.id }, data: { amountPaid: r2(num(existing.amountPaid) + amount), payments: JSON.stringify(payments) } });
+      if (body.method === 'cash') {
+        await moveCaisse(tx, { tenantId: existing.tenantId, storeId: existing.storeId, delta: amount, type: 'sale', reason: `Paiement réparation - ${existing.repairNumber}`, userId: req.auth.userId });
+      }
+      await refreshRepairFinancials(tx, existing.id);
+    });
+    if (body.method === 'cash') reply.header('x-cash-drawer', 'open');
     return ok({ repair: await one(req.auth.tenantId, existing.id) });
   });
 
   app.delete('/repairs/:id', async (req: Req<unknown, unknown, { id: string }>) => {
     const existing = await load(req.auth.tenantId, req.params.id);
+    if (num(existing.amountPaid) > 0) throw badRequest('Impossible de supprimer une réparation déjà payée');
     await prisma.$transaction(async (tx) => {
+      for (const e of existing.expenses) await undoExpense(tx, existing, e.id, req.auth.userId, 'Pièce remise en stock (réparation supprimée)');
       await tx.repair.delete({ where: { id: existing.id } });
       await syncUnitRepairCost(tx, existing.soldUnitId);
     });
     return ok({ deleted: true });
   });
 
+  /**
+   * Costs: `part` (bought for this job), `stock_part` (taken from inventory: stock decreases, cost = product cost
+   * price × quantity), `labor` (technician / external service, optionally linked to a repairer), `other`.
+   * `paidFromDrawer` takes the amount out of the cash drawer.
+   */
   app.post('/repairs/:id/expenses', async (req: Req<z.infer<typeof expenseSchema>, unknown, { id: string }>, reply) => {
     const existing = await load(req.auth.tenantId, req.params.id);
     if (existing.status === 'cancelled' || existing.status === 'delivered') throw badRequest('Réparation clôturée');
     const body = expenseSchema.parse(req.body);
     await prisma.$transaction(async (tx) => {
-      await tx.repairExpense.create({ data: { repairId: existing.id, tenantId: req.auth.tenantId, ...body } });
+      let data: Prisma.RepairExpenseUncheckedCreateInput;
+      if (body.type === 'stock_part') {
+        if (!body.productId || !body.quantity) throw badRequest('Choisissez la pièce et la quantité');
+        const product = await tx.product.findFirst({ where: { id: body.productId, tenantId: req.auth.tenantId } });
+        if (!product) throw notFound('Product', body.productId);
+        await moveStock(tx, {
+          tenantId: req.auth.tenantId,
+          productId: product.id,
+          delta: -body.quantity,
+          type: 'repair',
+          reference: existing.repairNumber,
+          notes: 'Pièce utilisée en réparation',
+          storeId: existing.storeId,
+          userId: req.auth.userId,
+        });
+        const unitCost = num(product.costPrice);
+        data = {
+          repairId: existing.id,
+          tenantId: req.auth.tenantId,
+          type: 'stock_part',
+          description: body.description?.trim() || product.name,
+          productId: product.id,
+          quantity: body.quantity,
+          unitCost,
+          amount: r2(unitCost * body.quantity),
+        };
+      } else {
+        if (!body.description?.trim()) throw badRequest('La description est obligatoire');
+        if (body.amount === undefined) throw badRequest('Le montant est obligatoire');
+        if (body.repairerId && !(await tx.repairer.findFirst({ where: { id: body.repairerId, tenantId: req.auth.tenantId } }))) throw notFound('Repairer', body.repairerId);
+        data = {
+          repairId: existing.id,
+          tenantId: req.auth.tenantId,
+          type: body.type,
+          description: body.description.trim(),
+          amount: body.amount,
+          repairerId: body.type === 'labor' ? body.repairerId || existing.repairerId || null : null,
+          paidFromDrawer: !!body.paidFromDrawer,
+        };
+        if (body.paidFromDrawer && body.amount > 0) {
+          await moveCaisse(tx, {
+            tenantId: req.auth.tenantId,
+            storeId: existing.storeId,
+            delta: -body.amount,
+            type: 'cash_out',
+            reason: `${body.type === 'labor' ? 'Main d’œuvre' : 'Achat pièce'} - ${existing.repairNumber}`,
+            userId: req.auth.userId,
+          });
+        }
+      }
+      await tx.repairExpense.create({ data });
       await recomputeTotal(tx, existing.id);
     });
     reply.status(201);
@@ -223,10 +377,11 @@ export default async function repairRoutes(app: FastifyInstance) {
 
   app.delete('/repairs/:id/expenses/:expenseId', async (req: Req<unknown, unknown, { id: string; expenseId: string }>) => {
     const existing = await load(req.auth.tenantId, req.params.id);
-    const expense = await prisma.repairExpense.findFirst({ where: { id: req.params.expenseId, repairId: existing.id } });
+    if (existing.status === 'cancelled' || existing.status === 'delivered') throw badRequest('Réparation clôturée');
+    const expense = existing.expenses.find((e) => e.id === req.params.expenseId);
     if (!expense) throw notFound('Repair expense', req.params.expenseId);
     await prisma.$transaction(async (tx) => {
-      await tx.repairExpense.delete({ where: { id: expense.id } });
+      await undoExpense(tx, existing, expense.id, req.auth.userId, 'Pièce retirée de la réparation');
       await recomputeTotal(tx, existing.id);
     });
     return ok({ repair: await one(req.auth.tenantId, existing.id) });

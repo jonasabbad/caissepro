@@ -23,7 +23,10 @@ export const useSubscriptionStore = defineStore('subscription', () => {
     if (!status.value?.expiresAt) return null;
     return Math.ceil((new Date(status.value.expiresAt).getTime() - Date.now()) / DAY_MS);
   });
-  const isExpiringSoon = computed(() => daysUntilExpiry.value != null && daysUntilExpiry.value <= 5 && daysUntilExpiry.value > 0);
+  // Trials are not used: only a paid plan approaching its end date is "expiring soon".
+  const isExpiringSoon = computed(
+    () => status.value?.status !== 'trial' && daysUntilExpiry.value != null && daysUntilExpiry.value <= 5 && daysUntilExpiry.value > 0,
+  );
   const hasDiscount = computed(() => (status.value?.customPricing?.discountPercent ?? 0) > 0);
 
   async function run(fn, fallbackMessage) {
@@ -49,7 +52,7 @@ export const useSubscriptionStore = defineStore('subscription', () => {
       } else if (s?.status === 'suspended' || s?.status === 'cancelled') {
         blocked.value = true;
         blockedReason.value = s.status;
-      } else if ((s?.status === 'active' || s?.status === 'trial') && s?.expiresAt && new Date(s.expiresAt) < new Date()) {
+      } else if (s?.status === 'active' && s?.plan && s?.expiresAt && new Date(s.expiresAt) < new Date()) {
         blocked.value = true;
         blockedReason.value = 'expired';
       } else {

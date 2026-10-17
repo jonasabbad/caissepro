@@ -18,7 +18,7 @@ model Tenant {
   name                  String
   slug                  String    @unique
   activityType          String    @default("phone_seller")
-  status                String    @default("trial") // trial | active | suspended | expired
+  status                String    @default("active") // active | suspended | expired (no trial period)
   plan                  String    @default("") // "" | demarrage | professionnel | multi_magasins | lifetime
   subscriptionExpiresAt DateTime?
   enabledModules        String    @default("[\"core\"]") // JSON string[]
@@ -509,6 +509,12 @@ model Repair {
   transactionId     String?
   createdBy         String?
   notes             String?
+  // Payments collected from the customer (repairs are paid here, never through the POS).
+  amountPaid        Decimal   @default(0)
+  paymentStatus     String    @default("unpaid") // unpaid | partial | paid
+  payments          String    @default("[]") // JSON [{id, amount, method, reference?, paidAt, userId}]
+  // When the repair became realized income: completed/delivered AND fully paid. Null otherwise.
+  realizedAt        DateTime?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
@@ -524,7 +530,12 @@ model RepairExpense {
   tenantId    String
   description String
   amount      Decimal
-  type        String   @default("part") // part | labor | other
+  type        String   @default("part") // part (bought for the job) | stock_part (taken from inventory) | labor | other
+  productId   String? // stock_part: the product taken from stock
+  quantity    Int? // stock_part: pieces taken
+  unitCost    Decimal? // stock_part: product cost price at the time
+  repairerId  String? // labor: the technician paid
+  paidFromDrawer Boolean @default(false) // paid in cash from the drawer
   createdAt   DateTime @default(now())
 }
 
