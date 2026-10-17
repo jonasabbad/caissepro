@@ -1,0 +1,43 @@
+<script setup>
+import { computed } from 'vue';
+import VueApexCharts from 'vue3-apexcharts';
+
+/** Daily sales and profit as two smoothed areas. `data`: [{ date: 'YYYY-MM-DD', sales, profit }]. */
+const props = defineProps({ data: { type: Array, default: () => [] } });
+const money = (v) => `${new Intl.NumberFormat('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v)} DH`;
+
+const options = computed(() => ({
+  chart: {
+    type: 'area',
+    height: 350,
+    fontFamily: 'Inter, system-ui, sans-serif',
+    toolbar: { show: true, tools: { download: true, selection: false, zoom: true, zoomin: true, zoomout: true, pan: false, reset: true } },
+    animations: { enabled: true, easing: 'easeinout', speed: 800 },
+  },
+  colors: ['#000000', '#10b981'],
+  fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.4, opacityTo: 0.05, stops: [0, 90, 100] } },
+  dataLabels: { enabled: false },
+  stroke: { curve: 'smooth', width: 3 },
+  grid: { borderColor: '#f1f1f1', strokeDashArray: 4, xaxis: { lines: { show: false } }, yaxis: { lines: { show: true } }, padding: { top: 0, right: 0, bottom: 0, left: 10 } },
+  xaxis: {
+    type: 'category',
+    categories: props.data.map((d) => new Date(`${d.date}T00:00:00`).toLocaleDateString('fr-MA', { day: 'numeric', month: 'short' })),
+    labels: { style: { colors: '#64748b', fontSize: '12px', fontWeight: 500 }, rotate: -45 },
+    axisBorder: { show: false },
+    axisTicks: { show: false },
+    tooltip: { enabled: false },
+  },
+  yaxis: { labels: { style: { colors: '#64748b', fontSize: '12px', fontWeight: 500 }, formatter: (v) => (v >= 1000 ? `${(v / 1000).toFixed(1)}K` : v.toFixed(0)) } },
+  tooltip: { shared: true, intersect: false, theme: 'light', y: { formatter: money } },
+  legend: { position: 'top', horizontalAlign: 'right', fontSize: '13px', fontWeight: 600, markers: { size: 7, strokeWidth: 0 } },
+  markers: { size: 0, hover: { size: 6 } },
+}));
+const series = computed(() => [
+  { name: 'Ventes', data: props.data.map((d) => Number(d.sales) || 0) },
+  { name: 'Profit', data: props.data.map((d) => Number(d.profit) || 0) },
+]);
+</script>
+
+<template>
+  <div class="w-full"><VueApexCharts type="area" height="320" :options="options" :series="series" /></div>
+</template>
