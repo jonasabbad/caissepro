@@ -207,7 +207,7 @@ export default async function transactionRoutes(app: FastifyInstance) {
       }
       const cash = r2(t.payments.filter((p) => p.method === 'cash').reduce((s, p) => s + num(p.amount), 0));
       if (cash > 0) {
-        await moveCaisse(tx, { tenantId: req.auth.tenantId, storeId: t.storeId, amount: -cash, type: 'refund', reference: t.transactionNumber, description: 'Annulation de vente', userId: req.auth.userId });
+        await moveCaisse(tx, { tenantId: req.auth.tenantId, storeId: t.storeId, delta: -cash, type: 'return_refund', reason: `Annulation - ${t.transactionNumber}`, transactionId: t.id, transactionNumber: t.transactionNumber, userId: req.auth.userId });
       }
       await tx.transaction.update({
         where: { id: t.id },

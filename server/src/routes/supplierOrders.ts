@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
+import { moveCaisse } from '../lib/caisse.js';
 import { prisma, Prisma, type Tx } from '../lib/prisma.js';
 import { badRequest, notFound } from '../lib/errors.js';
 import { num, parseJson, r2, serialize } from '../lib/serialize.js';
@@ -90,6 +91,8 @@ async function applyPayment(tx: Tx, orderId: string, amount: number, user: { id:
     where: { id: orderId },
     data: { amountPaid: r2(num(order.amountPaid) + pay), amountRemaining: r2(remaining - pay), payments: JSON.stringify(payments) },
   });
+  // Supplier payments are paid from the drawer (observed: cash_out "Paiement fournisseur - PO-…").
+  await moveCaisse(tx, { tenantId: order.tenantId, storeId: order.storeId, delta: -pay, type: 'cash_out', reason: `Paiement fournisseur - ${order.orderNumber}`, userId: user.id });
 }
 
 const userName = (req: Req) => {

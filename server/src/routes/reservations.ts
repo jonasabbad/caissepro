@@ -94,10 +94,10 @@ export default async function reservationRoutes(app: FastifyInstance) {
         await moveCaisse(tx, {
           tenantId: req.auth.tenantId,
           storeId: req.auth.storeId,
-          amount: -amount,
-          type: 'refund',
-          reference: r.id,
-          description: 'Remboursement acompte',
+          delta: -amount,
+          type: 'reservation_refund',
+          reason: 'Remboursement acompte réservation',
+          transactionId: r.transactionId,
           userId: req.auth.userId,
         });
       }

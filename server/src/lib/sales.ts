@@ -294,10 +294,11 @@ export async function createSale(
       await moveCaisse(tx, {
         tenantId: auth.tenantId,
         storeId,
-        amount: cashIn,
+        delta: cashIn,
         type: 'sale',
-        reference: transaction.transactionNumber,
-        description: input.type === 'reservation' ? 'Acompte réservation' : 'Vente',
+        reason: `${input.type === 'reservation' ? 'Acompte réservation' : 'Paiement espèces'} - ${transaction.transactionNumber}`,
+        transactionId: transaction.id,
+        transactionNumber: transaction.transactionNumber,
         userId: auth.userId,
       });
     }
@@ -375,10 +376,11 @@ export async function addTransactionPayment(auth: AuthContext, transactionId: st
       await moveCaisse(tx, {
         tenantId: auth.tenantId,
         storeId: t.storeId,
-        amount,
-        type: t.type === 'reservation' ? 'sale' : 'debt_payment',
-        reference: t.transactionNumber,
-        description: t.type === 'reservation' ? 'Solde réservation' : 'Paiement crédit',
+        delta: amount,
+        type: 'sale',
+        reason: `${t.type === 'reservation' ? 'Solde réservation' : 'Paiement crédit'} - ${t.transactionNumber}`,
+        transactionId: t.id,
+        transactionNumber: t.transactionNumber,
         userId: auth.userId,
       });
     }
@@ -496,10 +498,11 @@ export async function processReturn(auth: AuthContext, input: z.infer<typeof ret
       await moveCaisse(tx, {
         tenantId: auth.tenantId,
         storeId,
-        amount: -refundTotal,
-        type: 'refund',
-        reference: transaction.transactionNumber,
-        description: 'Retour client',
+        delta: -refundTotal,
+        type: 'return_refund',
+        reason: `Remboursement retour - ${transaction.transactionNumber}`,
+        transactionId: transaction.id,
+        transactionNumber: transaction.transactionNumber,
         userId: auth.userId,
       });
     }

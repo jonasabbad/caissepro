@@ -427,21 +427,23 @@ model Payment {
 // ─── Cash drawer (caisse) ────────────────────────────────────────────────────
 
 model CaisseMovement {
-  id            String   @id @default(uuid())
-  tenantId      String
-  storeId       String
-  store         Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  type          String // sale | refund | cash_in | cash_out | adjustment | supplier_payment | debt_payment | repair | expense
-  amount        Decimal // signed
-  balanceBefore Decimal
-  balanceAfter  Decimal
-  reference     String?
-  description   String?
-  createdBy     String?
-  createdAt     DateTime @default(now())
+  id                String   @id @default(uuid())
+  tenantId          String
+  storeId           String
+  store             Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  type              String // cash_in | cash_out | sale | return_refund | reservation_refund | adjustment
+  amount            Decimal // positive; signed only for adjustments
+  balanceBefore     Decimal
+  balanceAfter      Decimal
+  reason            String?
+  transactionId     String?
+  transactionNumber String?
+  createdBy         String?
+  createdAt         DateTime @default(now())
 
   @@index([storeId, createdAt])
 }
+
 
 // ─── Invoices ────────────────────────────────────────────────────────────────
 

@@ -216,7 +216,7 @@ export default async function customerRoutes(app: FastifyInstance) {
           data: { tenantId: req.auth.tenantId, customerId: customer.id, amount: -refund, method: body.method, reference: body.reference, notes: body.notes, createdBy: req.auth.userId },
         });
         if (body.method === 'cash') {
-          await moveCaisse(tx, { tenantId: req.auth.tenantId, storeId, amount: -refund, type: 'refund', reference: customer.id, description: 'Remboursement client', userId: req.auth.userId });
+          await moveCaisse(tx, { tenantId: req.auth.tenantId, storeId, delta: -refund, type: 'cash_out', reason: `Remboursement client - ${customer.firstName} ${customer.lastName ?? ''}`.trim(), userId: req.auth.userId });
         }
         return payment;
       }
@@ -258,7 +258,7 @@ export default async function customerRoutes(app: FastifyInstance) {
         },
       });
       if (body.method === 'cash') {
-        await moveCaisse(tx, { tenantId: req.auth.tenantId, storeId, amount: paid, type: 'debt_payment', reference: customer.id, description: 'Paiement dette client', userId: req.auth.userId });
+        await moveCaisse(tx, { tenantId: req.auth.tenantId, storeId, delta: paid, type: 'cash_in', reason: `Paiement dette client - ${customer.firstName} ${customer.lastName ?? ''}`.trim(), userId: req.auth.userId });
       }
       return payment;
     });
