@@ -59,6 +59,8 @@ export default {
       activeRepairWarning: 'This device already has a repair in progress. You cannot create a new repair.',
       repairHistory: 'Repair history for this device',
       fixedPriceHint: 'Leave empty if the amount is not known yet — it will be required to complete the repair.',
+      estimatedCompletion: "Estimated completion date",
+      estimatedCompletionHint: "Shown to the customer on their ticket and on the tracking page.",
     },
     expenseForm: {
       description: 'Description',
@@ -107,5 +109,7 @@ export default {
       capitalized: 'Device from your stock: the costs ({amount}) are added to the device cost and counted when it is sold.',
       capitalizedShort: 'in the device cost',
     },
+    tracking: {"title":"Customer tracking (QR code)","hint":"The customer scans this code (printed on their ticket) to see the repair status and estimated date.","open":"Open the page","copy":"Copy link","copied":"Link copied","printTicket":"Print ticket"},
+    eta: {"label":"Estimated completion","none":"Not set","updated":"Estimated date updated","late":"Overdue"},
   },
 };

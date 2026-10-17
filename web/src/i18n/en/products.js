@@ -91,7 +91,6 @@ export default {
     margin: 'Margin',
     stockReadonlyHint: 'Use a stock adjustment to change the quantity',
     conditions: { new: 'New', likeNew: 'Like new', excellent: 'Excellent', good: 'Good', fair: 'Fair' },
-    qrCode: 'QR Code',
     printLabel: 'Print label',
     copyBarcode: 'Copy barcode',
     copySku: 'Copy SKU',
@@ -146,6 +145,9 @@ export default {
       invalid: 'This file is not an image',
       failed: 'Could not upload the photo',
     },
+    labels: {"title":"Barcode labels","size":"Label size","sizes":{"compact":"Compact","standard":"Standard","small":"Mini"},"preview":"Preview","hint":"Name, selling price and barcode — to stick on the back of the product.","copies":"Number of labels","fewer":"Fewer","more":"More","oneEachInStock":"One label per piece in stock","stockShort":"stock ({n})","noBarcode":"No barcode","missing":"{n} product(s) without a barcode skipped.","count":"{n} label(s)","print":"Print ({n})","printSelected":"Print labels ({n})","selectAll":"Select all","select":"Select"},
+    scan: {"hint":"Scan a barcode to find a product","found":"Product found: {name}","notFound":"No product with barcode {code}","create":"Create a product with this code"},
+    barcodeAutoHint: "Scan the manufacturer's code, or leave empty: a unique barcode is generated automatically.",
   },
   inventoryMovements: {
     title: 'Stock movements',

@@ -27,7 +27,7 @@ export default {
       download: 'Télécharger PDF',
       printing: 'Impression...',
     },
-    methods: { cash: 'Espèces', card: 'Carte bancaire', credit: 'Crédit', bank_transfer: 'Virement', check: 'Chèque', mobile_money: 'Mobile Money' },
+    methods: { cash: 'Espèces', card: 'Carte bancaire', credit: 'Crédit', bank_transfer: 'Virement', check: 'Chèque', mobile_money: 'Mobile Money', mixed: 'Paiement mixte' },
     invoice: {
       title: 'FACTURE',
       pageTitle: 'Facture {number}',
@@ -63,6 +63,8 @@ export default {
       payOnPickup: 'Montant à régler à la récupération',
       footer: 'Présentez ce ticket pour récupérer votre appareil',
       labelTitle: 'Étiquette réparation',
+      scanToTrack: 'Scannez pour suivre votre réparation',
+      eta: 'Prêt prévu le : {date}',
     },
   },
 };

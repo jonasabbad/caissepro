@@ -4,7 +4,7 @@ import { formatCurrency } from '@/utils/format';
 import { escapeHtml, printHtmlDocument } from '@/utils/printFrame';
 import { getSavedPrinter, printHtml } from '@/services/printer';
 
-const METHODS = ['cash', 'card', 'credit', 'bank_transfer', 'check', 'mobile_money'];
+const METHODS = ['cash', 'card', 'credit', 'bank_transfer', 'check', 'mobile_money', 'mixed'];
 export const paymentLabel = (method) => (METHODS.includes(method) ? dt(`doc.methods.${method}`) : method);
 
 export const receiptDate = (value) =>
@@ -30,7 +30,8 @@ const row = (label, value, cls = '') => `<div class="row ${cls}"><span>${escapeH
  * 80 mm thermal ticket.
  * `r`: { transactionNumber, date, cashierName, storeName, storeAddress, storePhone, customerName,
  *        items: [{ name, quantity, unitPrice, total }], subtotal, taxAmount, discount, total,
- *        paymentMethod, amountPaid, change, docLabel, extraLines, hidePayment, hideTotals, footerNote }
+ *        paymentMethod, amountPaid, change, docLabel, extraLines, hidePayment, hideTotals, footerNote,
+ *        qrDataUrl, qrCaption }   (QR codes appear on repair tickets only, for status tracking)
  */
 export function receiptHtml(r) {
   const m = (v) => formatCurrency(v);
@@ -70,6 +71,7 @@ body{width:80mm;padding:5mm 4mm 12mm;font-family:Helvetica,Arial,sans-serif;font
 .items{width:100%;border-collapse:collapse;font-size:8pt}.items th{font-weight:bold;padding-bottom:1mm}.items td{vertical-align:top;padding-bottom:1mm}
 .items .l{text-align:left;word-wrap:break-word}.items .c{text-align:center;width:10mm}.items .r{text-align:right;width:20mm;white-space:nowrap}
 .unit{font-size:7pt;padding-left:2mm}.row{display:flex;justify-content:space-between;gap:2mm}.row.grand{font-size:10pt;font-weight:bold}
+.qr{text-align:center;margin:2mm 0}.qr img{width:26mm;height:26mm}.qr .cap{font-size:7.5pt;margin-top:1mm}
 .footer{margin-top:2mm}.footer .bye{font-size:8pt}.footer .site{font-size:7pt;margin-top:2mm}
 </style></head><body>
 <div class="center"><div class="store">${escapeHtml(r.storeName)}</div>
@@ -82,6 +84,7 @@ ${r.customerName ? `<div>${escapeHtml(dt('doc.receipt.customer', { name: r.custo
 ${(r.extraLines || []).map((l) => `<div class="extra">${escapeHtml(l)}</div>`).join('\n')}</div>
 <div class="dashed"></div>
 ${items}${totals.join('\n')}${payment.join('\n')}
+${r.qrDataUrl ? `<div class="qr"><img src="${r.qrDataUrl}" alt="QR">${r.qrCaption ? `<div class="cap">${escapeHtml(r.qrCaption)}</div>` : ''}</div>` : ''}
 <div class="footer center"><div>${escapeHtml(r.footerNote || RECEIPT_TEXT.footerNote)}</div><div class="bye">${RECEIPT_TEXT.bye}</div><div class="site">${escapeHtml(RECEIPT_TEXT.site)}</div></div>
 </body></html>`;
 }
@@ -134,14 +137,23 @@ export async function downloadReceiptPdf(r) {
     if (r.change > 0) add(dt('doc.receipt.change'), { right: m(r.change), bold: true });
     add('-', { rule: true });
   }
+  if (r.qrDataUrl) {
+    add('', { qr: r.qrDataUrl });
+    if (r.qrCaption) add(r.qrCaption, { align: 'center', size: 7.5 });
+  }
   add(r.footerNote || RECEIPT_TEXT.footerNote, { align: 'center' });
   add(RECEIPT_TEXT.bye, { align: 'center', size: 8 });
   add(RECEIPT_TEXT.site, { align: 'center', size: 7 });
 
-  const height = 10 + lines.reduce((h, l) => h + (l.rule ? 3 : ((l.size ?? 9) * 0.3528 * 1.4)), 0) + 12;
+  const height = 10 + lines.reduce((h, l) => h + (l.rule ? 3 : l.qr ? 30 : (l.size ?? 9) * 0.3528 * 1.4), 0) + 12;
   const doc = new jsPDF({ unit: 'mm', format: [W, Math.max(height, 60)] });
   let y = 6;
   for (const l of lines) {
+    if (l.qr) {
+      doc.addImage(l.qr, 'PNG', (W - 26) / 2, y + 1, 26, 26);
+      y += 30;
+      continue;
+    }
     if (l.rule) {
       doc.setLineDashPattern([0.8, 0.8], 0);
       doc.line(4, y, W - 4, y);

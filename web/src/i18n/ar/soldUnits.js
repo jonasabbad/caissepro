@@ -68,8 +68,6 @@ export default {
     deleteError: 'تعذر حذف الجهاز',
     createSuccess: 'تم تسجيل الجهاز',
     updateSuccess: 'تم تحديث الجهاز',
-    qrCode: 'رمز QR',
-    qrContent: 'محتوى الرمز',
     refCode: 'المرجع',
     printLabel: 'طباعة الملصق',
     copyImei: 'نسخ IMEI',
@@ -109,6 +107,8 @@ export default {
       macbook: { name: 'ماك بوك', description: 'MacBook Air و MacBook Pro' },
       watch: { name: 'ساعة ذكية', description: 'Apple Watch وساعات ذكية أخرى' },
     },
+    barcodeLabel: "ملصق الباركود",
+    barcodeContent: "محتوى الباركود",
   },
   reservation: {
     title: 'الحجز',

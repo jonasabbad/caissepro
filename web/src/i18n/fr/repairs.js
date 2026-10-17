@@ -59,6 +59,8 @@ export default {
       activeRepairWarning: 'Cet appareil a déjà une réparation en cours. Vous ne pouvez pas créer une nouvelle réparation.',
       repairHistory: 'Historique des réparations de cet appareil',
       fixedPriceHint: "Laissez vide si le montant n'est pas encore connu — il sera exigé pour terminer la réparation.",
+      estimatedCompletion: "Date prévue de fin",
+      estimatedCompletionHint: "Affichée au client sur son ticket et sur la page de suivi.",
     },
     expenseForm: {
       description: 'Description',
@@ -78,5 +80,7 @@ export default {
     expenseType: { part: 'Pièce achetée', stock_part: 'Pièce du stock', labor: 'Technicien / prestataire', other: 'Autre coût' },
     "payment": {"title":"Paiement","collect":"Encaisser","confirm":"Confirmer le paiement","paid":"Encaissé","due":"Reste à payer","none":"Aucun paiement enregistré","recorded":"Paiement enregistré","reference":"Référence","referenceRequired":"Référence requise pour ce mode de paiement","invalidAmount":"Montant invalide","hint":"Les espèces sont ajoutées à la caisse. La réparation compte dans le bénéfice une fois terminée et entièrement payée.","allStatus":"Tous les paiements","status":{"unpaid":"Non payée","partial":"Acompte","paid":"Payée"},"methods":{"cash":"Espèces","card":"Carte","bank_transfer":"Virement","check":"Chèque"}},
     "profit": {"title":"Profit","breakdown":"Rentabilité","formula":"Prix − pièces − main d’œuvre − autres coûts directs","revenue":"Prix facturé","parts":"Pièces (achetées + stock)","gross":"Marge brute","labor":"Technicien / prestataire","other":"Autres coûts directs","net":"Profit de la réparation","realized":"Compté dans le bénéfice","notRealized":"Non réalisé (pas encore terminé et payé)","capitalized":"Appareil de votre stock : les coûts ({amount}) sont ajoutés au coût de l’appareil et comptés à sa vente.","capitalizedShort":"dans le coût de l’appareil"},
+    tracking: {"title":"Suivi client (QR code)","hint":"Le client scanne ce code (imprimé sur son ticket) pour voir le statut et la date prévue de sa réparation.","open":"Ouvrir la page","copy":"Copier le lien","copied":"Lien copié","printTicket":"Imprimer le ticket"},
+    eta: {"label":"Date prévue","none":"Non définie","updated":"Date prévue mise à jour","late":"En retard"},
   },
 };

@@ -11,7 +11,7 @@ import {
   CurrencyDollarIcon,
   DevicePhoneMobileIcon,
   ExclamationTriangleIcon,
-  QrCodeIcon,
+  HashtagIcon,
   ShoppingCartIcon,
   TagIcon,
   TruckIcon,
@@ -21,6 +21,7 @@ import {
 } from '@heroicons/vue/24/outline';
 import { formatCurrency, formatShortDate } from '@/utils/format';
 import { repairsApi } from '@/api/repairs';
+import BarcodeIcon from '@/components/ui/BarcodeIcon.vue';
 
 const props = defineProps({ isOpen: Boolean, product: Object });
 const emit = defineEmits(['close', 'addToCart']);
@@ -77,7 +78,7 @@ function add() {
           <template v-if="isUnit">
             <div class="grid grid-cols-2 gap-3 mb-6">
               <div class="bg-gray-50 p-4 rounded-xl">
-                <div class="flex items-center gap-2 mb-1"><QrCodeIcon class="w-4 h-4 text-gray-400" /><span class="text-xs text-gray-500 uppercase font-medium">REF</span></div>
+                <div class="flex items-center gap-2 mb-1"><HashtagIcon class="w-4 h-4 text-gray-400" /><span class="text-xs text-gray-500 uppercase font-medium">REF</span></div>
                 <span class="font-semibold text-gray-900 font-mono">{{ product.ref || '-' }}</span>
               </div>
               <div class="bg-gray-50 p-4 rounded-xl">
@@ -157,7 +158,7 @@ function add() {
                 <span class="font-semibold text-gray-900 font-mono">{{ product.sku }}</span>
               </div>
               <div class="bg-gray-50 p-4 rounded-xl">
-                <div class="flex items-center gap-2 mb-1"><QrCodeIcon class="w-4 h-4 text-gray-400" /><span class="text-xs text-gray-500 uppercase font-medium">{{ t('products.barcode') }}</span></div>
+                <div class="flex items-center gap-2 mb-1"><BarcodeIcon class="w-4 h-4 text-gray-400" /><span class="text-xs text-gray-500 uppercase font-medium">{{ t('products.barcode') }}</span></div>
                 <span class="font-semibold text-gray-900 font-mono">{{ product.barcode || '-' }}</span>
               </div>
               <div class="bg-primary-50 p-4 rounded-xl">

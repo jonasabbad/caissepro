@@ -11,6 +11,7 @@ import { resolveStoreId } from '../lib/tenant.js';
 import { moveStock } from '../lib/stock.js';
 import { moveCaisse } from '../lib/caisse.js';
 import { refreshRepairFinancials, repairFinancials } from '../lib/profit.js';
+import { newTrackingToken } from '../lib/codes.js';
 
 const STATUSES = ['pending', 'in_progress', 'completed', 'delivered', 'cancelled'] as const;
 type Status = (typeof STATUSES)[number];
@@ -34,6 +35,7 @@ const repairSchema = z.object({
   repairerId: z.string().optional().nullable(),
   diagnosticNotes: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
+  estimatedCompletionAt: z.coerce.date().optional().nullable(),
 });
 const expenseSchema = z.object({
   description: z.string().trim().max(255).optional(),
@@ -208,6 +210,8 @@ export default async function repairRoutes(app: FastifyInstance) {
         diagnosticNotes: body.diagnosticNotes ?? '',
         notes: body.notes ?? '',
         status: 'pending',
+        estimatedCompletionAt: body.estimatedCompletionAt ?? null,
+        trackingToken: newTrackingToken(),
         createdBy: req.auth.userId,
       },
     });
@@ -232,6 +236,7 @@ export default async function repairRoutes(app: FastifyInstance) {
           ...(body.repairerId !== undefined && { repairerId: body.repairerId || null }),
           ...(body.diagnosticNotes !== undefined && { diagnosticNotes: body.diagnosticNotes ?? '' }),
           ...(body.notes !== undefined && { notes: body.notes ?? '' }),
+          ...(body.estimatedCompletionAt !== undefined && { estimatedCompletionAt: body.estimatedCompletionAt ?? null }),
         },
       });
       if (body.soldUnitId !== undefined && body.soldUnitId !== existing.soldUnitId) {

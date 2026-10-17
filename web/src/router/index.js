@@ -11,6 +11,8 @@ const routes = [
   // ── Public site ──
   { path: '/', name: 'home', component: page('public/LandingView'), meta: { public: true } },
   { path: '/ar', name: 'home-ar', component: page('public/LandingView'), meta: { public: true, locale: 'ar' } },
+  // Public repair status page, opened by scanning the QR code on a repair ticket.
+  { path: '/track/:token', name: 'repair-tracking', component: page('public/RepairTrackingView'), meta: { public: true } },
   { path: '/privacy', name: 'privacy', component: page('public/PrivacyPolicyView'), meta: { public: true } },
   { path: '/terms', name: 'terms', component: page('public/TermsOfUseView'), meta: { public: true } },
   { path: '/account/delete', name: 'account-delete', component: page('public/AccountDeleteView'), meta: { public: true } },

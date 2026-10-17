@@ -96,7 +96,8 @@ export const soldUnitsApi = {
     const { data } = await http.get('/phone-seller/sold-units/available', { params: { brand, model, storage } });
     return data.data?.units || [];
   },
-  generateQRData(unit) {
+  /** Value printed as the device barcode (scanning it in the POS finds the device). */
+  labelCode(unit) {
     return unit.imei ? unit.imei : unit.ref;
   },
 };

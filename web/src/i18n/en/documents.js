@@ -27,7 +27,7 @@ export default {
       download: 'Download PDF',
       printing: 'Printing...',
     },
-    methods: { cash: 'Cash', card: 'Bank card', credit: 'Credit', bank_transfer: 'Bank transfer', check: 'Check', mobile_money: 'Mobile Money' },
+    methods: { cash: 'Cash', card: 'Bank card', credit: 'Credit', bank_transfer: 'Bank transfer', check: 'Check', mobile_money: 'Mobile Money', mixed: 'Split payment' },
     invoice: {
       title: 'INVOICE',
       pageTitle: 'Invoice {number}',
@@ -63,6 +63,8 @@ export default {
       payOnPickup: 'Amount payable on pickup',
       footer: 'Show this ticket to collect your device',
       labelTitle: 'Repair label',
+      scanToTrack: 'Scan to track your repair',
+      eta: 'Estimated ready: {date}',
     },
   },
 };

@@ -1,6 +1,7 @@
 <script setup>
 import { intlLocale } from '@/i18n';
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
+import QRCode from 'qrcode';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
@@ -26,7 +27,7 @@ import { repairersApi, repairsApi } from '@/api/repairs';
 import { productsApi } from '@/api/products';
 import { useAuthStore } from '@/stores/auth';
 import { formatCurrency } from '@/utils/format';
-import { printRepairLabel, repairReceiptProps } from '@/utils/repairPrint';
+import { printRepairLabel, repairReceiptProps, repairTrackingUrl } from '@/utils/repairPrint';
 import ConfirmModal from '@/components/ui/ConfirmModal.vue';
 import Toast from '@/components/ui/Toast.vue';
 import ReceiptModal from '@/components/pos/ReceiptModal.vue';
@@ -206,6 +207,50 @@ function startDiag() {
   diagDraft.value = repair.value?.diagnosticNotes || '';
   editingDiag.value = true;
 }
+// ── Customer tracking: QR code of the public status page, estimated completion date ──
+const trackingUrl = computed(() => (repair.value?.trackingToken ? repairTrackingUrl(repair.value) : ''));
+const trackingQr = ref('');
+watch(trackingUrl, async (u) => (trackingQr.value = u ? await QRCode.toDataURL(u, { width: 320, margin: 1 }).catch(() => '') : ''), { immediate: true });
+const linkCopied = ref(false);
+async function copyTrackingLink() {
+  try {
+    await navigator.clipboard.writeText(trackingUrl.value);
+    linkCopied.value = true;
+    setTimeout(() => (linkCopied.value = false), 2000);
+  } catch {
+    /* clipboard unavailable */
+  }
+}
+const toDateInput = (d) => {
+  if (!d) return '';
+  const x = new Date(d);
+  return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
+};
+const editingEta = ref(false);
+const etaDraft = ref('');
+function startEta() {
+  etaDraft.value = toDateInput(repair.value?.estimatedCompletionAt);
+  editingEta.value = true;
+}
+const etaMut = useMutation({
+  // Midday local time, so the day never shifts with the time zone.
+  mutationFn: () => repairsApi.update(id.value, { estimatedCompletionAt: etaDraft.value ? new Date(`${etaDraft.value}T12:00:00`).toISOString() : null }),
+  onSuccess: () => {
+    queryClient.invalidateQueries({ queryKey: ['repair', id.value] });
+    editingEta.value = false;
+    notify(t('repairs.eta.updated'));
+  },
+  onError: (e) => notify(e?.response?.data?.message || t('repairs.expenseError'), 'error'),
+});
+const etaLabel = computed(() =>
+  repair.value?.estimatedCompletionAt
+    ? new Date(repair.value.estimatedCompletionAt).toLocaleDateString(intlLocale(), { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })
+    : '',
+);
+const etaLate = computed(
+  () => !!repair.value?.estimatedCompletionAt && ['pending', 'in_progress'].includes(repair.value.status) && new Date(repair.value.estimatedCompletionAt) < new Date(new Date().toDateString()),
+);
+
 const diagMut = useMutation({
   mutationFn: () => repairsApi.update(id.value, { diagnosticNotes: diagDraft.value }),
   onSuccess: () => {
@@ -265,6 +310,20 @@ async function printLabel() {
           >
             <component :is="a.icon" class="w-4 h-4" /> {{ t(`repairs.action.${a.key}`) }}
           </button>
+        </div>
+      </div>
+
+      <div v-if="trackingUrl" class="card flex flex-col gap-4 p-4 sm:flex-row sm:items-center">
+        <img v-if="trackingQr" :src="trackingQr" alt="QR" class="h-28 w-28 shrink-0 self-center rounded border" />
+        <div class="min-w-0 flex-1">
+          <h2 class="font-semibold text-gray-900">{{ t('repairs.tracking.title') }}</h2>
+          <p class="mt-1 text-sm text-gray-500">{{ t('repairs.tracking.hint') }}</p>
+          <p class="mt-2 truncate font-mono text-xs text-gray-500">{{ trackingUrl }}</p>
+          <div class="mt-3 flex flex-wrap gap-2">
+            <a :href="trackingUrl" target="_blank" rel="noopener" class="btn-secondary btn-sm">{{ t('repairs.tracking.open') }}</a>
+            <button type="button" class="btn-secondary btn-sm" @click="copyTrackingLink">{{ linkCopied ? t('repairs.tracking.copied') : t('repairs.tracking.copy') }}</button>
+            <button type="button" class="btn-primary btn-sm inline-flex items-center gap-1.5" @click="showTicket = true"><PrinterIcon class="h-4 w-4" /> {{ t('repairs.tracking.printTicket') }}</button>
+          </div>
         </div>
       </div>
 
@@ -417,6 +476,23 @@ async function printLabel() {
           <div v-if="repair.notes" class="sm:col-span-2">
             <span class="text-gray-500">{{ t('repairs.form.notes') }}</span>
             <p class="text-gray-900 mt-0.5">{{ repair.notes }}</p>
+          </div>
+          <div v-if="!repair.completedAt && repair.status !== 'cancelled'">
+            <div class="flex items-center justify-between">
+              <span class="text-gray-500">{{ t('repairs.eta.label') }}</span>
+              <button v-if="!editingEta" type="button" class="text-xs text-blue-600 hover:text-blue-800" @click="startEta">
+                {{ repair.estimatedCompletionAt ? t('common.edit') : t('common.add') }}
+              </button>
+            </div>
+            <div v-if="editingEta" class="mt-1 flex items-center gap-2">
+              <input v-model="etaDraft" type="date" class="input py-1 text-sm" />
+              <button type="button" class="btn-sm btn-secondary" @click="editingEta = false">{{ t('common.cancel') }}</button>
+              <button type="button" class="btn-sm btn-primary" :disabled="etaMut.isPending.value" @click="etaMut.mutate()">{{ t('common.save') }}</button>
+            </div>
+            <p v-else :class="['mt-0.5', repair.estimatedCompletionAt ? 'text-gray-900' : 'text-gray-400 italic']">
+              {{ etaLabel || t('repairs.eta.none') }}
+              <span v-if="etaLate" class="ms-1 rounded bg-red-100 px-1.5 py-0.5 text-xs font-medium text-red-700">{{ t('repairs.eta.late') }}</span>
+            </p>
           </div>
           <div v-if="repair.completedAt">
             <span class="text-gray-500">{{ t('repairs.completedAt') }}</span>

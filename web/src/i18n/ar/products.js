@@ -91,7 +91,6 @@ export default {
     margin: 'الهامش',
     stockReadonlyHint: 'استعمل تعديل المخزون لتغيير الكمية',
     conditions: { new: 'جديد', likeNew: 'شبه جديد', excellent: 'ممتاز', good: 'جيد', fair: 'مقبول' },
-    qrCode: 'رمز QR',
     printLabel: 'طباعة الملصق',
     copyBarcode: 'نسخ الباركود',
     copySku: 'نسخ المرجع',
@@ -137,6 +136,9 @@ export default {
       },
     },
     "image": {"label":"صورة المنتج","add":"إضافة","choose":"اختيار صورة","replace":"استبدال","remove":"إزالة","hint":"JPEG أو PNG أو WebP. يتم تصغير الصورة تلقائياً للحفاظ على سرعة نقطة البيع.","invalid":"هذا الملف ليس صورة","failed":"تعذر رفع الصورة"},
+    labels: {"title":"ملصقات الباركود","size":"حجم الملصق","sizes":{"compact":"صغيرة","standard":"عادية","small":"مصغرة"},"preview":"معاينة","hint":"الاسم وسعر البيع والباركود — للصقه على ظهر المنتج.","copies":"عدد الملصقات","fewer":"أقل","more":"أكثر","oneEachInStock":"ملصق لكل قطعة في المخزون","stockShort":"المخزون ({n})","noBarcode":"بدون باركود","missing":"تم تجاهل {n} منتج بدون باركود.","count":"{n} ملصق","print":"طباعة ({n})","printSelected":"طباعة الملصقات ({n})","selectAll":"تحديد الكل","select":"تحديد"},
+    scan: {"hint":"امسح باركود للعثور على منتج","found":"تم العثور على المنتج: {name}","notFound":"لا يوجد منتج بالباركود {code}","create":"إنشاء منتج بهذا الرمز"},
+    barcodeAutoHint: "امسح رمز الشركة المصنعة، أو اتركه فارغاً: سيتم إنشاء باركود فريد تلقائياً.",
   },
   inventoryMovements: {
     title: 'حركات المخزون',

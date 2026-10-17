@@ -8,7 +8,6 @@ import {
   MagnifyingGlassIcon,
   PencilIcon,
   PlusIcon,
-  QrCodeIcon,
   TrashIcon,
 } from '@heroicons/vue/24/outline';
 import { productsApi, categoriesApi } from '@/api/products';
@@ -16,7 +15,9 @@ import { useActivity } from '@/composables/useActivity';
 import { formatCurrency } from '@/utils/format';
 import { apiErrorMessage } from '@/api/http';
 import StockAdjustModal from '@/components/products/StockAdjustModal.vue';
-import ProductQRCode from '@/components/products/ProductQRCode.vue';
+import ProductLabelsModal from '@/components/products/ProductLabelsModal.vue';
+import BarcodeIcon from '@/components/ui/BarcodeIcon.vue';
+import { useBarcodeScanner } from '@/composables/useBarcodeScanner';
 import Toast from '@/components/ui/Toast.vue';
 import ProductImage from '@/components/products/ProductImage.vue';
 import ConfirmModal from '@/components/ui/ConfirmModal.vue';
@@ -34,8 +35,10 @@ watch([search, categoryId, status], () => (page.value = 1));
 
 const adjustOpen = ref(false);
 const adjustProduct = ref(null);
-const qrOpen = ref(false);
-const qrProduct = ref(null);
+const labelsOpen = ref(false);
+const labelProducts = ref([]);
+// Selection for printing labels in bulk (kept across pages).
+const selected = ref(new Map());
 const toast = ref({ show: false, message: '', type: 'success' });
 const confirmOpen = ref(false);
 const pendingDeleteId = ref(null);
@@ -95,10 +98,35 @@ function openAdjust(p) {
   adjustProduct.value = p;
   adjustOpen.value = true;
 }
-function openQr(p) {
-  qrProduct.value = p;
-  qrOpen.value = true;
+function openLabels(list) {
+  labelProducts.value = list;
+  labelsOpen.value = true;
 }
+const toggleSelect = (p) => (selected.value.has(p.id) ? selected.value.delete(p.id) : selected.value.set(p.id, p));
+const allOnPageSelected = computed(() => products.value.length > 0 && products.value.every((p) => selected.value.has(p.id)));
+function toggleAll() {
+  const all = allOnPageSelected.value;
+  for (const p of products.value) all ? selected.value.delete(p.id) : selected.value.set(p.id, p);
+}
+
+// ── Scanning: a scanned (or typed + Enter) barcode finds the product and highlights it ──
+const highlightId = ref(null);
+const scanMiss = ref('');
+async function findByCode(code) {
+  const c = String(code || '').trim();
+  if (!c) return;
+  scanMiss.value = '';
+  const p = await productsApi.getByBarcode(c).catch(() => null);
+  if (!p) {
+    scanMiss.value = c;
+    return;
+  }
+  search.value = c;
+  highlightId.value = p.id;
+  notify(t('products.scan.found', { name: p.name }));
+  setTimeout(() => highlightId.value === p.id && (highlightId.value = null), 4000);
+}
+useBarcodeScanner(findByCode);
 
 const adjustMutation = useMutation({
   mutationFn: (payload) => {
@@ -132,7 +160,7 @@ const adjustMutation = useMutation({
       <div class="flex flex-col gap-4 md:flex-row">
         <div class="relative flex-1">
           <MagnifyingGlassIcon class="absolute start-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
-          <input v-model="search" type="text" :placeholder="t('products.search')" class="input ps-10" />
+          <input v-model="search" type="text" :placeholder="t('products.search')" :title="t('products.scan.hint')" class="input ps-10" @keydown.enter.prevent="findByCode(search)" />
         </div>
         <select v-model="categoryId" class="input w-full md:w-48">
           <option :value="null">{{ t('products.allCategories') }}</option>
@@ -147,6 +175,20 @@ const adjustMutation = useMutation({
         </select>
         <button class="btn-secondary p-2" @click="refetch()"><ArrowPathIcon class="h-5 w-5" /></button>
       </div>
+      <div v-if="scanMiss" class="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+        <span>{{ t('products.scan.notFound', { code: scanMiss }) }}</span>
+        <RouterLink :to="{ path: '/app/products/new', query: { barcode: scanMiss } }" class="font-medium underline">{{ t('products.scan.create') }}</RouterLink>
+      </div>
+    </div>
+
+    <div v-if="selected.size" class="flex items-center justify-between rounded-lg bg-gray-900 px-4 py-2 text-sm text-white">
+      <span>{{ t('products.labels.count', { n: selected.size }) }}</span>
+      <div class="flex items-center gap-2">
+        <button class="rounded px-2 py-1 hover:bg-white/10" @click="selected.clear()">{{ t('common.cancel') }}</button>
+        <button class="inline-flex items-center gap-1.5 rounded bg-white px-3 py-1 font-medium text-gray-900" @click="openLabels([...selected.values()])">
+          <BarcodeIcon class="h-4 w-4" /> {{ t('products.labels.printSelected', { n: selected.size }) }}
+        </button>
+      </div>
     </div>
 
     <div class="card overflow-hidden">
@@ -154,6 +196,7 @@ const adjustMutation = useMutation({
         <table class="w-full">
           <thead class="border-b border-gray-200 bg-gray-50">
             <tr>
+              <th class="w-10 px-4 py-3"><input type="checkbox" class="rounded" :checked="allOnPageSelected" :aria-label="t('products.labels.selectAll')" @change="toggleAll" /></th>
               <th class="px-4 py-3 text-start text-sm font-medium text-gray-500">{{ t('products.product') }}</th>
               <th class="px-4 py-3 text-start text-sm font-medium text-gray-500">{{ t('products.sku') }}</th>
               <th class="px-4 py-3 text-start text-sm font-medium text-gray-500">{{ t('products.costPrice') }}</th>
@@ -164,15 +207,16 @@ const adjustMutation = useMutation({
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-200">
-            <tr v-if="isLoading"><td colspan="7" class="px-4 py-8 text-center text-gray-500">{{ t('common.loading') }}</td></tr>
-            <tr v-else-if="products.length === 0"><td colspan="7" class="px-4 py-8 text-center text-gray-500">{{ t('products.noProducts') }}</td></tr>
-            <tr v-for="p in products" :key="p.id" class="hover:bg-gray-50">
+            <tr v-if="isLoading"><td colspan="8" class="px-4 py-8 text-center text-gray-500">{{ t('common.loading') }}</td></tr>
+            <tr v-else-if="products.length === 0"><td colspan="8" class="px-4 py-8 text-center text-gray-500">{{ t('products.noProducts') }}</td></tr>
+            <tr v-for="p in products" :key="p.id" :class="['hover:bg-gray-50 transition-colors', highlightId === p.id && 'bg-amber-50 ring-2 ring-inset ring-amber-300']">
+              <td class="px-4 py-3"><input type="checkbox" class="rounded" :checked="selected.has(p.id)" :aria-label="t('products.labels.select')" @change="toggleSelect(p)" /></td>
               <td class="px-4 py-3">
                 <div class="flex items-center gap-3">
                   <div class="h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-gray-100"><ProductImage :src="p.imageUrl" :name="p.name" size="sm" /></div>
                   <div class="min-w-0">
                     <p class="font-medium text-gray-900">{{ p.name }}</p>
-                    <p v-if="p.barcode" class="text-sm text-gray-500">{{ p.barcode }}</p>
+                    <p v-if="p.barcode" class="font-mono text-xs text-gray-500">{{ p.barcode }}</p>
                   </div>
                 </div>
               </td>
@@ -190,8 +234,8 @@ const adjustMutation = useMutation({
                   <button class="p-2 text-gray-400 hover:text-primary-600" :title="t('products.adjustStock')" @click="openAdjust(p)">
                     <AdjustmentsHorizontalIcon class="h-5 w-5" />
                   </button>
-                  <button class="p-2 text-gray-400 hover:text-primary-600" :title="t('products.qrCode')" @click="openQr(p)">
-                    <QrCodeIcon class="h-5 w-5" />
+                  <button class="p-2 text-gray-400 hover:text-primary-600" :title="t('products.labels.title')" @click="openLabels([p])">
+                    <BarcodeIcon class="h-5 w-5" />
                   </button>
                   <RouterLink :to="`/app/products/${p.id}/edit`" class="p-2 text-gray-400 hover:text-primary-600">
                     <PencilIcon class="h-5 w-5" />
@@ -215,7 +259,7 @@ const adjustMutation = useMutation({
     </div>
 
     <StockAdjustModal :is-open="adjustOpen" :product="adjustProduct" @close="adjustOpen = false" @save="adjustMutation.mutate" />
-    <ProductQRCode :is-open="qrOpen" :product="qrProduct" @close="qrOpen = false" />
+    <ProductLabelsModal :is-open="labelsOpen" :products="labelProducts" @close="labelsOpen = false" />
     <Toast :show="toast.show" :message="toast.message" :type="toast.type" @close="toast.show = false" />
     <ConfirmModal
       :show="confirmOpen"

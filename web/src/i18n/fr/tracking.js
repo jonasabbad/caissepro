@@ -1,0 +1,26 @@
+export default {
+  tracking: {
+    title: 'Suivi de réparation',
+    number: 'Réparation {number}',
+    device: 'Appareil',
+    received: 'Reçu le',
+    eta: 'Date prévue',
+    etaUnknown: 'Bientôt communiquée',
+    completedOn: 'Terminée le',
+    deliveredOn: 'Remis le',
+    lastUpdate: 'Dernière mise à jour : {date}',
+    messages: {
+      pending: 'Votre appareil a bien été reçu et attend sa prise en charge.',
+      in_progress: 'Votre appareil est en cours de réparation.',
+      completed: 'Votre appareil est prêt ! Vous pouvez venir le récupérer.',
+      delivered: 'Votre appareil vous a été remis. Merci de votre confiance.',
+      cancelled: 'Cette réparation a été annulée. Contactez le magasin pour plus d’informations.',
+    },
+    steps: { received: 'Reçu', in_progress: 'En réparation', completed: 'Prêt', delivered: 'Remis' },
+    contact: 'Contacter le magasin',
+    call: 'Appeler',
+    notFound: 'Réparation introuvable',
+    notFoundHint: 'Le lien est peut-être incomplet. Scannez à nouveau le QR code de votre ticket ou contactez le magasin.',
+    refresh: 'Actualiser',
+  },
+};

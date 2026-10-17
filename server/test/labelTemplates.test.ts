@@ -5,7 +5,7 @@ describe('label templates', () => {
   it('creates defaults lazily, saves per category, resolves device variants and resets', async () => {
     const { api } = await newTenant();
     const su = (await api.get('/label-templates/__sold_units__')).body.data.template;
-    expect([su.categoryId, su.isDefault, su.includeImei, su.template.width, su.template.barcodeType]).toEqual(['__sold_units__', true, true, 50, 'qrcode']);
+    expect([su.categoryId, su.isDefault, su.includeImei, su.template.width, su.template.barcodeType]).toEqual(['__sold_units__', true, true, 50, 'code128']);
     expect((await api.get('/label-templates')).body.data.templates).toHaveLength(0);
 
     const cat = 'cat-123';

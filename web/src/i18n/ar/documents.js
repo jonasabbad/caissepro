@@ -29,7 +29,7 @@ export default {
       download: 'تحميل PDF',
       printing: 'جارٍ الطباعة...',
     },
-    methods: { cash: 'نقداً', card: 'بطاقة بنكية', credit: 'دين', bank_transfer: 'تحويل', check: 'شيك', mobile_money: 'الدفع بالهاتف' },
+    methods: { cash: 'نقداً', card: 'بطاقة بنكية', credit: 'دين', bank_transfer: 'تحويل', check: 'شيك', mobile_money: 'الدفع بالهاتف', mixed: 'دفع متعدد' },
     invoice: {
       title: 'فاتورة',
       pageTitle: 'فاتورة {number}',
@@ -65,6 +65,8 @@ export default {
       payOnPickup: 'المبلغ يُدفع عند الاستلام',
       footer: 'قدّم هذه التذكرة لاستلام جهازك',
       labelTitle: 'ملصق إصلاح',
+      scanToTrack: 'امسح الرمز لتتبع إصلاحك',
+      eta: 'الموعد المتوقع: {date}',
     },
   },
 };

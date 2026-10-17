@@ -68,8 +68,6 @@ export default {
     deleteError: 'The device could not be deleted',
     createSuccess: 'Device saved',
     updateSuccess: 'Device updated',
-    qrCode: 'QR Code',
-    qrContent: 'QR content',
     refCode: 'Ref.',
     printLabel: 'Print label',
     copyImei: 'Copy IMEI',
@@ -109,6 +107,8 @@ export default {
       macbook: { name: 'MacBook', description: 'MacBook Air and MacBook Pro' },
       watch: { name: 'Smartwatch', description: 'Apple Watch and other smartwatches' },
     },
+    barcodeLabel: "Barcode label",
+    barcodeContent: "Barcode content",
   },
   reservation: {
     title: 'Reservation',

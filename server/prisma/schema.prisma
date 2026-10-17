@@ -146,6 +146,7 @@ model Product {
 
   @@index([tenantId])
   @@index([tenantId, barcode])
+  @@unique([tenantId, barcode]) // one product per barcode within a business
 }
 
 model InventoryMovement {
@@ -516,6 +517,8 @@ model Repair {
   payments          String    @default("[]") // JSON [{id, amount, method, reference?, paidAt, userId}]
   // When the repair became realized income: completed/delivered AND fully paid. Null otherwise.
   realizedAt        DateTime?
+  estimatedCompletionAt DateTime?
+  trackingToken     String?   @unique // public status link encoded in the repair QR code
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 

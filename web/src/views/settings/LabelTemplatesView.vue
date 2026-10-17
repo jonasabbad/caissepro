@@ -2,7 +2,6 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useQuery, useQueryClient } from '@tanstack/vue-query';
-import QRCode from 'qrcode';
 import { ComputerDesktopIcon, DevicePhoneMobileIcon, DeviceTabletIcon, PlusIcon, TagIcon, TrashIcon, XMarkIcon } from '@heroicons/vue/24/outline';
 import { categoriesApi } from '@/api/products';
 import { deviceCatalogApi } from '@/api/deviceCatalog';
@@ -10,6 +9,9 @@ import { labelTemplatesApi, SOLD_UNITS_KEY } from '@/api/labelTemplates';
 import { useActivity } from '@/composables/useActivity';
 import { useAuthStore } from '@/stores/auth';
 import Toast from '@/components/ui/Toast.vue';
+import { currentLocale } from '@/i18n';
+import { barcodeSvg, formatBarcodeText } from '@/utils/barcode';
+import { LABEL_SIZES, labelsDocument } from '@/utils/printFrame';
 
 const { t } = useI18n();
 const auth = useAuthStore();
@@ -240,7 +242,6 @@ async function applyAll() {
 
 // ── Field list and live preview ──
 const FIELDS = computed(() => [
-  { key: 'includeQr', label: t('labelTemplates.qrCode') },
   { key: 'includeName', label: isUnits.value ? t('labelTemplates.deviceName') : t('labelTemplates.productName') },
   ...(isUnits.value
     ? [
@@ -251,20 +252,37 @@ const FIELDS = computed(() => [
         { key: 'includeBatteryHealth', label: t('labelTemplates.batteryHealth') },
         { key: 'includeCondition', label: t('labelTemplates.condition'), hint: t('labelTemplates.conditionHint') },
       ]
-    : [{ key: 'includeBarcode', label: t('labelTemplates.barcode'), hint: t('labelTemplates.barcodeHint') }]),
+    : []),
   { key: 'includePrice', label: t('labelTemplates.price') },
   { key: 'includeCompany', label: t('labelTemplates.companyName') },
 ]);
-const qr = ref('');
-onMounted(async () => {
-  try {
-    qr.value = await QRCode.toDataURL('SAMPLE-12345', { width: 200, margin: 1, color: { dark: '#000000', light: '#FFFFFF' } });
-  } catch (e) {
-    console.error('QR generation failed:', e);
-  }
-});
 const sampleName = computed(() => (isUnits.value ? (fields.value.hideBrand ? '15 Pro Max' : 'iPhone 15 Pro Max') : 'Coque silicone'));
 const samplePrice = computed(() => (isUnits.value ? '15 500 DH' : '49 DH'));
+// Preview built with the same renderer as printing: products on compact labels, devices on standard ones.
+// The barcode is always printed (it identifies the item); QR codes are only used for repairs.
+const previewDims = computed(() => (isUnits.value ? LABEL_SIZES.standard : LABEL_SIZES.compact));
+const previewHtml = computed(() => {
+  const f = fields.value;
+  const code = isUnits.value ? '353456789012345' : '2001234567893';
+  const details = isUnits.value
+    ? [[f.includeStorage && '256 GB', f.includeColor && 'Noir'].filter(Boolean).join(' - '), f.includeCondition && t('soldUnits.conditions.new'), f.includeBatteryHealth && '100%'].filter(Boolean).join(' · ')
+    : '';
+  return labelsDocument(
+    [
+      {
+        lines: [
+          f.includeName && { text: sampleName.value, size: isUnits.value ? 8.5 : 7.5, bold: isUnits.value },
+          details && { text: details, size: 7, bold: false },
+          f.includePrice && { text: samplePrice.value, size: isUnits.value ? 9.5 : 10 },
+        ],
+        barcodeSvg: barcodeSvg(code),
+        barcodeText: !isUnits.value || f.includeImei ? formatBarcodeText(code) : '',
+        footer: f.includeCompany ? storeName.value : '',
+      },
+    ],
+    { ...previewDims.value, lang: currentLocale() },
+  );
+});
 
 watch(
   categories,
@@ -473,25 +491,14 @@ watch(
 
           <div class="card p-6">
             <h3 class="font-semibold text-gray-900 mb-1">{{ t('labelTemplates.livePreview') }}</h3>
-            <p class="text-xs text-gray-500 mb-4">{{ t('labelTemplates.previewNote') }}</p>
-            <div class="mx-auto bg-white border-2 border-dashed border-gray-300 rounded relative overflow-hidden font-mono" style="width: 50mm; height: 25mm; padding: 0.5mm 0.5mm 4mm">
-              <div class="flex items-start gap-[2mm]">
-                <img v-if="fields.includeQr && qr" :src="qr" alt="QR" style="width: 18mm; height: 18mm" class="shrink-0" />
-                <div class="flex-1 min-w-0 leading-tight overflow-hidden">
-                  <div v-if="fields.includeName" class="font-bold" style="font-size: 8pt">{{ sampleName }}</div>
-                  <template v-if="isUnits">
-                    <div v-if="fields.includeImei" style="font-size: 6pt">353 456 789 012 345</div>
-                    <div v-if="fields.includeStorage || fields.includeColor" style="font-size: 6.5pt">
-                      {{ [fields.includeStorage && '256 GB', fields.includeColor && 'Noir'].filter(Boolean).join(' · ') }}
-                    </div>
-                    <div v-if="fields.includeCondition" style="font-size: 6.5pt">{{ t('soldUnits.conditions.new') }}<template v-if="fields.includeBatteryHealth"> · 🔋 100%</template></div>
-                    <div v-else-if="fields.includeBatteryHealth" style="font-size: 6.5pt">🔋 100%</div>
-                  </template>
-                  <div v-else-if="fields.includeBarcode" style="font-size: 6pt">6111234567890</div>
-                  <div v-if="fields.includePrice" class="font-bold" style="font-size: 9pt">{{ samplePrice }}</div>
-                </div>
-              </div>
-              <div v-if="fields.includeCompany" class="absolute bottom-[0.5mm] inset-x-0 text-center font-bold truncate px-1" style="font-size: 6.5pt">{{ storeName }}</div>
+            <p class="text-xs text-gray-500 mb-4">{{ t('labelTemplates.previewNote', { size: `${previewDims.width} × ${previewDims.height} mm` }) }}</p>
+            <div class="flex justify-center overflow-hidden rounded bg-gray-100 py-2" :style="{ height: `calc(${previewDims.height}mm * 2 + 16px)` }">
+              <iframe
+                :srcdoc="previewHtml"
+                :title="t('labelTemplates.livePreview')"
+                class="box-content border-2 border-dashed border-gray-300 bg-white"
+                :style="{ width: `${previewDims.width}mm`, height: `${previewDims.height}mm`, transform: 'scale(2)', transformOrigin: 'top center' }"
+              />
             </div>
           </div>
         </template>

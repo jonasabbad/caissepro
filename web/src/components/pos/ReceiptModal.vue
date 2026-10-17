@@ -1,5 +1,6 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
+import QRCode from 'qrcode';
 import { ArrowDownTrayIcon, CheckCircleIcon, PrinterIcon, XMarkIcon } from '@heroicons/vue/24/outline';
 import { useI18n } from 'vue-i18n';
 import { formatCurrency } from '@/utils/format';
@@ -30,9 +31,21 @@ const props = defineProps({
   hideTotals: Boolean,
   footerNote: String,
   autoPrint: Boolean,
+  // Repair tickets: link encoded as a QR code so the customer can follow the repair.
+  qrValue: { type: String, default: '' },
+  qrCaption: { type: String, default: '' },
 });
 const emit = defineEmits(['close']);
 const { t } = useI18n();
+
+const qrDataUrl = ref('');
+watch(
+  () => props.qrValue,
+  async (v) => {
+    qrDataUrl.value = v ? await QRCode.toDataURL(v, { width: 240, margin: 1 }).catch(() => '') : '';
+  },
+  { immediate: true },
+);
 
 const printing = ref(false);
 const downloading = ref(false);
@@ -59,6 +72,8 @@ const receipt = computed(() => ({
   hidePayment: props.hidePayment,
   hideTotals: props.hideTotals,
   footerNote: props.footerNote,
+  qrDataUrl: qrDataUrl.value,
+  qrCaption: props.qrCaption,
 }));
 
 async function print() {
@@ -145,6 +160,10 @@ watch(
                 <div v-if="change > 0" class="flex justify-between font-bold"><span>{{ dt('doc.receipt.changeShort') }}</span><span>{{ formatCurrency(change) }}</span></div>
               </div>
             </template>
+            <div v-if="qrDataUrl" class="my-3 text-center">
+              <img :src="qrDataUrl" alt="QR" class="mx-auto h-28 w-28" />
+              <p v-if="qrCaption" class="mt-1 text-xs text-gray-600">{{ qrCaption }}</p>
+            </div>
             <div class="border-t border-dashed border-gray-300 my-3" />
             <div class="text-center text-xs text-gray-500">
               <p>{{ footerNote || RECEIPT_TEXT.footerNote }}</p>

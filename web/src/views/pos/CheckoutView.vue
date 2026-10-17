@@ -5,13 +5,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
 import {
   ArrowsRightLeftIcon,
   ArrowUturnLeftIcon,
-  BanknotesIcon,
   BoltIcon,
   BookmarkIcon,
-  BuildingLibraryIcon,
   CheckCircleIcon,
-  CreditCardIcon,
-  DocumentTextIcon,
   ExclamationTriangleIcon,
   EyeIcon,
   LockClosedIcon,
@@ -33,6 +29,8 @@ import { customersApi } from '@/api/customers';
 import { productsApi } from '@/api/products';
 import ProductImage from '@/components/products/ProductImage.vue';
 import { intlLocale } from '@/i18n';
+import { useBarcodeScanner } from '@/composables/useBarcodeScanner';
+import { PAYMENT_METHODS, SALE_TYPES, paymentMethod as methodInfo } from '@/config/saleOptions';
 import { soldUnitsApi, formatImei } from '@/api/soldUnits';
 import { transactionsApi } from '@/api/transactions';
 import { checkoutApi } from '@/api/checkout';
@@ -341,15 +339,19 @@ function closeCompleteReservation() {
 
 // ── Customers ──
 function chooseCustomer(c) {
+  const pending = pendingSaleOption.value;
   customer.value = c;
   cart.setCustomer(c.id);
   closeCustomerModal();
+  // A sale option that needed a customer is applied once one is chosen.
+  if (pending) chooseSaleOption(pending);
 }
 function clearCustomer() {
   customer.value = null;
   cart.setCustomer(null);
 }
 function closeCustomerModal() {
+  pendingSaleOption.value = null;
   showCustomerModal.value = false;
   showNewCustomer.value = false;
   newCustomer.value = { firstName: '', lastName: '', phone: '' };
@@ -437,7 +439,10 @@ function closeUnitPicker() {
   unitPickerProduct.value = null;
 }
 
-/** Enter / scanner: exact device REF/IMEI/serial first, then the product search (exact SKU/barcode wins). */
+/**
+ * Enter / scanner: exact device REF/IMEI/serial first, then the product search (exact SKU/barcode wins).
+ * An exact code goes straight into the cart; the detailed view is only used for typed, partial searches.
+ */
 async function lookup() {
   if (searching.value || showPack.value) return;
   const q = search.value.trim();
@@ -455,10 +460,7 @@ async function lookup() {
       if (unit) {
         search.value = '';
         fastKeys = 0;
-        if (detailedMode.value) {
-          detailsItem.value = { ...unit, _isUnit: true };
-          showDetails.value = true;
-        } else selectUnit(unit);
+        selectUnit(unit);
         return;
       }
     }
@@ -467,13 +469,14 @@ async function lookup() {
       scanError.value = t('pos.noProductFor', { q });
       return;
     }
-    const p = found.find((x) => x.sku === q || x.barcode === q) || found[0];
+    const exact = found.find((x) => x.barcode === q || x.sku === q);
+    const p = exact || found[0];
     search.value = '';
     fastKeys = 0;
     if (Number(p.packSize) > 1 && !cart.isReturnMode) {
       packProduct.value = p;
       showPack.value = true;
-    } else if (detailedMode.value) {
+    } else if (detailedMode.value && !exact) {
       detailsItem.value = p;
       showDetails.value = true;
     } else selectProduct(p);
@@ -483,6 +486,13 @@ async function lookup() {
     searching.value = false;
   }
 }
+// A scan while the search box is not focused (e.g. after clicking in the cart) still adds the product.
+useBarcodeScanner((code) => {
+  if (showPayment.value || showReceipt.value || cart.isReturnMode) return;
+  search.value = code;
+  lookup();
+});
+
 function onDetailsAdd(item) {
   if (item._isUnit) selectUnit(item);
   else selectProduct(item);
@@ -615,6 +625,43 @@ function onAmountInput(e) {
   if (Number.isFinite(n)) amountPaid.value = Math.round(n * 100) / 100;
 }
 
+// ── Sale options (config/saleOptions.js): every type and method is offered; requirements are resolved on click ──
+const SALE_TONE = {
+  gray: 'border-black bg-gray-100 text-black font-medium',
+  blue: 'border-blue-500 bg-blue-50 text-blue-700 font-medium',
+  purple: 'border-purple-500 bg-purple-50 text-purple-700 font-medium',
+  green: 'border-green-500 bg-green-50 text-green-700 font-medium',
+};
+const visibleSaleTypes = computed(() => SALE_TYPES.filter((o) => !o.phoneSellerOnly || isPhoneSeller.value));
+const isSaleOptionActive = (o) => (o.action === 'tradeIn' ? cart.hasTradeIn : saleType.value === o.key);
+const pendingSaleOption = ref(null);
+const saleOptionHint = ref('');
+function chooseSaleOption(o) {
+  saleOptionHint.value = '';
+  if (o.needsCustomer && !customer.value) {
+    pendingSaleOption.value = o;
+    showCustomerModal.value = true;
+    return;
+  }
+  if (o.devicesOnly && !cartOnlyDevices.value) {
+    saleOptionHint.value = t('reservation.soldUnitsOnly');
+    return;
+  }
+  if (o.action === 'tradeIn') showTradeIn.value = true;
+  else saleType.value = o.key;
+}
+// Split payment: extra rows carve amounts out of the total received; the main method pays the rest
+// (sent last, so change is taken from it).
+const paymentReference = ref('');
+const splitPayments = ref([]);
+const splitTotal = computed(() => splitPayments.value.reduce((sum, p) => sum + (Number(p.amount) || 0), 0));
+const primaryAmount = computed(() => Math.round((amountPaid.value - splitTotal.value) * 100) / 100);
+function addSplit() {
+  const used = new Set([paymentMethod.value, ...splitPayments.value.map((p) => p.method)]);
+  const m = PAYMENT_METHODS.find((x) => !used.has(x.key)) || PAYMENT_METHODS[1];
+  splitPayments.value.push({ method: m.key, amount: 0, reference: '' });
+}
+
 function openPayment() {
   if (sellerRequired.value && !cart.selectedEmployeeId) {
     sellerError.value = t('employees.selectSellerRequired');
@@ -625,6 +672,9 @@ function openPayment() {
   paymentMethod.value = 'cash';
   overpayMode.value = 'change';
   paymentError.value = '';
+  paymentReference.value = '';
+  splitPayments.value = [];
+  saleOptionHint.value = '';
   showPayment.value = true;
 }
 
@@ -635,6 +685,15 @@ function openPayment() {
 async function completePayment() {
   if (sellerRequired.value && !cart.selectedEmployeeId) {
     sellerError.value = t('employees.selectSellerRequired');
+    return;
+  }
+  const rows = [{ method: paymentMethod.value, reference: paymentReference.value }, ...splitPayments.value.filter((p) => Number(p.amount) > 0)];
+  if (rows.some((p) => methodInfo(p.method)?.reference === 'required' && !String(p.reference || '').trim())) {
+    paymentError.value = t('pos.referenceMissing');
+    return;
+  }
+  if (primaryAmount.value < 0) {
+    paymentError.value = t('pos.splitTooHigh');
     return;
   }
   processing.value = true;
@@ -649,7 +708,11 @@ async function completePayment() {
       ...(i.soldUnitId && { soldUnitId: i.soldUnitId }),
     }));
     const paid = amountPaid.value;
-    const payments = paid > 0 ? [{ method: paymentMethod.value, amount: paid }] : [];
+    const extras = splitPayments.value
+      .filter((p) => Number(p.amount) > 0)
+      .map((p) => ({ method: p.method, amount: Number(p.amount), reference: String(p.reference || '').trim() || undefined }));
+    const main = primaryAmount.value;
+    const payments = [...extras, ...(main > 0 ? [{ method: paymentMethod.value, amount: main, reference: paymentReference.value.trim() || undefined }] : [])];
     let tx;
     if (cart.hasTradeIn) {
       const due = cart.totalAfterTradeIn;
@@ -699,7 +762,7 @@ async function completePayment() {
       total: discounted ? paid : cart.total + (supplement ? over : 0),
       amountPaid: paid,
       change: discounted || supplement ? 0 : changeDue.value,
-      paymentMethod: paymentMethod.value,
+      paymentMethod: extras.length ? 'mixed' : paymentMethod.value,
     };
     lastTransactionNumber.value = tx.transactionNumber;
     showPayment.value = false;
@@ -722,12 +785,8 @@ async function completePayment() {
 const formatSoldAt = (d) =>
   new Intl.DateTimeFormat(intlLocale(), { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(d));
 
-const PAY_METHODS = computed(() => [
-  { key: 'cash', label: t('payment.cash'), icon: BanknotesIcon },
-  { key: 'card', label: t('repairs.payment.methods.card'), icon: CreditCardIcon },
-  { key: 'bank_transfer', label: t('payment.transfer'), icon: BuildingLibraryIcon },
-]);
-const COMPLETE_METHODS = computed(() => [...PAY_METHODS.value, { key: 'check', label: t('payment.check'), icon: DocumentTextIcon }]);
+// Completing a reservation offers the same methods as a sale.
+const COMPLETE_METHODS = computed(() => PAYMENT_METHODS.map((m) => ({ ...m, label: t(m.label) })));
 
 // ── Keyboard: F2 pay, Esc closes the top-most dialog, Ctrl/Cmd+K or "/" focuses search ──
 function onKeydown(e) {
@@ -740,8 +799,8 @@ function onKeydown(e) {
     else if (showUnitPicker.value) closeUnitPicker();
     else if (showDetails.value) closeDetails();
     else if (showReceipt.value) showReceipt.value = false;
-    else if (showPayment.value) showPayment.value = false;
     else if (showCustomerModal.value) closeCustomerModal();
+    else if (showPayment.value) showPayment.value = false;
   }
   if ((e.key === 'k' && (e.metaKey || e.ctrlKey)) || (e.key === '/' && !(e.target instanceof HTMLInputElement))) {
     e.preventDefault();
@@ -1136,82 +1195,67 @@ const customerLocked = computed(() => cart.isReturnMode && !cart.isEmpty);
 
             <div>
               <label class="label">{{ t('pos.saleType') }}</label>
-              <div :class="['grid grid-cols-2 gap-2', isPhoneSeller ? 'sm:grid-cols-4' : 'sm:grid-cols-3']">
+              <div :class="['grid grid-cols-2 gap-2', visibleSaleTypes.length > 3 ? 'sm:grid-cols-4' : 'sm:grid-cols-3']">
                 <button
-                  :class="[
-                    'p-3 rounded-lg border text-center transition-colors text-sm',
-                    saleType === 'sale' ? 'border-black bg-gray-100 text-black font-medium' : 'border-gray-200 hover:border-gray-300',
-                  ]"
-                  @click="saleType = 'sale'"
+                  v-for="o in visibleSaleTypes"
+                  :key="o.key"
+                  type="button"
+                  :class="['p-3 rounded-lg border text-center transition-colors text-sm', isSaleOptionActive(o) ? SALE_TONE[o.tone] : 'border-gray-200 hover:border-gray-300']"
+                  :aria-pressed="isSaleOptionActive(o)"
+                  @click="chooseSaleOption(o)"
                 >
-                  <BanknotesIcon class="w-5 h-5 mx-auto mb-1" /> {{ t('pos.directSale') }}
-                </button>
-                <button
-                  :disabled="!customer"
-                  :title="customer ? '' : t('pos.selectCustomerFirst')"
-                  :class="[
-                    'p-3 rounded-lg border text-center transition-colors text-sm',
-                    saleType === 'credit'
-                      ? 'border-blue-500 bg-blue-50 text-blue-700 font-medium'
-                      : customer
-                        ? 'border-gray-200 hover:border-gray-300'
-                        : 'border-gray-100 bg-gray-50 text-gray-400 cursor-not-allowed',
-                  ]"
-                  @click="customer && (saleType = 'credit')"
-                >
-                  <CreditCardIcon class="w-5 h-5 mx-auto mb-1" /> {{ t('pos.creditSale') }}
-                </button>
-                <button
-                  :disabled="!customer || !cartOnlyDevices"
-                  :title="customer ? (cartOnlyDevices ? '' : t('reservation.soldUnitsOnly')) : t('reservation.customerRequired')"
-                  :class="[
-                    'p-3 rounded-lg border text-center transition-colors text-sm',
-                    saleType === 'reservation'
-                      ? 'border-purple-500 bg-purple-50 text-purple-700 font-medium'
-                      : !customer || !cartOnlyDevices
-                        ? 'border-gray-100 bg-gray-50 text-gray-400 cursor-not-allowed'
-                        : 'border-gray-200 hover:border-gray-300',
-                  ]"
-                  @click="customer && cartOnlyDevices && (saleType = 'reservation')"
-                >
-                  <BookmarkIcon class="w-5 h-5 mx-auto mb-1" /> {{ t('reservation.title') }}
-                </button>
-                <button
-                  v-if="isPhoneSeller"
-                  :disabled="!customer"
-                  :title="customer ? '' : t('pos.selectCustomerFirst')"
-                  :class="[
-                    'p-3 rounded-lg border text-center transition-colors text-sm',
-                    cart.hasTradeIn
-                      ? 'border-green-500 bg-green-50 text-green-700 font-medium'
-                      : customer
-                        ? 'border-gray-200 hover:border-gray-300'
-                        : 'border-gray-100 bg-gray-50 text-gray-400 cursor-not-allowed',
-                  ]"
-                  @click="showTradeIn = true"
-                >
-                  <ArrowsRightLeftIcon class="w-5 h-5 mx-auto mb-1" /> {{ t('tradeIn.button') }}
+                  <component :is="o.icon" class="w-5 h-5 mx-auto mb-1" /> {{ t(o.label) }}
+                  <span v-if="o.needsCustomer && !customer" class="mt-0.5 block text-[10px] text-gray-400">{{ t('pos.needsCustomer') }}</span>
                 </button>
               </div>
-              <p v-if="!customer" class="text-xs text-gray-500 mt-2">{{ t('pos.customerOptionsHint') }}</p>
-              <p v-else-if="!cartOnlyDevices && isPhoneSeller" class="text-xs text-gray-500 mt-2">{{ t('reservation.soldUnitsOnly') }}</p>
+              <p v-if="saleOptionHint" class="text-xs text-amber-700 mt-2">{{ saleOptionHint }}</p>
+              <p v-else-if="!customer" class="text-xs text-gray-500 mt-2">{{ t('pos.customerOptionsHintClick') }}</p>
             </div>
 
             <div>
               <label class="label">{{ t('payment.method') }}</label>
-              <div class="grid grid-cols-3 gap-2">
+              <div class="grid grid-cols-3 gap-2 sm:grid-cols-5">
                 <button
-                  v-for="m in PAY_METHODS"
+                  v-for="m in PAYMENT_METHODS"
                   :key="m.key"
+                  type="button"
                   :class="[
                     'p-2 rounded-lg border text-center transition-colors text-xs',
                     paymentMethod === m.key ? 'border-black bg-gray-100 text-black font-medium' : 'border-gray-200 hover:border-gray-300',
                   ]"
+                  :aria-pressed="paymentMethod === m.key"
                   @click="paymentMethod = m.key"
                 >
-                  <component :is="m.icon" class="w-5 h-5 mx-auto mb-0.5" /> {{ m.label }}
+                  <component :is="m.icon" class="w-5 h-5 mx-auto mb-0.5" /> {{ t(m.label) }}
                 </button>
               </div>
+              <input
+                v-if="methodInfo(paymentMethod)?.reference"
+                v-model="paymentReference"
+                type="text"
+                class="input mt-2 text-sm"
+                :placeholder="methodInfo(paymentMethod).reference === 'required' ? t('pos.referenceRequiredPh') : t('pos.referenceOptionalPh')"
+              />
+              <div v-for="(p, i) in splitPayments" :key="i" class="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 p-2">
+                <select v-model="p.method" class="input w-36 py-1.5 text-sm" :aria-label="t('payment.method')">
+                  <option v-for="m in PAYMENT_METHODS" :key="m.key" :value="m.key">{{ t(m.label) }}</option>
+                </select>
+                <input v-model.number="p.amount" type="number" min="0" step="0.01" class="input w-28 py-1.5 text-sm" :aria-label="t('payment.amount')" />
+                <input
+                  v-if="methodInfo(p.method)?.reference"
+                  v-model="p.reference"
+                  type="text"
+                  class="input min-w-0 flex-1 py-1.5 text-sm"
+                  :placeholder="methodInfo(p.method).reference === 'required' ? t('pos.referenceRequiredPh') : t('pos.referenceOptionalPh')"
+                />
+                <button type="button" class="p-1 text-gray-400 hover:text-danger-600" :title="t('common.remove')" @click="splitPayments.splice(i, 1)"><XMarkIcon class="w-4 h-4" /></button>
+              </div>
+              <button v-if="!cart.hasTradeIn" type="button" class="mt-2 inline-flex items-center gap-1 text-sm font-medium text-primary-600 hover:text-primary-800" @click="addSplit">
+                <PlusIcon class="w-4 h-4" /> {{ t('pos.splitAdd') }}
+              </button>
+              <p v-if="splitPayments.length" :class="['mt-1 text-xs', primaryAmount < 0 ? 'text-danger-600' : 'text-gray-500']">
+                {{ primaryAmount < 0 ? t('pos.splitTooHigh') : t('pos.splitPrimary', { amount: formatCurrency(primaryAmount), method: t(methodInfo(paymentMethod).label) }) }}
+              </p>
             </div>
 
             <div>

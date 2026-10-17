@@ -1,22 +1,24 @@
 <script setup>
 import { intlLocale } from '@/i18n';
-import { computed, ref, watch } from 'vue';
+import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useQuery } from '@tanstack/vue-query';
-import QRCode from 'qrcode';
 import { ClipboardDocumentIcon, PrinterIcon, XMarkIcon } from '@heroicons/vue/24/outline';
 import { settingsApi } from '@/api/misc';
 import { soldUnitsApi, formatImei } from '@/api/soldUnits';
 import { labelTemplatesApi, DEFAULT_UNIT_LABEL } from '@/api/labelTemplates';
-import { labelDocument, printHtmlDocument, truncate } from '@/utils/printFrame';
+import { LABEL_SIZES, labelsDocument, printHtmlDocument, truncate } from '@/utils/printFrame';
+import { currentLocale } from '@/i18n';
+import { barcodeSvg } from '@/utils/barcode';
+import BarcodeView from '@/components/ui/BarcodeView.vue';
 import { conditionBadge } from '@/utils/soldUnitDisplay';
 
 const props = defineProps({ isOpen: Boolean, unit: { type: Object, default: null } });
 const emit = defineEmits(['close']);
 const { t } = useI18n();
 
-const qr = ref('');
 const copied = ref(false);
+const code = computed(() => (props.unit ? soldUnitsApi.labelCode(props.unit) : ''));
 
 const { data: settings } = useQuery({ queryKey: ['tenant-settings'], queryFn: () => settingsApi.getTenantSettings(), staleTime: 300_000 });
 const storeName = computed(() => settings.value?.storeName || settings.value?.tenantName || '');
@@ -60,20 +62,6 @@ function labelName(name) {
   return name;
 }
 
-async function generate() {
-  if (!props.unit) {
-    qr.value = '';
-    return;
-  }
-  try {
-    qr.value = await QRCode.toDataURL(soldUnitsApi.generateQRData(props.unit), { width: 200, margin: 2, color: { dark: '#000000', light: '#FFFFFF' } });
-  } catch (e) {
-    console.error('QR Code generation error:', e);
-    qr.value = '';
-  }
-}
-watch(() => props.unit, () => props.isOpen && props.unit && generate(), { immediate: true });
-watch(() => props.isOpen, (open) => open && props.unit && generate());
 
 const identifier = computed(() => (props.unit ? (props.unit.imei ? formatImei(props.unit.imei) : props.unit.serialNumber || '-') : '-'));
 const identifierLabel = computed(() => (props.unit ? (props.unit.imei ? 'IMEI' : t('soldUnits.serialNumber')) : 'ID'));
@@ -105,19 +93,28 @@ async function printLabel() {
   const specs = [];
   if ((tpl.includeStorage ?? tpl.includeSpecs) && u.storage) specs.push(u.storage);
   if ((tpl.includeColor ?? tpl.includeSpecs) && u.color) specs.push(u.color);
+  // Name, specs and price on top, then the barcode (IMEI or device reference) with its digits.
+  const details = [
+    specs.join(' - '),
+    tpl.includeCondition && u.condition ? t(`soldUnits.conditions.${u.condition}`) : '',
+    tpl.includeBatteryHealth && u.batteryHealth ? `${u.batteryHealth}%` : '',
+  ].filter(Boolean);
   printHtmlDocument(
-    labelDocument({
-      qrDataUrl: tpl.includeQr ? qr.value : null,
-      lines: [
-        tpl.includeName && { text: truncate(labelName(`${u.brand} ${u.model}`), 20), size: 10 },
-        specs.length && { text: specs.join(' - '), size: 8 },
-        tpl.includeImei && { text: identifier.value, size: 10 },
-        tpl.includeCondition && u.condition && { text: t(`soldUnits.conditions.${u.condition}`), size: 8 },
-        tpl.includeBatteryHealth && u.batteryHealth && { text: `${u.batteryHealth}%`, size: 8 },
-        tpl.includePrice && { text: priceText.value, size: 10 },
+    labelsDocument(
+      [
+        {
+          lines: [
+            tpl.includeName && { text: truncate(labelName(`${u.brand} ${u.model}`), 26), size: 8.5 },
+            details.length && { text: details.join(' · '), size: 7, bold: false },
+            tpl.includePrice && { text: priceText.value, size: 9.5 },
+          ],
+          barcodeSvg: barcodeSvg(code.value),
+          barcodeText: tpl.includeImei !== false ? code.value : '',
+          footer: tpl.includeCompany ? storeName.value : '',
+        },
       ],
-      footer: tpl.includeCompany ? storeName.value : '',
-    }),
+      { ...LABEL_SIZES.standard, lang: currentLocale(), title: t('soldUnits.printLabel') },
+    ),
   );
 }
 </script>
@@ -128,7 +125,7 @@ async function printLabel() {
       <div class="absolute inset-0 bg-black/50" @click="emit('close')" />
       <div class="relative mx-4 w-full max-w-md overflow-hidden rounded-xl bg-white shadow-xl">
         <div class="flex items-center justify-between border-b p-4">
-          <h3 class="text-lg font-semibold text-gray-900">{{ t('soldUnits.qrCode') }}</h3>
+          <h3 class="text-lg font-semibold text-gray-900">{{ t('soldUnits.barcodeLabel') }}</h3>
           <button class="rounded-lg p-2 hover:bg-gray-100" @click="emit('close')"><XMarkIcon class="h-5 w-5" /></button>
         </div>
         <div v-if="unit" class="space-y-6 p-6">
@@ -137,18 +134,15 @@ async function printLabel() {
             <p class="text-sm text-gray-500">{{ unit.storage }} <span v-if="unit.color">- {{ unit.color }}</span></p>
           </div>
           <div class="flex justify-center">
-            <div class="rounded-lg border bg-white p-4 shadow-sm">
-              <img v-if="qr" :src="qr" alt="QR Code" class="h-48 w-48" />
-              <div v-else class="flex h-48 w-48 items-center justify-center text-gray-400">{{ t('common.loading') }}</div>
-            </div>
+            <div class="rounded-lg border bg-white p-4 shadow-sm"><BarcodeView :value="code" /></div>
           </div>
           <div class="text-center">
             <p class="text-sm text-gray-500">{{ identifierLabel }}</p>
             <p class="font-mono text-lg font-medium">{{ identifier }}</p>
           </div>
           <div class="text-center">
-            <p class="text-xs text-gray-400">{{ t('soldUnits.qrContent') }}</p>
-            <p class="font-mono text-sm text-gray-600">{{ unit.imei || unit.ref }}</p>
+            <p class="text-xs text-gray-400">{{ t('soldUnits.barcodeContent') }}</p>
+            <p class="font-mono text-sm text-gray-600">{{ code }}</p>
           </div>
           <div class="flex items-center justify-center gap-4">
             <span :class="['rounded-full px-3 py-1 text-sm font-medium', conditionBadge(unit.condition)]">{{ t(`soldUnits.conditions.${unit.condition}`) }}</span>

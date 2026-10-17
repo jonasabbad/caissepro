@@ -1,6 +1,6 @@
 // Compares translation keys across locales: every key in French (the reference) must exist in the others.
 // Usage: node scripts/i18n-check.mjs [locale ...]   (default: en ar)
-import { readdirSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -23,6 +23,28 @@ async function load(locale) {
   return merged;
 }
 
+// A key written twice in the same object silently replaces the first one (and every key under it).
+let duplicates = 0;
+for (const loc of ['fr', 'en', 'ar']) {
+  for (const f of readdirSync(path.join(dir, loc)).filter((f) => f.endsWith('.js'))) {
+    const stack = [new Set()];
+    for (const [i, line] of readFileSync(path.join(dir, loc, f), 'utf8').split('\n').entries()) {
+      const depth = (line.match(/^ */)[0].length - 2) / 2;
+      const m = line.match(/^\s*"?([\w-]+)"?\s*:/);
+      if (m && depth >= 0) {
+        stack.length = depth + 1;
+        stack[depth] ??= new Set();
+        if (stack[depth].has(m[1])) {
+          duplicates++;
+          console.log(`duplicate key "${m[1]}" in ${loc}/${f}:${i + 1}`);
+        }
+        stack[depth].add(m[1]);
+        if (/\{\s*$/.test(line)) stack[depth + 1] = new Set();
+      }
+    }
+  }
+}
+
 const ref = await load('fr');
 const targets = process.argv.slice(2).length ? process.argv.slice(2) : ['en', 'ar'];
 let failed = false;
@@ -38,4 +60,4 @@ for (const loc of targets) {
   for (const k of badPh.slice(0, 20)) console.log(`  placeholders ${k}: fr=${ph(ref[k])} ${loc}=${ph(other[k])}`);
   if (missing.length || badPh.length) failed = true;
 }
-process.exit(failed ? 1 : 0);
+process.exit(failed || duplicates ? 1 : 0);

@@ -68,8 +68,6 @@ export default {
     deleteError: "L'appareil n'a pas pu être supprimé",
     createSuccess: 'Appareil enregistré',
     updateSuccess: 'Appareil mis à jour',
-    qrCode: 'QR Code',
-    qrContent: 'Contenu du QR',
     refCode: 'Réf.',
     printLabel: "Imprimer l'étiquette",
     copyImei: "Copier l'IMEI",
@@ -109,6 +107,8 @@ export default {
       macbook: { name: 'MacBook', description: 'MacBook Air et MacBook Pro' },
       watch: { name: 'Montre connectée', description: 'Apple Watch et autres montres connectées' },
     },
+    barcodeLabel: "Étiquette code-barres",
+    barcodeContent: "Contenu du code-barres",
   },
   reservation: {
     title: 'Réservation',

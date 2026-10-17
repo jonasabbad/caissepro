@@ -2,6 +2,15 @@ import { docLocale, dt, intlLocale } from '@/i18n';
 import QRCode from 'qrcode';
 import { escapeHtml } from '@/utils/printFrame';
 
+/** Public status page encoded in the repair's QR code (falls back to the repair number for old records). */
+export const repairTrackingUrl = (repair) =>
+  repair?.trackingToken ? `${window.location.origin}/track/${repair.trackingToken}` : repair?.repairNumber || '';
+
+const etaText = (repair) =>
+  repair?.estimatedCompletionAt
+    ? new Date(repair.estimatedCompletionAt).toLocaleDateString(intlLocale(), { day: '2-digit', month: '2-digit', year: 'numeric' })
+    : '';
+
 /**
  * ReceiptModal props for a repair intake ticket. With a price the ticket shows it as the amount due on pickup;
  * without one it only lists the device and fault.
@@ -14,6 +23,7 @@ export function repairReceiptProps(repair, storeName) {
   if (price <= 0) extraLines.push(dt('doc.repair.device', { value: repair.deviceDescription }));
   if (repair.soldUnit?.imei) extraLines.push(`IMEI: ${repair.soldUnit.imei}`);
   if (repair.diagnosticNotes) extraLines.push(dt('doc.repair.fault', { value: repair.diagnosticNotes }));
+  if (repair.estimatedCompletionAt) extraLines.push(dt('doc.repair.eta', { date: etaText(repair) }));
   if (price > 0) extraLines.push(dt('doc.repair.payOnPickup'));
   return {
     transactionNumber: repair.repairNumber,
@@ -34,6 +44,9 @@ export function repairReceiptProps(repair, storeName) {
     storeName: storeName || 'CaissePro',
     cashierName: repair.creator ? `${repair.creator.firstName} ${repair.creator.lastName || ''}`.trim() : undefined,
     footerNote: dt('doc.repair.footer'),
+    // The customer scans this to follow the repair online.
+    qrValue: repair.trackingToken ? repairTrackingUrl(repair) : '',
+    qrCaption: dt('doc.repair.scanToTrack'),
   };
 }
 
@@ -60,9 +73,9 @@ ${device ? `<div class="device">${escapeHtml(cut(device, 26))}</div>` : ''}
 </div></div><div class="footer"><span>${escapeHtml(shortDate(repair.receivedAt))}</span>${storeName ? `<span>${escapeHtml(cut(storeName, 22))}</span>` : ''}</div></div></body></html>`;
 }
 
-/** 50 × 25 mm label to stick on the device: QR of the repair number, client, phone, device, intake date. */
+/** 50 × 25 mm label to stick on the device: QR of the repair's tracking link, client, phone, device, intake date. */
 export async function printRepairLabel(repair, storeName) {
-  const qr = await QRCode.toDataURL(repair.repairNumber, { width: 200, margin: 2, color: { dark: '#000000', light: '#FFFFFF' } });
+  const qr = await QRCode.toDataURL(repairTrackingUrl(repair), { width: 200, margin: 2, color: { dark: '#000000', light: '#FFFFFF' } });
   const frame = document.createElement('iframe');
   Object.assign(frame.style, { position: 'absolute', left: '-9999px', width: '0', height: '0', border: 'none' });
   document.body.appendChild(frame);

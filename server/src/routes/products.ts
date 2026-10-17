@@ -9,6 +9,7 @@ import { makeRef } from '../lib/refs.js';
 import { moveStock, stockStatus } from '../lib/stock.js';
 import { resolveStoreId } from '../lib/tenant.js';
 import { isAllowedImageUrl, removeUpload } from '../lib/uploads.js';
+import { generateProductBarcode } from '../lib/codes.js';
 
 const money = z.coerce.number().min(0);
 const optMoney = z.union([z.coerce.number().min(0), z.null()]).optional();
@@ -34,10 +35,10 @@ type ProductInput = z.infer<typeof productSchema>;
 
 const include = { category: true } as const;
 
-async function assertUniqueBarcode(tenantId: string, barcode: string | null | undefined, exceptId?: string) {
+async function assertUniqueBarcode(tenantId: string, barcode: string | null | undefined, exceptId?: string, db: Prisma.TransactionClient | typeof prisma = prisma) {
   if (!barcode) return;
-  const clash = await prisma.product.findFirst({
-    where: { tenantId, barcode, status: { not: 'archived' }, ...(exceptId ? { id: { not: exceptId } } : {}) },
+  const clash = await db.product.findFirst({
+    where: { tenantId, barcode, ...(exceptId ? { id: { not: exceptId } } : {}) },
   });
   if (clash) throw conflict(`Le code-barres ${barcode} est déjà utilisé par « ${clash.name} »`);
 }
@@ -48,6 +49,8 @@ function checkImage(tenantId: string, url: string | null | undefined) {
 
 async function createProduct(tx: Prisma.TransactionClient, tenantId: string, storeId: string | null, userId: string, input: ProductInput) {
   checkImage(tenantId, input.imageUrl);
+  await assertUniqueBarcode(tenantId, input.barcode, undefined, tx);
+  const barcode = input.barcode || (await generateProductBarcode(tx, tenantId));
   const stock = input.stockQuantity ?? 0;
   const minStock = input.minStockLevel ?? 5;
   const product = await tx.product.create({
@@ -56,7 +59,7 @@ async function createProduct(tx: Prisma.TransactionClient, tenantId: string, sto
       storeId,
       name: input.name,
       sku: input.sku || makeRef('PRD'),
-      barcode: input.barcode || null,
+      barcode,
       description: input.description ?? null,
       categoryId: input.categoryId || null,
       costPrice: r2(input.costPrice),
@@ -172,7 +175,8 @@ export default async function productRoutes(app: FastifyInstance) {
       data: {
         ...(input.name !== undefined && { name: input.name }),
         ...(input.sku !== undefined && { sku: input.sku || existing.sku }),
-        ...(input.barcode !== undefined && { barcode: input.barcode || null }),
+        // Clearing the barcode gives the product a new generated one: every product keeps a barcode.
+        ...(input.barcode !== undefined && { barcode: input.barcode || (await generateProductBarcode(prisma, req.auth.tenantId)) }),
         ...(input.description !== undefined && { description: input.description }),
         ...(input.categoryId !== undefined && { categoryId: input.categoryId || null }),
         ...(input.costPrice !== undefined && { costPrice: r2(input.costPrice) }),

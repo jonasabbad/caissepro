@@ -89,3 +89,41 @@ No double counting: the repair's money appears once (repair revenue), never in P
 - Names users type (custom categories, products, reasons) are shown as typed.
 - The "Delete repair" button still shows on a paid repair; the server refuses the deletion with a translated message.
 - Arabic printed documents stay in French (PDF font limitation, unchanged from before).
+
+---
+
+# Change request: barcodes for products, QR codes for repairs, payment options — test results
+
+Tested on 2026-10-17 on the local app (built-in browser, English interface) and with server tests (52 passing).
+
+## Products: barcode only
+
+| Check | Result |
+|---|---|
+| QR codes for products | Removed: product QR dialog deleted, label templates no longer offer a QR, device (phone) labels switched to a barcode of the IMEI / device reference |
+| New products | Get an EAN-13 in the 20… in-store range automatically (bulk/variant creation too); a scanned manufacturer code is kept |
+| Existing products | Backfilled at server start: the 8 local products received valid, unique EAN-13 codes |
+| Duplicates | Refused (409) including against archived products and inside one bulk batch; also a database unique index per business. Clearing a barcode generates a new one, so every product keeps one |
+| Labels | Products list → barcode button, or tick several products → "Print labels". Name, selling price, barcode + digits; sizes Compact 40×25 mm (default), Standard 50×25, Mini 30×20; copies per product or one per piece in stock; live preview identical to the print |
+| Scanning — Products | A scanner burst anywhere on the page (or typing + Enter) finds and highlights the product; unknown codes offer "Create a product with this code" |
+| Scanning — POS | Exact barcode/IMEI scans go straight into the cart, also in Detailed mode and when the search box isn't focused (tested: 2 × charger + 1 case) |
+
+## Repairs: QR tracking
+
+| Check | Result |
+|---|---|
+| Unique code | Each repair gets an unguessable 22-character tracking token (backfilled for existing repairs) |
+| QR | On the repair page (with open/copy link), the printed/PDF repair ticket ("Scan to track your repair") and the device label. Sale receipts have no QR |
+| Estimated completion | Set in the repair form or edited on the repair page; shown on the ticket and the public page; flagged "Overdue" when passed |
+| Public page `/track/<token>` | Status message, 4-step progress, device, received date, estimated date, store phone/address; FR/EN/AR; refreshes every minute. No customer name, phone, price or internal id is exposed; wrong tokens → 404 |
+| Tested | New repair (ETA +3 days) → page shows "Estimated date Tuesday, 20 October 2026"; moved to in progress → page shows "Your device is being repaired." |
+
+## Payment dialog
+
+| Check | Result |
+|---|---|
+| Single source | `web/src/config/saleOptions.js` lists sale types and payment methods; a new entry appears in the dialog (the server's enum must accept it) |
+| Payment methods | Cash, Card, Bank transfer, Check, Mobile payment (check and mobile were accepted by the API but missing from the dialog); optional reference field, check number required |
+| Sale types | Direct, Credit, Reservation, Trade-in are all clickable: without a customer they open the customer picker and apply after selection; reservation on a non-device cart explains why |
+| Split payment | "Add another payment method": tested 337 DH = 100 card (slip reference) + 237 cash → two payments recorded, drawer +237 only, receipt "Split payment" |
+| Reservation completion | Offers the same five methods |

@@ -6,8 +6,9 @@ import { http } from './http';
 export const SOLD_UNITS_KEY = '__sold_units__';
 const CACHE_KEY = 'label_templates_cache';
 
+// Products and devices are identified by barcode only; QR codes are reserved for repair tracking.
 export const DEFAULT_PRODUCT_LABEL = {
-  includeQr: true,
+  includeQr: false,
   includeName: true,
   includeImei: false,
   includePrice: true,
@@ -17,7 +18,7 @@ export const DEFAULT_PRODUCT_LABEL = {
   includeColor: false,
   includeBatteryHealth: false,
   hideBrand: false,
-  includeCompany: true,
+  includeCompany: false,
   includeBarcode: true,
 };
 
@@ -28,7 +29,8 @@ export const DEFAULT_UNIT_LABEL = {
   includeStorage: true,
   includeColor: true,
   includeBatteryHealth: true,
-  includeBarcode: false,
+  includeCompany: true,
+  includeBarcode: true,
 };
 
 function readCache() {

@@ -14,7 +14,6 @@ import {
   MagnifyingGlassIcon,
   PencilIcon,
   PlusIcon,
-  QrCodeIcon,
   TrashIcon,
   TruckIcon,
   WrenchScrewdriverIcon,
@@ -25,7 +24,8 @@ import { deviceCatalogApi } from '@/api/deviceCatalog';
 import { repairsApi } from '@/api/repairs';
 import { formatCurrency } from '@/utils/format';
 import { conditionBadge, isComputerUnit } from '@/utils/soldUnitDisplay';
-import UnitQRCode from '@/components/sold-units/UnitQRCode.vue';
+import UnitLabelModal from '@/components/sold-units/UnitLabelModal.vue';
+import BarcodeIcon from '@/components/ui/BarcodeIcon.vue';
 import DateRangePicker from '@/components/ui/DateRangePicker.vue';
 import Toast from '@/components/ui/Toast.vue';
 import ConfirmModal from '@/components/ui/ConfirmModal.vue';
@@ -141,8 +141,8 @@ const { data: repairCounts } = useQuery({
 });
 
 const toast = ref({ show: false, message: '', type: 'success' });
-const qrOpen = ref(false);
-const qrUnit = ref(null);
+const labelOpen = ref(false);
+const labelUnit = ref(null);
 const confirmOpen = ref(false);
 const pendingDelete = ref(null);
 
@@ -165,9 +165,9 @@ const CONDITIONS = computed(() => [
   { value: 'grade_c', label: t('soldUnits.conditions.gradeC') },
 ]);
 
-function openQr(u) {
-  qrUnit.value = u;
-  qrOpen.value = true;
+function openLabel(u) {
+  labelUnit.value = u;
+  labelOpen.value = true;
 }
 function askDelete(id) {
   pendingDelete.value = id;
@@ -374,7 +374,7 @@ const th = 'px-4 py-3 text-start text-xs font-medium uppercase text-gray-500';
               </td>
               <td class="px-4 py-3">
                 <div class="flex items-center justify-end gap-1">
-                  <button class="p-2 text-gray-400 hover:text-black" :title="t('soldUnits.qrCode')" @click="openQr(u)"><QrCodeIcon class="h-5 w-5" /></button>
+                  <button class="p-2 text-gray-400 hover:text-black" :title="t('soldUnits.barcodeLabel')" @click="openLabel(u)"><BarcodeIcon class="h-5 w-5" /></button>
                   <RouterLink v-if="!u.soldAt" :to="`/app/repairs/new?unitId=${u.id}`" class="p-2 text-gray-400 hover:text-amber-600" :title="t('soldUnits.sendToRepair')">
                     <WrenchScrewdriverIcon class="h-5 w-5" />
                   </RouterLink>
@@ -408,7 +408,7 @@ const th = 'px-4 py-3 text-start text-xs font-medium uppercase text-gray-500';
       </div>
     </div>
 
-    <UnitQRCode :is-open="qrOpen" :unit="qrUnit" @close="qrOpen = false" />
+    <UnitLabelModal :is-open="labelOpen" :unit="labelUnit" @close="labelOpen = false" />
     <Toast :show="toast.show" :message="toast.message" :type="toast.type" @close="toast.show = false" />
     <ConfirmModal
       :show="confirmOpen"

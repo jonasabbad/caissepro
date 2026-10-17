@@ -5,7 +5,7 @@ export default {
     simpleSubtitle: 'Configure the information shown on your product labels',
     whatAreLabels: 'What are labels for?',
     labelsExplanation:
-      'Labels are printed on your products to show the essentials (name, price, QR code...). Configure once and apply to all categories.',
+      'Labels are printed on your products to show the essentials (name, price, barcode...). Configure once and apply to all categories.',
     configureByCategory: 'Configure by category',
     configure: 'Configure',
     configureLabel: 'Configure the label',
@@ -22,8 +22,7 @@ export default {
     theme_bordered: 'Bordered',
     theme_modern: 'Modern',
     livePreview: 'Live Preview',
-    previewNote: 'Preview at 50mm × 25mm',
-    qrCode: 'QR Code',
+    previewNote: 'Preview at {size}',
     productName: 'Product name',
     deviceName: 'Device name',
     imeiSerial: 'IMEI / Serial no.',

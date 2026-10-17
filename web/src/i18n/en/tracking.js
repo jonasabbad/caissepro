@@ -1,0 +1,26 @@
+export default {
+  tracking: {
+    title: 'Repair tracking',
+    number: 'Repair {number}',
+    device: 'Device',
+    received: 'Received on',
+    eta: 'Estimated date',
+    etaUnknown: 'To be confirmed soon',
+    completedOn: 'Completed on',
+    deliveredOn: 'Handed over on',
+    lastUpdate: 'Last update: {date}',
+    messages: {
+      pending: 'Your device has been received and is waiting to be worked on.',
+      in_progress: 'Your device is being repaired.',
+      completed: 'Your device is ready! You can come and collect it.',
+      delivered: 'Your device has been handed back to you. Thank you for your trust.',
+      cancelled: 'This repair was cancelled. Please contact the store for more information.',
+    },
+    steps: { received: 'Received', in_progress: 'In repair', completed: 'Ready', delivered: 'Handed over' },
+    contact: 'Contact the store',
+    call: 'Call',
+    notFound: 'Repair not found',
+    notFoundHint: 'The link may be incomplete. Scan the QR code on your ticket again or contact the store.',
+    refresh: 'Refresh',
+  },
+};

@@ -1,0 +1,26 @@
+export default {
+  tracking: {
+    title: 'تتبع الإصلاح',
+    number: 'الإصلاح {number}',
+    device: 'الجهاز',
+    received: 'تاريخ الاستلام',
+    eta: 'التاريخ المتوقع',
+    etaUnknown: 'سيتم تحديده قريباً',
+    completedOn: 'اكتمل في',
+    deliveredOn: 'تم التسليم في',
+    lastUpdate: 'آخر تحديث: {date}',
+    messages: {
+      pending: 'تم استلام جهازك وهو في انتظار المعالجة.',
+      in_progress: 'جهازك قيد الإصلاح.',
+      completed: 'جهازك جاهز! يمكنك القدوم لاستلامه.',
+      delivered: 'تم تسليم جهازك. شكراً على ثقتك.',
+      cancelled: 'تم إلغاء هذا الإصلاح. تواصل مع المتجر لمزيد من المعلومات.',
+    },
+    steps: { received: 'مستلم', in_progress: 'قيد الإصلاح', completed: 'جاهز', delivered: 'مُسلّم' },
+    contact: 'التواصل مع المتجر',
+    call: 'اتصال',
+    notFound: 'الإصلاح غير موجود',
+    notFoundHint: 'قد يكون الرابط غير مكتمل. امسح رمز QR الموجود على تذكرتك مرة أخرى أو تواصل مع المتجر.',
+    refresh: 'تحديث',
+  },
+};

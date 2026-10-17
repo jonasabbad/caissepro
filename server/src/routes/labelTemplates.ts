@@ -17,11 +17,11 @@ const BASE_LAYOUT = {
   showName: true,
   showSku: false,
   showCategory: false,
-  barcodeType: 'qrcode',
+  barcodeType: 'code128', // products and devices use barcodes; QR codes are reserved for repair tracking
   orientation: 'landscape',
 };
-const PRODUCT_FLAGS = { includeQr: true, includeName: true, includeImei: false, includePrice: true, includeCondition: false, includeSpecs: false, includeCompany: true, includeBarcode: true };
-const UNIT_FLAGS = { includeQr: true, includeName: true, includeImei: true, includePrice: true, includeCondition: true, includeSpecs: true, includeCompany: true };
+const PRODUCT_FLAGS = { includeQr: false, includeName: true, includeImei: false, includePrice: true, includeCondition: false, includeSpecs: false, includeCompany: false, includeBarcode: true };
+const UNIT_FLAGS = { includeQr: false, includeName: true, includeImei: true, includePrice: true, includeCondition: true, includeSpecs: true, includeCompany: true, includeBarcode: true };
 const defaults = (categoryId: string) => ({ ...BASE_LAYOUT, ...(categoryId === SOLD_UNITS ? UNIT_FLAGS : PRODUCT_FLAGS) });
 
 /** Only layout settings and the include/hide/show switches are stored. */

@@ -308,7 +308,8 @@ const chip = (active) =>
             <p v-if="hasMatrix" class="text-sm text-gray-500">{{ t('products.variantBarcodeHint') }}</p>
             <div v-else>
               <label class="label">{{ t('products.barcode') }}</label>
-              <input v-model="form.barcode" type="text" class="input" @keydown.enter.prevent />
+              <input v-model="form.barcode" type="text" class="input font-mono" @keydown.enter.prevent />
+              <p class="mt-1 text-xs text-gray-500">{{ t('products.barcodeAutoHint') }}</p>
             </div>
           </div>
         </div>

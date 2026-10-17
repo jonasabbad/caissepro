@@ -26,7 +26,7 @@ const queryClient = useQueryClient();
 
 const id = computed(() => route.params.id);
 const isEdit = computed(() => !!id.value);
-const form = ref({ customerId: '', deviceDescription: '', fixedPrice: undefined, soldUnitId: undefined, repairerId: undefined, diagnosticNotes: '', notes: '' });
+const form = ref({ customerId: '', deviceDescription: '', fixedPrice: undefined, soldUnitId: undefined, repairerId: undefined, diagnosticNotes: '', notes: '', estimatedCompletionAt: '' });
 const repairCost = ref(0);
 const submitError = ref('');
 
@@ -158,6 +158,7 @@ watch(
       repairerId: r.repairerId || undefined,
       diagnosticNotes: r.diagnosticNotes || '',
       notes: r.notes || '',
+      estimatedCompletionAt: r.estimatedCompletionAt ? new Date(r.estimatedCompletionAt).toLocaleDateString('en-CA') : '',
     };
     if (r.customer) customer.value = r.customer;
     if (r.soldUnit) unit.value = r.soldUnit;
@@ -190,7 +191,13 @@ const saving = computed(() => create.isPending.value || update.isPending.value);
 function submit() {
   submitError.value = '';
   const p = form.value.fixedPrice;
-  const payload = { ...form.value, fixedPrice: p == null || p === '' || Number.isNaN(p) ? undefined : Number(p) };
+  const eta = form.value.estimatedCompletionAt;
+  const payload = {
+    ...form.value,
+    fixedPrice: p == null || p === '' || Number.isNaN(p) ? undefined : Number(p),
+    // A day picked in the form, stored at midday local time so it never shifts with the time zone.
+    estimatedCompletionAt: eta ? new Date(`${eta}T12:00:00`).toISOString() : null,
+  };
   if (isEdit.value) update.mutate(payload);
   else create.mutate(payload);
 }
@@ -314,6 +321,12 @@ const back = () => router.push(isEdit.value ? `/app/repairs/${id.value}` : '/app
           <span class="absolute end-3 top-1/2 -translate-y-1/2 text-gray-500">DH</span>
         </div>
         <p class="text-xs text-gray-500 mt-1">{{ t('repairs.form.fixedPriceHint') }}</p>
+      </div>
+
+      <div>
+        <label class="label" for="repair-eta">{{ t('repairs.form.estimatedCompletion') }}</label>
+        <input id="repair-eta" v-model="form.estimatedCompletionAt" type="date" class="input" />
+        <p class="text-xs text-gray-500 mt-1">{{ t('repairs.form.estimatedCompletionHint') }}</p>
       </div>
 
       <div v-if="!isEdit">
