@@ -14,6 +14,7 @@ import {
   ShoppingCartIcon,
   TruckIcon,
   UsersIcon,
+  WrenchScrewdriverIcon,
 } from '@heroicons/vue/24/outline';
 import { dashboardApi } from '@/api/dashboard';
 import { transactionsApi } from '@/api/transactions';
@@ -83,6 +84,7 @@ const salesTitle = computed(() =>
   preset.value === 'today' ? t('dashboard.dailySales') : preset.value === 'week' ? t('dashboard.thisWeek') : preset.value === 'month' ? t('dashboard.thisMonth') : t('dashboard.period'),
 );
 const profit = computed(() => kpis.value?.realProfit?.total ?? 0);
+const pnl = computed(() => kpis.value?.profitBreakdown);
 const STATUS_BADGE = { completed: 'badge-success', pending: 'badge-warning', partial: 'badge-info' };
 const when = (d) => new Date(d).toLocaleDateString('fr-MA', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 const PRESETS = computed(() => [
@@ -129,7 +131,7 @@ const PRESETS = computed(() => [
       <span v-else class="text-sm text-gray-500">{{ range.startDate }} — {{ range.endDate }}</span>
     </div>
 
-    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4 mb-6">
       <KpiCard
         v-if="hasWidget('dailySales')"
         :title="salesTitle"
@@ -163,6 +165,45 @@ const PRESETS = computed(() => [
         :icon="TruckIcon"
         color="red"
       />
+      <KpiCard
+        :title="t('dashboard.repairs')"
+        :value="formatCurrency(kpis?.repairs?.revenue ?? 0)"
+        :subtitle="`${t('dashboard.repairProfit')}: ${formatCurrency(kpis?.repairs?.profit ?? 0)} · ${kpis?.repairs?.count ?? 0} ${t('dashboard.realized')}`"
+        :change="kpis?.repairs?.comparison"
+        :icon="WrenchScrewdriverIcon"
+        color="green"
+      />
+    </div>
+
+    <div v-if="pnl" class="card p-5 mb-6">
+      <h2 class="font-semibold text-gray-900 mb-1">{{ t('dashboard.profitStatement') }}</h2>
+      <p class="text-xs text-gray-500 mb-4">{{ t('dashboard.profitStatementHint') }}</p>
+      <div class="grid grid-cols-2 md:grid-cols-5 gap-3 text-sm">
+        <div class="rounded-lg bg-gray-50 p-3">
+          <p class="text-gray-500">{{ t('dashboard.revenue') }}</p>
+          <p class="text-lg font-bold text-gray-900">{{ formatCurrency(pnl.totals.revenue) }}</p>
+          <p class="text-xs text-gray-500">{{ t('dashboard.salesShort') }} {{ formatCurrency(pnl.sales.netRevenue) }} · {{ t('dashboard.repairsShort') }} {{ formatCurrency(pnl.repairs.revenue) }}</p>
+        </div>
+        <div class="rounded-lg bg-gray-50 p-3">
+          <p class="text-gray-500">{{ t('dashboard.cogs') }}</p>
+          <p class="text-lg font-bold text-gray-900">−{{ formatCurrency(pnl.totals.cogs) }}</p>
+          <p class="text-xs text-gray-500">{{ t('dashboard.repairParts') }} {{ formatCurrency(pnl.repairs.partsCost) }}</p>
+        </div>
+        <div class="rounded-lg bg-gray-50 p-3">
+          <p class="text-gray-500">{{ t('dashboard.grossProfit') }}</p>
+          <p class="text-lg font-bold text-gray-900">{{ formatCurrency(pnl.totals.grossProfit) }}</p>
+        </div>
+        <div class="rounded-lg bg-gray-50 p-3">
+          <p class="text-gray-500">{{ t('dashboard.directExpenses') }}</p>
+          <p class="text-lg font-bold text-gray-900">−{{ formatCurrency(pnl.totals.directExpenses) }}</p>
+          <p class="text-xs text-gray-500">{{ t('dashboard.directExpensesHint') }}</p>
+        </div>
+        <div :class="['rounded-lg p-3 col-span-2 md:col-span-1', pnl.totals.netProfit >= 0 ? 'bg-success-50' : 'bg-danger-50']">
+          <p class="text-gray-500">{{ t('dashboard.netProfit') }}</p>
+          <p :class="['text-lg font-bold', pnl.totals.netProfit >= 0 ? 'text-success-700' : 'text-danger-700']">{{ formatCurrency(pnl.totals.netProfit) }}</p>
+          <p class="text-xs text-gray-500">{{ pnl.totals.margin.toFixed(1) }}% {{ t('dashboard.margin') }}</p>
+        </div>
+      </div>
     </div>
 
     <div v-if="isPremium && multiStore && storeFilter === 'all' && storeBreakdown?.length" class="mb-6">

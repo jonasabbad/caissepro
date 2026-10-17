@@ -19,10 +19,12 @@ import {
   ShoppingBagIcon,
   TruckIcon,
   UsersIcon,
+  WrenchScrewdriverIcon,
 } from '@heroicons/vue/24/outline';
 import { http } from '@/api/http';
 import { reservationRefundsApi } from '@/api/reservations';
 import { soldUnitsApi } from '@/api/soldUnits';
+import { repairersApi } from '@/api/repairs';
 import { useAuthStore } from '@/stores/auth';
 import { formatCurrency } from '@/utils/format';
 import { summaryPdfBlob } from '@/utils/invoicePdf';
@@ -41,16 +43,27 @@ const TABS = computed(() => [
   { id: 'inventory', icon: isPhoneSeller.value ? DevicePhoneMobileIcon : CubeIcon, label: 'reports.inventory' },
   { id: 'customers', icon: UsersIcon, label: 'reports.customers' },
   { id: 'suppliers', icon: TruckIcon, label: 'reports.suppliers' },
+  { id: 'repairs', icon: WrenchScrewdriverIcon, label: 'reports.repairs' },
 ]);
+// Repairs tab filters.
+const repairFilters = ref({ repairerId: '', status: '', paymentStatus: '' });
+const { data: repairers } = useQuery({ queryKey: ['repairers-all'], queryFn: () => repairersApi.getAll(), enabled: computed(() => tab.value === 'repairs') });
 
 const { data: report, isLoading } = useQuery({
-  queryKey: computed(() => ['report', tab.value, period.value.from, period.value.to]),
-  queryFn: async () => (await http.get('/reports', { params: { type: tab.value, dateFrom: period.value.from, dateTo: period.value.to } })).data.data.report,
+  queryKey: computed(() => ['report', tab.value, period.value.from, period.value.to, tab.value === 'repairs' ? { ...repairFilters.value } : null]),
+  queryFn: async () => {
+    const extra = tab.value === 'repairs' ? Object.fromEntries(Object.entries(repairFilters.value).filter(([, v]) => v)) : {};
+    return (await http.get('/reports', { params: { type: tab.value, dateFrom: period.value.from, dateTo: period.value.to, ...extra } })).data.data.report;
+  },
 });
 const sales = computed(() => (tab.value === 'sales' ? report.value : null));
 const inventory = computed(() => (tab.value === 'inventory' ? report.value : null));
 const customers = computed(() => (tab.value === 'customers' ? report.value : null));
 const suppliers = computed(() => (tab.value === 'suppliers' ? report.value : null));
+const repairsReport = computed(() => (tab.value === 'repairs' ? report.value : null));
+const REPAIR_STATUSES = ['pending', 'in_progress', 'completed', 'delivered', 'cancelled'];
+const PAYMENT_STATUSES = ['unpaid', 'partial', 'paid'];
+const PAY_BADGE = { unpaid: 'bg-red-100 text-red-700', partial: 'bg-amber-100 text-amber-700', paid: 'bg-emerald-100 text-emerald-700' };
 
 const onCustomers = computed(() => tab.value === 'customers');
 const refundParams = computed(() => ({ dateFrom: period.value.from, dateTo: period.value.to }));
@@ -209,6 +222,20 @@ async function exportPdf() {
         headers: isPhoneSeller.value ? ['Client', 'Achats', 'Reprises', 'Retours', 'Total Dépensé'] : ['Client', 'Achats', 'Retours', 'Total Dépensé'],
         rows: r.topCustomers.map((c) => (isPhoneSeller.value ? [c.name, String(c.purchases), String(c.exchanges || 0), String(c.returns || 0), dh(c.spent)] : [c.name, String(c.purchases), String(c.returns || 0), dh(c.spent)])),
       });
+  } else if (tab.value === 'repairs') {
+    doc.title = t('reports.repairsTitle');
+    doc.summary = [
+      { label: t('reports.repairRevenue'), value: dh(r.summary.revenue) },
+      { label: t('reports.partsCost'), value: dh(r.summary.partsCost) },
+      { label: t('reports.laborCost'), value: dh(r.summary.laborCost) },
+      { label: t('reports.repairProfit'), value: dh(r.summary.profit) },
+    ];
+    if (r.repairs?.length)
+      doc.tables.push({
+        title: t('reports.repairsList'),
+        headers: [t('repairs.table.repair'), t('repairs.table.repairer'), t('repairs.table.status'), t('reports.revenue'), t('reports.costs'), t('reports.repairProfit')],
+        rows: r.repairs.map((x) => [x.repairNumber, x.technician || '-', t(`repairs.status.${x.status}`), dh(x.revenue), dh(x.totalCost), dh(x.profit)]),
+      });
   } else {
     doc.summary = [
       { label: 'Total Fournisseurs', value: `${r.summary.activeSuppliers} / ${r.summary.totalSuppliers}` },
@@ -288,6 +315,29 @@ async function exportPdf() {
         <div class="card p-4 col-span-2 lg:col-span-1">
           <p class="text-sm text-gray-500 mb-1">{{ t('reports.totalProfit') }}</p>
           <p :class="['text-2xl font-bold', sales.summary.totalProfit >= 0 ? 'text-success-600' : 'text-danger-600']">{{ sales.summary.totalProfit > 0 ? '+' : '' }}{{ formatCurrency(sales.summary.totalProfit) }}</p>
+        </div>
+      </div>
+
+      <div v-if="sales.profit" class="card p-5">
+        <h3 class="font-semibold text-gray-900">{{ t('reports.profitStatement') }}</h3>
+        <p class="text-xs text-gray-500 mb-4">{{ t('reports.profitStatementHint') }}</p>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <tbody class="divide-y divide-gray-100">
+              <tr><td class="py-2 text-gray-600">{{ t('reports.netSales') }}</td><td class="py-2 text-end">{{ formatCurrency(sales.profit.sales.netRevenue) }}</td></tr>
+              <tr><td class="py-2 text-gray-600">{{ t('reports.repairRevenue') }}</td><td class="py-2 text-end">{{ formatCurrency(sales.profit.repairs.revenue) }}</td></tr>
+              <tr class="font-semibold"><td class="py-2">{{ t('reports.totalRevenue') }}</td><td class="py-2 text-end">{{ formatCurrency(sales.profit.totals.revenue) }}</td></tr>
+              <tr><td class="py-2 text-gray-600">{{ t('reports.cogs') }}</td><td class="py-2 text-end text-danger-600">−{{ formatCurrency(sales.profit.sales.cogs) }}</td></tr>
+              <tr><td class="py-2 text-gray-600">{{ t('reports.partsCost') }}</td><td class="py-2 text-end text-danger-600">−{{ formatCurrency(sales.profit.repairs.partsCost) }}</td></tr>
+              <tr class="font-semibold"><td class="py-2">{{ t('reports.grossProfit') }}</td><td class="py-2 text-end">{{ formatCurrency(sales.profit.totals.grossProfit) }}</td></tr>
+              <tr><td class="py-2 text-gray-600">{{ t('reports.laborCost') }}</td><td class="py-2 text-end text-danger-600">−{{ formatCurrency(sales.profit.repairs.laborCost) }}</td></tr>
+              <tr><td class="py-2 text-gray-600">{{ t('reports.otherCost') }}</td><td class="py-2 text-end text-danger-600">−{{ formatCurrency(sales.profit.repairs.otherCost) }}</td></tr>
+              <tr :class="['font-bold text-base', sales.profit.totals.netProfit >= 0 ? 'text-success-700' : 'text-danger-700']">
+                <td class="py-2">{{ t('reports.netProfit') }}</td>
+                <td class="py-2 text-end">{{ formatCurrency(sales.profit.totals.netProfit) }} <span class="text-xs font-normal text-gray-500">({{ sales.profit.totals.margin.toFixed(1) }}%)</span></td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
 
@@ -879,6 +929,117 @@ async function exportPdf() {
           </table>
         </div>
         <div v-else class="p-8 text-center text-gray-400">{{ t('reports.noPendingOrders') }}</div>
+      </div>
+    </template>
+
+    <!-- REPAIRS -->
+    <template v-else-if="repairsReport">
+      <div class="card p-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <select v-model="repairFilters.repairerId" class="input text-sm">
+          <option value="">{{ t('reports.allTechnicians') }}</option>
+          <option v-for="r in repairers || []" :key="r.id" :value="r.id">{{ r.name }}</option>
+        </select>
+        <select v-model="repairFilters.status" class="input text-sm">
+          <option value="">{{ t('repairs.allStatus') }}</option>
+          <option v-for="st in REPAIR_STATUSES" :key="st" :value="st">{{ t(`repairs.status.${st}`) }}</option>
+        </select>
+        <select v-model="repairFilters.paymentStatus" class="input text-sm">
+          <option value="">{{ t('repairs.payment.allStatus') }}</option>
+          <option v-for="ps in PAYMENT_STATUSES" :key="ps" :value="ps">{{ t(`repairs.payment.status.${ps}`) }}</option>
+        </select>
+      </div>
+      <div class="rounded-2xl bg-gradient-to-br from-amber-600 to-amber-800 text-white p-6">
+        <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+          <div>
+            <p class="text-amber-100 text-sm mb-1">{{ t('reports.repairProfit') }}</p>
+            <p class="text-4xl font-bold">{{ formatCurrency(repairsReport.summary.profit) }}</p>
+            <p class="text-amber-100 text-xs mt-1">{{ repairsReport.summary.realizedCount }} {{ t('reports.realizedRepairs') }} · {{ repairsReport.summary.margin.toFixed(1) }}%</p>
+          </div>
+          <div class="flex gap-8">
+            <div>
+              <p class="text-amber-200 text-xs">{{ t('reports.pendingRevenue') }}</p>
+              <p class="text-xl font-semibold">{{ formatCurrency(repairsReport.summary.pendingRevenue) }}</p>
+            </div>
+            <div>
+              <p class="text-amber-200 text-xs">{{ t('reports.collectedNotRealized') }}</p>
+              <p class="text-xl font-semibold">{{ formatCurrency(repairsReport.summary.collectedNotRealized) }}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 lg:grid-cols-5 gap-4">
+        <div class="card p-4"><p class="text-sm text-gray-500 mb-1">{{ t('reports.repairRevenue') }}</p><p class="text-2xl font-bold">{{ formatCurrency(repairsReport.summary.revenue) }}</p></div>
+        <div class="card p-4"><p class="text-sm text-gray-500 mb-1">{{ t('reports.partsCost') }}</p><p class="text-2xl font-bold text-danger-600">{{ formatCurrency(repairsReport.summary.partsCost) }}</p></div>
+        <div class="card p-4"><p class="text-sm text-gray-500 mb-1">{{ t('reports.grossProfit') }}</p><p class="text-2xl font-bold">{{ formatCurrency(repairsReport.summary.grossProfit) }}</p></div>
+        <div class="card p-4"><p class="text-sm text-gray-500 mb-1">{{ t('reports.laborCost') }}</p><p class="text-2xl font-bold text-danger-600">{{ formatCurrency(repairsReport.summary.laborCost) }}</p></div>
+        <div class="card p-4 col-span-2 lg:col-span-1"><p class="text-sm text-gray-500 mb-1">{{ t('reports.otherCost') }}</p><p class="text-2xl font-bold text-danger-600">{{ formatCurrency(repairsReport.summary.otherCost) }}</p></div>
+      </div>
+      <div v-if="repairsReport.byTechnician?.length" class="card overflow-hidden">
+        <div class="px-5 py-4 border-b border-gray-100"><h3 class="font-semibold text-gray-900">{{ t('reports.byTechnician') }}</h3></div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-4 py-3 text-start font-medium text-gray-500">{{ t('repairs.table.repairer') }}</th>
+                <th class="px-4 py-3 text-end font-medium text-gray-500">{{ t('reports.realizedRepairs') }}</th>
+                <th class="px-4 py-3 text-end font-medium text-gray-500">{{ t('reports.revenue') }}</th>
+                <th class="px-4 py-3 text-end font-medium text-gray-500">{{ t('reports.laborCost') }}</th>
+                <th class="px-4 py-3 text-end font-medium text-gray-500">{{ t('reports.repairProfit') }}</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+              <tr v-for="x in repairsReport.byTechnician" :key="x.repairerId ?? 'none'">
+                <td class="px-4 py-3 font-medium">{{ x.repairerId ? x.name : t('reports.workshop') }}</td>
+                <td class="px-4 py-3 text-end">{{ x.count }}</td>
+                <td class="px-4 py-3 text-end">{{ formatCurrency(x.revenue) }}</td>
+                <td class="px-4 py-3 text-end">{{ formatCurrency(x.laborCost) }}</td>
+                <td class="px-4 py-3 text-end font-medium">{{ formatCurrency(x.profit) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card overflow-hidden">
+        <div class="px-5 py-4 border-b border-gray-100">
+          <h3 class="font-semibold text-gray-900">{{ t('reports.repairsList') }}</h3>
+          <p class="text-xs text-gray-500">{{ t('reports.repairsListHint') }}</p>
+        </div>
+        <div v-if="repairsReport.repairs?.length" class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-4 py-3 text-start font-medium text-gray-500">{{ t('repairs.table.repair') }}</th>
+                <th class="px-4 py-3 text-start font-medium text-gray-500">{{ t('repairs.table.repairer') }}</th>
+                <th class="px-4 py-3 text-start font-medium text-gray-500">{{ t('repairs.table.status') }}</th>
+                <th class="px-4 py-3 text-start font-medium text-gray-500">{{ t('repairs.payment.title') }}</th>
+                <th class="px-4 py-3 text-end font-medium text-gray-500">{{ t('reports.revenue') }}</th>
+                <th class="px-4 py-3 text-end font-medium text-gray-500">{{ t('reports.costs') }}</th>
+                <th class="px-4 py-3 text-end font-medium text-gray-500">{{ t('reports.repairProfit') }}</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+              <tr v-for="x in repairsReport.repairs" :key="x.id" :class="x.status === 'cancelled' && 'opacity-50'">
+                <td class="px-4 py-3">
+                  <RouterLink :to="`/app/repairs/${x.id}`" class="font-medium text-gray-900 hover:underline">{{ x.repairNumber }}</RouterLink>
+                  <p class="text-xs text-gray-500 truncate max-w-[220px]">{{ x.customer }} · {{ x.deviceDescription }}</p>
+                </td>
+                <td class="px-4 py-3">{{ x.technician || '-' }}</td>
+                <td class="px-4 py-3">{{ t(`repairs.status.${x.status}`) }}</td>
+                <td class="px-4 py-3">
+                  <span :class="['px-2 py-0.5 rounded text-xs font-medium', PAY_BADGE[x.paymentStatus]]">{{ t(`repairs.payment.status.${x.paymentStatus}`) }}</span>
+                </td>
+                <td class="px-4 py-3 text-end whitespace-nowrap">{{ formatCurrency(x.revenue) }}</td>
+                <td class="px-4 py-3 text-end whitespace-nowrap">
+                  {{ formatCurrency(x.totalCost) }}<span v-if="x.costsCapitalized" class="block text-[11px] text-gray-400">{{ t('repairs.profit.capitalizedShort') }}</span>
+                </td>
+                <td :class="['px-4 py-3 text-end whitespace-nowrap font-medium', x.realized ? (x.profit >= 0 ? 'text-success-700' : 'text-danger-700') : 'text-gray-400']">
+                  {{ formatCurrency(x.profit) }}<span v-if="!x.realized" class="block text-[11px] font-normal">{{ t('repairs.profit.notRealized') }}</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div v-else class="p-8 text-center text-gray-400">{{ t('reports.noData') }}</div>
       </div>
     </template>
 

@@ -160,6 +160,7 @@ export default {
       sale: 'Vente',
       return: 'Retour',
       adjustment: 'Ajustement',
+      repair: 'Réparation',
       supplier_order: 'Commande',
       transfer: 'Transfert',
       damage: 'Casse',

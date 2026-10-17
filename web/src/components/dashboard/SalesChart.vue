@@ -1,6 +1,9 @@
 <script setup>
 import { computed } from 'vue';
 import VueApexCharts from 'vue3-apexcharts';
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n();
 
 /** Daily sales and profit as two smoothed areas. `data`: [{ date: 'YYYY-MM-DD', sales, profit }]. */
 const props = defineProps({ data: { type: Array, default: () => [] } });
@@ -14,7 +17,7 @@ const options = computed(() => ({
     toolbar: { show: true, tools: { download: true, selection: false, zoom: true, zoomin: true, zoomout: true, pan: false, reset: true } },
     animations: { enabled: true, easing: 'easeinout', speed: 800 },
   },
-  colors: ['#000000', '#10b981'],
+  colors: ['#000000', '#10b981', '#f59e0b'],
   fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.4, opacityTo: 0.05, stops: [0, 90, 100] } },
   dataLabels: { enabled: false },
   stroke: { curve: 'smooth', width: 3 },
@@ -33,8 +36,9 @@ const options = computed(() => ({
   markers: { size: 0, hover: { size: 6 } },
 }));
 const series = computed(() => [
-  { name: 'Ventes', data: props.data.map((d) => Number(d.sales) || 0) },
-  { name: 'Profit', data: props.data.map((d) => Number(d.profit) || 0) },
+  { name: t('dashboard.sales'), data: props.data.map((d) => Number(d.sales) || 0) },
+  { name: t('dashboard.profit'), data: props.data.map((d) => Number(d.profit) || 0) },
+  { name: t('dashboard.repairs'), data: props.data.map((d) => Number(d.repairRevenue) || 0) },
 ]);
 </script>
 

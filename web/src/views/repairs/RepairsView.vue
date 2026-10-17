@@ -14,7 +14,7 @@ import {
   WrenchScrewdriverIcon,
   XCircleIcon,
 } from '@heroicons/vue/24/outline';
-import { repairsApi } from '@/api/repairs';
+import { repairersApi, repairsApi } from '@/api/repairs';
 import { useAuthStore } from '@/stores/auth';
 import { formatCurrency } from '@/utils/format';
 import { printRepairLabel, repairReceiptProps } from '@/utils/repairPrint';
@@ -25,10 +25,15 @@ const { t } = useI18n();
 const auth = useAuthStore();
 const query = ref('');
 const status = ref('');
+const repairerId = ref('');
+const paymentStatus = ref('');
+const { data: repairers } = useQuery({ queryKey: ['repairers-all'], queryFn: () => repairersApi.getAll() });
 const { data: repairs, isLoading } = useQuery({
-  queryKey: ['repairs', query, status],
-  queryFn: () => repairsApi.getAll({ query: query.value || undefined, status: status.value || undefined }),
+  queryKey: ['repairs', query, status, repairerId, paymentStatus],
+  queryFn: () =>
+    repairsApi.getAll({ query: query.value || undefined, status: status.value || undefined, repairerId: repairerId.value || undefined, paymentStatus: paymentStatus.value || undefined }),
 });
+const PAY_BADGE = { unpaid: 'bg-red-100 text-red-700', partial: 'bg-amber-100 text-amber-700', paid: 'bg-emerald-100 text-emerald-700' };
 
 const formatDay = (d) => new Date(d).toLocaleDateString('fr-MA', { day: '2-digit', month: 'short', year: 'numeric' });
 const STATUS = {
@@ -78,6 +83,14 @@ async function printLabel(r) {
           <option value="">{{ t('repairs.allStatus') }}</option>
           <option v-for="s in Object.keys(STATUS)" :key="s" :value="s">{{ t(`repairs.status.${s}`) }}</option>
         </select>
+        <select v-model="repairerId" class="input sm:w-auto">
+          <option value="">{{ t('reports.allTechnicians') }}</option>
+          <option v-for="r in repairers || []" :key="r.id" :value="r.id">{{ r.name }}</option>
+        </select>
+        <select v-model="paymentStatus" class="input sm:w-auto">
+          <option value="">{{ t('repairs.payment.allStatus') }}</option>
+          <option v-for="p in ['unpaid', 'partial', 'paid']" :key="p" :value="p">{{ t(`repairs.payment.status.${p}`) }}</option>
+        </select>
       </div>
     </div>
 
@@ -96,7 +109,9 @@ async function printLabel(r) {
               <th class="px-4 py-3 text-start text-sm font-medium text-gray-500">{{ t('repairs.table.device') }}</th>
               <th class="px-4 py-3 text-start text-sm font-medium text-gray-500">{{ t('repairs.table.repairer') }}</th>
               <th class="px-4 py-3 text-start text-sm font-medium text-gray-500">{{ t('repairs.table.status') }}</th>
+              <th class="px-4 py-3 text-start text-sm font-medium text-gray-500">{{ t('repairs.payment.title') }}</th>
               <th class="px-4 py-3 text-end text-sm font-medium text-gray-500">{{ t('repairs.table.price') }}</th>
+              <th class="px-4 py-3 text-end text-sm font-medium text-gray-500">{{ t('repairs.profit.title') }}</th>
               <th class="px-4 py-3 text-end text-sm font-medium text-gray-500">{{ t('common.actions') }}</th>
             </tr>
           </thead>
@@ -120,7 +135,11 @@ async function printLabel(r) {
                   <component :is="STATUS[r.status]?.icon" class="w-3.5 h-3.5" /> {{ t(`repairs.status.${r.status}`) }}
                 </span>
               </td>
+              <td class="px-4 py-3"><span :class="['px-2 py-0.5 rounded text-xs font-medium whitespace-nowrap', PAY_BADGE[r.paymentStatus]]">{{ t(`repairs.payment.status.${r.paymentStatus}`) }}</span></td>
               <td class="px-4 py-3 text-end font-medium text-gray-900 whitespace-nowrap">{{ formatCurrency(r.fixedPrice) }}</td>
+              <td :class="['px-4 py-3 text-end whitespace-nowrap', r.financials?.realized ? (r.financials.profit >= 0 ? 'text-success-700 font-medium' : 'text-danger-700 font-medium') : 'text-gray-400']">
+                {{ formatCurrency(r.financials?.profit ?? 0) }}
+              </td>
               <td class="px-4 py-3 text-end">
                 <div class="flex items-center justify-end gap-2">
                   <RouterLink :to="`/app/repairs/${r.id}`" class="p-2 text-gray-400 hover:text-primary-600" :title="t('repairs.viewDetails')"><EyeIcon class="w-5 h-5" /></RouterLink>

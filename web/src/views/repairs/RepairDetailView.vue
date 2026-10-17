@@ -21,7 +21,8 @@ import {
   WrenchScrewdriverIcon,
   XCircleIcon,
 } from '@heroicons/vue/24/outline';
-import { repairsApi } from '@/api/repairs';
+import { repairersApi, repairsApi } from '@/api/repairs';
+import { productsApi } from '@/api/products';
 import { useAuthStore } from '@/stores/auth';
 import { formatCurrency } from '@/utils/format';
 import { printRepairLabel, repairReceiptProps } from '@/utils/repairPrint';
@@ -61,8 +62,38 @@ const STATUS = {
   cancelled: { cls: 'bg-red-100 text-red-700', icon: XCircleIcon },
 };
 const closed = computed(() => repair.value?.status === 'cancelled' || repair.value?.status === 'delivered');
-const margin = computed(() => (repair.value ? Number(repair.value.fixedPrice) - Number(repair.value.totalCost) : 0));
-const marginPct = computed(() => (!repair.value || Number(repair.value.fixedPrice) === 0 ? 0 : Math.round((margin.value / Number(repair.value.fixedPrice)) * 100)));
+// Profit as computed by the server (lib/profit.ts): revenue − parts − technician − other, capitalized for stock devices.
+const fin = computed(() => repair.value?.financials);
+const margin = computed(() => fin.value?.profit ?? 0);
+const marginPct = computed(() => (!fin.value?.revenue ? 0 : Math.round((margin.value / fin.value.revenue) * 100)));
+const PAY_BADGE = { unpaid: 'bg-red-100 text-red-700', partial: 'bg-amber-100 text-amber-700', paid: 'bg-emerald-100 text-emerald-700' };
+
+// Customer payments (deposit / balance).
+const PAY_METHODS = ['cash', 'card', 'bank_transfer', 'check'];
+const showPayment = ref(false);
+const payment = ref({ amount: 0, method: 'cash', reference: '' });
+const paymentError = ref('');
+function openPayment() {
+  payment.value = { amount: fin.value?.amountDue || 0, method: 'cash', reference: '' };
+  paymentError.value = '';
+  showPayment.value = true;
+}
+const payMut = useMutation({
+  mutationFn: () => repairsApi.addPayment(id.value, { ...payment.value, reference: payment.value.reference || undefined }),
+  onSuccess: () => {
+    refresh();
+    showPayment.value = false;
+    notify(t('repairs.payment.recorded'));
+  },
+  onError: (e) => (paymentError.value = e?.response?.data?.message || t('repairs.expenseError')),
+});
+function submitPayment() {
+  paymentError.value = '';
+  if (!payment.value.amount || payment.value.amount <= 0) return (paymentError.value = t('repairs.payment.invalidAmount'));
+  if (payment.value.method !== 'cash' && !payment.value.reference.trim()) return (paymentError.value = t('repairs.payment.referenceRequired'));
+  payMut.mutate();
+}
+
 
 const statusMut = useMutation({
   mutationFn: (s) => repairsApi.updateStatus(id.value, s),
@@ -90,17 +121,47 @@ const actions = computed(() => {
 
 // Expenses
 const showExpense = ref(false);
-const expense = ref({ description: '', amount: 0, type: 'part' });
+const blankExpense = () => ({ description: '', amount: 0, type: 'part', productId: '', quantity: 1, repairerId: '', paidFromDrawer: false });
+const expense = ref(blankExpense());
+const expenseError = ref('');
+function openExpense() {
+  expense.value = blankExpense();
+  expense.value.repairerId = repair.value?.repairerId || '';
+  expenseError.value = '';
+  productSearch.value = '';
+  showExpense.value = true;
+}
 const addExpense = useMutation({
-  mutationFn: () => repairsApi.addExpense(id.value, expense.value),
+  mutationFn: () => {
+    const e = expense.value;
+    const payload =
+      e.type === 'stock_part'
+        ? { type: 'stock_part', productId: e.productId, quantity: e.quantity, description: e.description || undefined }
+        : { type: e.type, description: e.description, amount: e.amount, paidFromDrawer: e.paidFromDrawer, ...(e.type === 'labor' && e.repairerId && { repairerId: e.repairerId }) };
+    return repairsApi.addExpense(id.value, payload);
+  },
   onSuccess: () => {
     refresh();
+    queryClient.invalidateQueries({ queryKey: ['repair-stock-parts'] });
     showExpense.value = false;
-    expense.value = { description: '', amount: 0, type: 'part' };
     notify(t('repairs.expenseAdded'));
   },
-  onError: () => notify(t('repairs.expenseError'), 'error'),
+  onError: (err) => (expenseError.value = err?.response?.data?.message || t('repairs.expenseError')),
 });
+// Stock parts and technicians for the cost form.
+const productSearch = ref('');
+const { data: stockProducts } = useQuery({
+  queryKey: ['repair-stock-parts', productSearch],
+  queryFn: async () => (await productsApi.getAll({ query: productSearch.value || undefined, limit: 30 })).products,
+  enabled: computed(() => showExpense.value && expense.value.type === 'stock_part'),
+});
+const { data: technicians } = useQuery({ queryKey: ['repairers-all'], queryFn: () => repairersApi.getAll(), enabled: computed(() => showExpense.value) });
+const selectedPart = computed(() => (stockProducts.value || []).find((p) => p.id === expense.value.productId) || null);
+function submitExpense() {
+  expenseError.value = '';
+  if (expense.value.type === 'stock_part' && !expense.value.productId) return (expenseError.value = t('repairs.expenseForm.choosePart'));
+  addExpense.mutate();
+}
 const confirmExpense = ref(null);
 const removeExpense = useMutation({
   mutationFn: (expenseId) => repairsApi.removeExpense(id.value, expenseId),
@@ -244,12 +305,62 @@ async function printLabel() {
               <ArrowTrendingUpIcon :class="['w-5 h-5', margin >= 0 ? 'text-success-600' : 'text-danger-600']" />
             </div>
             <div>
-              <p class="text-sm text-gray-500">{{ t('repairs.margin') }}</p>
+              <p class="text-sm text-gray-500">{{ t('repairs.profit.title') }}</p>
               <p :class="['text-xl font-bold', margin >= 0 ? 'text-success-600' : 'text-danger-600']">
                 {{ formatCurrency(margin) }} <span class="text-sm font-normal">({{ marginPct }}%)</span>
               </p>
+              <p :class="['text-xs', fin?.realized ? 'text-success-600' : 'text-gray-400']">{{ fin?.realized ? t('repairs.profit.realized') : t('repairs.profit.notRealized') }}</p>
             </div>
           </div>
+        </div>
+      </div>
+
+      <!-- Payment and profit breakdown -->
+      <div v-if="fin" class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div class="card p-5">
+          <div class="flex items-center justify-between gap-3 mb-4">
+            <div class="flex items-center gap-2">
+              <h2 class="font-semibold text-gray-900">{{ t('repairs.payment.title') }}</h2>
+              <span :class="['px-2 py-0.5 rounded text-xs font-medium', PAY_BADGE[repair.paymentStatus]]">{{ t(`repairs.payment.status.${repair.paymentStatus}`) }}</span>
+            </div>
+            <button v-if="repair.status !== 'cancelled' && fin.amountDue > 0 && fin.revenue > 0" class="btn-sm btn-primary inline-flex items-center gap-1.5" @click="openPayment">
+              <BanknotesIcon class="w-4 h-4" /> {{ t('repairs.payment.collect') }}
+            </button>
+          </div>
+          <div class="grid grid-cols-3 gap-3 text-sm mb-4">
+            <div><p class="text-gray-500">{{ t('repairs.fixedPrice') }}</p><p class="font-semibold">{{ formatCurrency(fin.revenue) }}</p></div>
+            <div><p class="text-gray-500">{{ t('repairs.payment.paid') }}</p><p class="font-semibold text-success-600">{{ formatCurrency(fin.amountPaid) }}</p></div>
+            <div><p class="text-gray-500">{{ t('repairs.payment.due') }}</p><p :class="['font-semibold', fin.amountDue > 0 ? 'text-danger-600' : 'text-gray-900']">{{ formatCurrency(fin.amountDue) }}</p></div>
+          </div>
+          <div v-if="repair.payments?.length" class="space-y-2">
+            <div v-for="p in repair.payments" :key="p.id" class="flex items-center justify-between p-2.5 bg-gray-50 rounded-lg text-sm">
+              <div>
+                <span class="font-medium text-gray-900">{{ t(`repairs.payment.methods.${p.method}`) }}</span>
+                <span v-if="p.reference" class="text-xs text-gray-500"> · {{ p.reference }}</span>
+                <p class="text-xs text-gray-500">{{ formatWhen(p.paidAt) }}</p>
+              </div>
+              <span class="font-medium">{{ formatCurrency(p.amount) }}</span>
+            </div>
+          </div>
+          <p v-else class="text-sm text-gray-400">{{ t('repairs.payment.none') }}</p>
+        </div>
+
+        <div class="card p-5">
+          <h2 class="font-semibold text-gray-900 mb-1">{{ t('repairs.profit.breakdown') }}</h2>
+          <p class="text-xs text-gray-500 mb-4">{{ t('repairs.profit.formula') }}</p>
+          <div class="space-y-2 text-sm">
+            <div class="flex justify-between"><span class="text-gray-600">{{ t('repairs.profit.revenue') }}</span><span class="font-medium">{{ formatCurrency(fin.revenue) }}</span></div>
+            <div class="flex justify-between"><span class="text-gray-600">{{ t('repairs.profit.parts') }}</span><span class="text-danger-600">−{{ formatCurrency(fin.partsCost) }}</span></div>
+            <div class="flex justify-between border-t border-gray-100 pt-2"><span class="text-gray-700">{{ t('repairs.profit.gross') }}</span><span class="font-medium">{{ formatCurrency(fin.grossProfit) }}</span></div>
+            <div class="flex justify-between"><span class="text-gray-600">{{ t('repairs.profit.labor') }}</span><span class="text-danger-600">−{{ formatCurrency(fin.laborCost) }}</span></div>
+            <div class="flex justify-between"><span class="text-gray-600">{{ t('repairs.profit.other') }}</span><span class="text-danger-600">−{{ formatCurrency(fin.otherCost) }}</span></div>
+            <div :class="['flex justify-between border-t border-gray-200 pt-2 font-bold', fin.profit >= 0 ? 'text-success-700' : 'text-danger-700']">
+              <span>{{ t('repairs.profit.net') }}</span><span>{{ formatCurrency(fin.profit) }}</span>
+            </div>
+          </div>
+          <p v-if="fin.costsCapitalized" class="mt-3 text-xs text-blue-700 bg-blue-50 rounded-lg p-2.5">
+            {{ t('repairs.profit.capitalized', { amount: formatCurrency(fin.capitalizedCost) }) }}
+          </p>
         </div>
       </div>
 
@@ -323,13 +434,21 @@ async function printLabel() {
             <h2 class="font-semibold text-gray-900">{{ t('repairs.expenses') }}</h2>
             <span class="text-sm text-gray-500">({{ repair.expenses?.length || 0 }})</span>
           </div>
-          <button v-if="!closed" class="btn-sm btn-primary inline-flex items-center gap-1.5" @click="showExpense = true"><PlusIcon class="w-4 h-4" /> {{ t('repairs.addExpense') }}</button>
+          <button v-if="!closed" class="btn-sm btn-primary inline-flex items-center gap-1.5" @click="openExpense"><PlusIcon class="w-4 h-4" /> {{ t('repairs.addExpense') }}</button>
         </div>
         <div v-if="repair.expenses?.length" class="divide-y divide-gray-100">
           <div v-for="e in repair.expenses" :key="e.id" class="flex items-center gap-4 px-5 py-3">
             <div class="flex-1 min-w-0">
-              <p class="font-medium text-gray-900">{{ e.description }}</p>
-              <p class="text-xs text-gray-500">{{ t(`repairs.expenseType.${e.type}`) }} · {{ formatWhen(e.createdAt) }}</p>
+              <p class="font-medium text-gray-900">
+                {{ e.description }}<span v-if="e.type === 'stock_part' && e.quantity" class="text-gray-500 font-normal"> × {{ e.quantity }}</span>
+              </p>
+              <p class="text-xs text-gray-500">
+                {{ t(`repairs.expenseType.${e.type}`) }}
+                <template v-if="e.type === 'stock_part' && e.unitCost"> · {{ formatCurrency(e.unitCost) }} / {{ t('repairs.expenseForm.piece') }}</template>
+                <template v-if="e.repairer"> · {{ e.repairer.name }}</template>
+                <template v-if="e.paidFromDrawer"> · {{ t('repairs.expenseForm.fromDrawer') }}</template>
+                · {{ formatWhen(e.createdAt) }}
+              </p>
             </div>
             <p class="font-medium text-gray-900 whitespace-nowrap">{{ formatCurrency(e.amount) }}</p>
             <button v-if="!closed" class="p-1.5 text-gray-400 hover:text-danger-600 transition-colors" @click="confirmExpense = e.id"><TrashIcon class="w-4 h-4" /></button>
@@ -369,31 +488,123 @@ async function printLabel() {
       <div v-if="showExpense" class="modal-overlay" @click.self="showExpense = false">
         <div class="modal-content max-w-md">
           <div class="modal-header"><h3 class="text-lg font-bold text-gray-900">{{ t('repairs.addExpense') }}</h3></div>
-          <form @submit.prevent="addExpense.mutate()">
+          <form @submit.prevent="submitExpense">
             <div class="modal-body space-y-4">
-              <div>
-                <label class="label">{{ t('repairs.expenseForm.description') }}</label>
-                <input v-model="expense.description" type="text" class="input" required maxlength="255" />
-              </div>
-              <div>
-                <label class="label">{{ t('repairs.expenseForm.amount') }}</label>
-                <div class="relative">
-                  <input v-model.number="expense.amount" type="number" step="0.01" min="0" class="input pe-10" required />
-                  <span class="absolute end-3 top-1/2 -translate-y-1/2 text-gray-500">DH</span>
-                </div>
-              </div>
+              <div v-if="expenseError" class="bg-danger-50 border border-danger-200 rounded-lg p-3 text-sm text-danger-700">{{ expenseError }}</div>
               <div>
                 <label class="label">{{ t('repairs.expenseForm.type') }}</label>
-                <select v-model="expense.type" class="input">
-                  <option value="part">{{ t('repairs.expenseType.part') }}</option>
-                  <option value="labor">{{ t('repairs.expenseType.labor') }}</option>
-                  <option value="other">{{ t('repairs.expenseType.other') }}</option>
-                </select>
+                <div class="grid grid-cols-2 gap-2">
+                  <button
+                    v-for="ty in ['stock_part', 'part', 'labor', 'other']"
+                    :key="ty"
+                    type="button"
+                    :class="['p-2.5 rounded-lg border text-sm text-start', expense.type === ty ? 'border-black bg-gray-100 font-medium' : 'border-gray-200 hover:border-gray-300']"
+                    @click="expense.type = ty"
+                  >
+                    {{ t(`repairs.expenseType.${ty}`) }}
+                  </button>
+                </div>
               </div>
+
+              <template v-if="expense.type === 'stock_part'">
+                <div>
+                  <label class="label">{{ t('repairs.expenseForm.part') }}</label>
+                  <input v-model="productSearch" type="text" class="input mb-2" :placeholder="t('repairs.expenseForm.searchPart')" />
+                  <select v-model="expense.productId" class="input" size="5">
+                    <option v-for="p in stockProducts || []" :key="p.id" :value="p.id" :disabled="p.stockQuantity <= 0">
+                      {{ p.name }} — {{ t('repairs.expenseForm.inStock', { n: p.stockQuantity }) }} · {{ formatCurrency(p.costPrice) }}
+                    </option>
+                  </select>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                  <div>
+                    <label class="label">{{ t('repairs.expenseForm.quantity') }}</label>
+                    <input v-model.number="expense.quantity" type="number" min="1" :max="selectedPart?.stockQuantity" class="input" />
+                  </div>
+                  <div>
+                    <label class="label">{{ t('repairs.expenseForm.cost') }}</label>
+                    <p class="input bg-gray-50">{{ formatCurrency((Number(selectedPart?.costPrice) || 0) * (expense.quantity || 0)) }}</p>
+                  </div>
+                </div>
+                <p class="text-xs text-gray-500">{{ t('repairs.expenseForm.stockHint') }}</p>
+              </template>
+
+              <template v-else>
+                <div>
+                  <label class="label">{{ t('repairs.expenseForm.description') }}</label>
+                  <input v-model="expense.description" type="text" class="input" required maxlength="255" />
+                </div>
+                <div>
+                  <label class="label">{{ t('repairs.expenseForm.amount') }}</label>
+                  <div class="relative">
+                    <input v-model.number="expense.amount" type="number" step="0.01" min="0" class="input pe-10" required />
+                    <span class="absolute end-3 top-1/2 -translate-y-1/2 text-gray-500">DH</span>
+                  </div>
+                </div>
+                <div v-if="expense.type === 'labor'">
+                  <label class="label">{{ t('repairs.form.repairer') }}</label>
+                  <select v-model="expense.repairerId" class="input">
+                    <option value="">{{ t('reports.workshop') }}</option>
+                    <option v-for="r in technicians || []" :key="r.id" :value="r.id">{{ r.name }}</option>
+                  </select>
+                </div>
+                <label class="flex items-start gap-2 text-sm cursor-pointer">
+                  <input v-model="expense.paidFromDrawer" type="checkbox" class="mt-0.5 rounded" />
+                  <span>{{ t('repairs.expenseForm.paidFromDrawer') }}</span>
+                </label>
+              </template>
             </div>
             <div class="modal-footer">
               <button type="button" class="btn-secondary" @click="showExpense = false">{{ t('common.cancel') }}</button>
               <button type="submit" class="btn-primary" :disabled="addExpense.isPending.value">{{ addExpense.isPending.value ? t('common.saving') : t('common.save') }}</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </Teleport>
+
+    <Teleport to="body">
+      <div v-if="showPayment" class="modal-overlay" @click.self="showPayment = false">
+        <div class="modal-content max-w-md">
+          <div class="modal-header"><h3 class="text-lg font-bold text-gray-900">{{ t('repairs.payment.collect') }}</h3></div>
+          <form @submit.prevent="submitPayment">
+            <div class="modal-body space-y-4">
+              <div v-if="paymentError" class="bg-danger-50 border border-danger-200 rounded-lg p-3 text-sm text-danger-700">{{ paymentError }}</div>
+              <div class="bg-gray-50 rounded-lg p-3 text-sm space-y-1">
+                <div class="flex justify-between"><span class="text-gray-500">{{ t('repairs.fixedPrice') }}</span><span>{{ formatCurrency(fin?.revenue) }}</span></div>
+                <div class="flex justify-between"><span class="text-gray-500">{{ t('repairs.payment.paid') }}</span><span>{{ formatCurrency(fin?.amountPaid) }}</span></div>
+                <div class="flex justify-between font-semibold"><span>{{ t('repairs.payment.due') }}</span><span class="text-danger-600">{{ formatCurrency(fin?.amountDue) }}</span></div>
+              </div>
+              <div>
+                <label class="label">{{ t('repairs.expenseForm.amount') }}</label>
+                <div class="relative">
+                  <input v-model.number="payment.amount" type="number" step="0.01" min="0.01" :max="fin?.amountDue" class="input text-lg font-bold pe-10" />
+                  <span class="absolute end-3 top-1/2 -translate-y-1/2 text-gray-500">DH</span>
+                </div>
+              </div>
+              <div>
+                <label class="label">{{ t('payment.method') }}</label>
+                <div class="grid grid-cols-2 gap-2">
+                  <button
+                    v-for="m in PAY_METHODS"
+                    :key="m"
+                    type="button"
+                    :class="['p-2.5 rounded-lg border text-sm', payment.method === m ? 'border-black bg-gray-100 font-medium' : 'border-gray-200 hover:border-gray-300']"
+                    @click="payment.method = m"
+                  >
+                    {{ t(`repairs.payment.methods.${m}`) }}
+                  </button>
+                </div>
+              </div>
+              <div v-if="payment.method !== 'cash'">
+                <label class="label">{{ t('repairs.payment.reference') }} *</label>
+                <input v-model="payment.reference" type="text" class="input" />
+              </div>
+              <p class="text-xs text-gray-500">{{ t('repairs.payment.hint') }}</p>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn-secondary" @click="showPayment = false">{{ t('common.cancel') }}</button>
+              <button type="submit" class="btn-primary" :disabled="payMut.isPending.value">{{ payMut.isPending.value ? t('common.saving') : t('repairs.payment.confirm') }}</button>
             </div>
           </form>
         </div>

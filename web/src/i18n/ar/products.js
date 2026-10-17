@@ -160,6 +160,7 @@ export default {
       sale: 'بيع',
       return: 'إرجاع',
       adjustment: 'تعديل',
+      repair: 'إصلاح',
       supplier_order: 'طلبية',
       transfer: 'تحويل',
       damage: 'تلف',

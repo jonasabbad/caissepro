@@ -2,7 +2,9 @@ import { http } from './http';
 
 export const repairsApi = {
   async getAll(p = {}) {
-    const { data } = await http.get('/repairs', { params: { query: p.query || undefined, status: p.status || undefined } });
+    const { data } = await http.get('/repairs', {
+      params: { query: p.query || undefined, status: p.status || undefined, repairerId: p.repairerId || undefined, paymentStatus: p.paymentStatus || undefined, dateFrom: p.dateFrom || undefined, dateTo: p.dateTo || undefined },
+    });
     return data.data.repairs;
   },
   async getBySoldUnit(unitId) {
@@ -34,6 +36,11 @@ export const repairsApi = {
   },
   async removeExpense(id, expenseId) {
     const { data } = await http.delete(`/repairs/${id}/expenses/${expenseId}`);
+    return data.data.repair;
+  },
+  /** Customer payment: { amount, method: cash|card|bank_transfer|check, reference? }. */
+  async addPayment(id, payload) {
+    const { data } = await http.post(`/repairs/${id}/payments`, payload);
     return data.data.repair;
   },
 };
