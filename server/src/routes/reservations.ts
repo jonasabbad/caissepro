@@ -6,7 +6,7 @@ import { badRequest, notFound } from '../lib/errors.js';
 import { num, parseJson, r2, serialize } from '../lib/serialize.js';
 import { authed, ok, type Req } from '../lib/route.js';
 import { moveCaisse } from '../lib/caisse.js';
-import { qStr } from '../lib/pagination.js';
+import { dateRange, qStr } from '../lib/pagination.js';
 
 interface RefundPayment {
   id: string;
@@ -57,14 +57,15 @@ export default async function reservationRoutes(app: FastifyInstance) {
     return ok({ refunds: await present(rows) });
   });
 
-  app.get(`${base}/summary`, async (req) => {
-    const rows = await prisma.reservationRefund.findMany({ where: { tenantId: req.auth.tenantId } });
-    const pending = rows.filter((r) => r.status !== 'completed');
+  /** Observed shape: { totalPending, totalRefunded, counts: { pending, partial, completed } }. */
+  app.get(`${base}/summary`, async (req: Req<unknown, Record<string, string>>) => {
+    const created = dateRange(req.query.dateFrom ?? req.query.startDate, req.query.dateTo ?? req.query.endDate);
+    const rows = await prisma.reservationRefund.findMany({ where: { tenantId: req.auth.tenantId, ...(created && { createdAt: created }) } });
+    const count = (s: string) => rows.filter((r) => r.status === s).length;
     return ok({
-      pendingCount: pending.length,
-      pendingAmount: r2(pending.reduce((s, r) => s + num(r.amount) - num(r.amountPaid), 0)),
-      completedCount: rows.filter((r) => r.status === 'completed').length,
+      totalPending: r2(rows.filter((r) => r.status !== 'completed').reduce((s, r) => s + num(r.amount) - num(r.amountPaid), 0)),
       totalRefunded: r2(rows.reduce((s, r) => s + num(r.amountPaid), 0)),
+      counts: { pending: count('pending'), partial: count('partial'), completed: count('completed') },
     });
   });
 
