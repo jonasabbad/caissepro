@@ -97,7 +97,7 @@ function confirm() {
                 </div>
                 <div class="text-end shrink-0">
                   <p class="font-bold text-gray-900">{{ formatCurrency(u.salePrice) }}</p>
-                  <p class="text-xs text-success-600">+{{ formatCurrency(u.profit) }}</p>
+                  <p class="text-xs text-success-600">{{ formatCurrency(u.profit, 'DH', '+') }}</p>
                   <CheckCircleIcon v-if="selectedId === u.id" class="w-6 h-6 text-black mt-2 ms-auto" />
                 </div>
               </div>

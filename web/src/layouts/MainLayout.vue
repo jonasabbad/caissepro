@@ -160,7 +160,7 @@ const supportLink = `https://wa.me/${APP_CONFIG.support.whatsapp}?text=${encodeU
     <!-- Sidebar -->
     <aside
       v-if="!isCashierOnly"
-      :class="['sidebar print:hidden', sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0']"
+      :class="['sidebar print:hidden', sidebarOpen ? 'translate-x-0' : '-translate-x-full rtl:translate-x-full lg:translate-x-0 rtl:lg:translate-x-0']"
     >
       <div class="border-b border-primary-700 px-6 py-5">
         <h1 class="truncate text-lg font-bold text-white">{{ storeTitle }}</h1>

@@ -12,8 +12,8 @@ export default {
         warning: colors.amber,
       },
       fontFamily: {
-        sans: ['"Inter Variable"', 'Inter', 'system-ui', 'sans-serif'],
-        arabic: ['"Noto Sans Arabic"', 'system-ui', 'sans-serif'],
+        sans: ['"Inter Variable"', 'Inter', '"Noto Sans Arabic"', 'system-ui', 'sans-serif'],
+        arabic: ['"Noto Sans Arabic"', '"Inter Variable"', 'Inter', 'system-ui', 'sans-serif'],
       },
     },
   },

@@ -9,7 +9,7 @@ import '@fontsource/noto-sans-arabic/700.css';
 import './styles/main.css';
 import App from './App.vue';
 import { router } from './router';
-import { i18n } from './i18n';
+import { i18n, ltr } from './i18n';
 import { queryClient } from './queryClient';
 
 
@@ -18,4 +18,6 @@ app.use(createPinia());
 app.use(VueQueryPlugin, { queryClient });
 app.use(router);
 app.use(i18n);
+// Keeps signed numbers, codes and amounts in left-to-right order inside Arabic text.
+app.config.globalProperties.$ltr = ltr;
 app.mount('#app');

@@ -1,5 +1,5 @@
 <script setup>
-import { dt, intlLocale } from '@/i18n';
+import { docIntlLocale, dt, intlLocale } from '@/i18n';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
@@ -183,7 +183,7 @@ async function downloadPeriod(from, to, label, summaryInfo) {
           {
             title: dt('invoices.list'),
             headers: [dt('invoices.number'), dt('invoices.date'), dt('invoices.customer'), dt('invoices.ht'), dt('invoices.tvaAmount'), dt('invoices.ttc')],
-            rows: rows.map((i) => [i.invoiceNumber, formatWhen(i.date), i.customer?.fullName || dt('invoices.walkIn'), formatCurrency(i.subtotal), formatCurrency(i.taxAmount), formatCurrency(i.totalAmount)]),
+            rows: rows.map((i) => [i.invoiceNumber, new Date(i.date).toLocaleDateString(docIntlLocale()), i.customer?.fullName || dt('invoices.walkIn'), formatCurrency(i.subtotal), formatCurrency(i.taxAmount), formatCurrency(i.totalAmount)]),
           },
         ],
       }),

@@ -176,7 +176,7 @@ async function exportCsv() {
                 </div>
               </td>
               <td :class="['px-4 py-3 font-medium whitespace-nowrap', tx.totalProfit > 0 ? 'text-success-600' : tx.totalProfit < 0 ? 'text-danger-600' : 'text-gray-500']">
-                {{ tx.totalProfit > 0 ? '+' : '' }}{{ formatCurrency(tx.totalProfit) }}
+                {{ formatCurrency(tx.totalProfit, 'DH', tx.totalProfit > 0 ? '+' : '') }}
               </td>
               <td class="px-4 py-3"><span :class="['badge', STATUS_BADGE[tx.status] || 'badge-secondary']">{{ t(`transactions.status.${tx.status}`) }}</span></td>
               <td class="px-4 py-3 text-end">

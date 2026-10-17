@@ -1,5 +1,5 @@
 <script setup>
-import { intlLocale } from '@/i18n';
+import { docIntlLocale, intlLocale } from '@/i18n';
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useQuery } from '@tanstack/vue-query';
@@ -187,7 +187,7 @@ function clearProductFilters() {
 watch([pSearch, pCategory, pStock], () => (pPage.value = 1));
 
 // ── PDF export (built in the browser) ──
-const dh = (v) => `${new Intl.NumberFormat(intlLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v || 0)} DH`;
+const dh = (v) => `${new Intl.NumberFormat(docIntlLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v || 0)} DH`;
 async function exportPdf() {
   const r = report.value;
   if (!r) return;
@@ -298,7 +298,7 @@ async function exportPdf() {
             </div>
             <div>
               <p class="text-emerald-200 text-xs">{{ t('reports.totalProfit') }}</p>
-              <p :class="['text-xl font-semibold', sales.summary.totalProfit < 0 && 'text-red-300']">{{ sales.summary.totalProfit > 0 ? '+' : '' }}{{ formatCurrency(sales.summary.totalProfit) }}</p>
+              <p :class="['text-xl font-semibold', sales.summary.totalProfit < 0 && 'text-red-300']">{{ formatCurrency(sales.summary.totalProfit, 'DH', sales.summary.totalProfit > 0 ? '+' : '') }}</p>
             </div>
           </div>
         </div>
@@ -317,7 +317,7 @@ async function exportPdf() {
         <div class="card p-4"><p class="text-sm text-gray-500 mb-1">{{ t('reports.totalItems') }}</p><p class="text-2xl font-bold text-gray-900">{{ sales.summary.totalItems }}</p></div>
         <div class="card p-4 col-span-2 lg:col-span-1">
           <p class="text-sm text-gray-500 mb-1">{{ t('reports.totalProfit') }}</p>
-          <p :class="['text-2xl font-bold', sales.summary.totalProfit >= 0 ? 'text-success-600' : 'text-danger-600']">{{ sales.summary.totalProfit > 0 ? '+' : '' }}{{ formatCurrency(sales.summary.totalProfit) }}</p>
+          <p :class="['text-2xl font-bold', sales.summary.totalProfit >= 0 ? 'text-success-600' : 'text-danger-600']">{{ formatCurrency(sales.summary.totalProfit, 'DH', sales.summary.totalProfit > 0 ? '+' : '') }}</p>
         </div>
       </div>
 
@@ -330,11 +330,11 @@ async function exportPdf() {
               <tr><td class="py-2 text-gray-600">{{ t('reports.netSales') }}</td><td class="py-2 text-end">{{ formatCurrency(sales.profit.sales.netRevenue) }}</td></tr>
               <tr><td class="py-2 text-gray-600">{{ t('reports.repairRevenue') }}</td><td class="py-2 text-end">{{ formatCurrency(sales.profit.repairs.revenue) }}</td></tr>
               <tr class="font-semibold"><td class="py-2">{{ t('reports.totalRevenue') }}</td><td class="py-2 text-end">{{ formatCurrency(sales.profit.totals.revenue) }}</td></tr>
-              <tr><td class="py-2 text-gray-600">{{ t('reports.cogs') }}</td><td class="py-2 text-end text-danger-600">−{{ formatCurrency(sales.profit.sales.cogs) }}</td></tr>
-              <tr><td class="py-2 text-gray-600">{{ t('reports.partsCost') }}</td><td class="py-2 text-end text-danger-600">−{{ formatCurrency(sales.profit.repairs.partsCost) }}</td></tr>
+              <tr><td class="py-2 text-gray-600">{{ t('reports.cogs') }}</td><td class="py-2 text-end text-danger-600">{{ formatCurrency(sales.profit.sales.cogs, 'DH', '−') }}</td></tr>
+              <tr><td class="py-2 text-gray-600">{{ t('reports.partsCost') }}</td><td class="py-2 text-end text-danger-600">{{ formatCurrency(sales.profit.repairs.partsCost, 'DH', '−') }}</td></tr>
               <tr class="font-semibold"><td class="py-2">{{ t('reports.grossProfit') }}</td><td class="py-2 text-end">{{ formatCurrency(sales.profit.totals.grossProfit) }}</td></tr>
-              <tr><td class="py-2 text-gray-600">{{ t('reports.laborCost') }}</td><td class="py-2 text-end text-danger-600">−{{ formatCurrency(sales.profit.repairs.laborCost) }}</td></tr>
-              <tr><td class="py-2 text-gray-600">{{ t('reports.otherCost') }}</td><td class="py-2 text-end text-danger-600">−{{ formatCurrency(sales.profit.repairs.otherCost) }}</td></tr>
+              <tr><td class="py-2 text-gray-600">{{ t('reports.laborCost') }}</td><td class="py-2 text-end text-danger-600">{{ formatCurrency(sales.profit.repairs.laborCost, 'DH', '−') }}</td></tr>
+              <tr><td class="py-2 text-gray-600">{{ t('reports.otherCost') }}</td><td class="py-2 text-end text-danger-600">{{ formatCurrency(sales.profit.repairs.otherCost, 'DH', '−') }}</td></tr>
               <tr :class="['font-bold text-base', sales.profit.totals.netProfit >= 0 ? 'text-success-700' : 'text-danger-700']">
                 <td class="py-2">{{ t('reports.netProfit') }}</td>
                 <td class="py-2 text-end">{{ formatCurrency(sales.profit.totals.netProfit) }} <span class="text-xs font-normal text-gray-500">({{ sales.profit.totals.margin.toFixed(1) }}%)</span></td>
@@ -355,8 +355,8 @@ async function exportPdf() {
               <div v-for="d in sales.byDay" :key="d.date" class="flex flex-col items-center group relative flex-1 min-w-[22px] max-w-[60px]">
                 <div class="absolute bottom-full mb-2 hidden group-hover:block bg-gray-900 text-white text-xs rounded-lg p-2 whitespace-nowrap z-10">
                   <p class="font-medium">{{ barDay(d.date) }}</p>
-                  <p>Ventes: {{ d.sales.toLocaleString() }} DH</p>
-                  <p>Profit: {{ d.profit.toLocaleString() }} DH</p>
+                  <p>{{ t('reports.sales') }}: {{ formatCurrency(d.sales) }}</p>
+                  <p>{{ t('reports.profit') }}: {{ formatCurrency(d.profit) }}</p>
                   <p>{{ t('reports.transactionsCount', { n: d.transactions }) }}</p>
                 </div>
                 <div class="w-full bg-black rounded-t-sm hover:bg-gray-800 min-h-[4px]" :style="{ height: `${(d.sales / barMax) * 180}px` }" />

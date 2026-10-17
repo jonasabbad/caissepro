@@ -168,7 +168,7 @@ function clearFilters() {
         <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-primary-100"><ArrowsRightLeftIcon class="h-6 w-6 text-primary-600" /></div>
         <div>
           <p class="text-sm text-gray-500">{{ t('inventoryMovements.netChange') }}</p>
-          <p :class="['text-xl font-bold', totals.net >= 0 ? 'text-success-600' : 'text-danger-600']">{{ totals.net >= 0 ? '+' : '' }}{{ totals.net }}</p>
+          <p :class="['text-xl font-bold', totals.net >= 0 ? 'text-success-600' : 'text-danger-600']">{{ $ltr(`${totals.net >= 0 ? '+' : ''}${totals.net}`) }}</p>
         </div>
       </div>
     </div>
@@ -226,7 +226,7 @@ function clearFilters() {
                 </span>
               </td>
               <td class="px-4 py-3 text-center">
-                <span :class="['font-bold', r.quantity > 0 ? 'text-success-600' : 'text-danger-600']">{{ r.quantity > 0 ? '+' : '' }}{{ r.quantity }}</span>
+                <span :class="['font-bold', r.quantity > 0 ? 'text-success-600' : 'text-danger-600']">{{ $ltr(`${r.quantity > 0 ? '+' : ''}${r.quantity}`) }}</span>
               </td>
               <td class="px-4 py-3 text-center">
                 <span class="text-gray-400">{{ r.previousStock }}</span>

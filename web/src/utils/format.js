@@ -1,13 +1,10 @@
-import { intlLocale } from '@/i18n';
+import { intlLocale, ltr } from '@/i18n';
 
-/** 1234.5 -> "1 234,50 DH" */
-export function formatCurrency(value, currency = 'DH') {
+/** 1234.5 -> "1 234,50 DH"; `sign` ('+', '-', '−') is prefixed inside the same left-to-right run. */
+export function formatCurrency(value, currency = 'DH', sign = '') {
   const n = Number(value ?? 0);
-  if (Number.isNaN(n)) return `${formatCurrency(0, currency)}`;
-  return (
-    new Intl.NumberFormat(intlLocale(), { style: 'decimal', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n) +
-    ` ${currency}`
-  );
+  if (Number.isNaN(n)) return formatCurrency(0, currency, sign);
+  return ltr(sign + new Intl.NumberFormat(intlLocale(), { style: 'decimal', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n) + ` ${currency}`);
 }
 
 export function formatDate(value, options = {}) {

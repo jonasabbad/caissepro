@@ -1,4 +1,4 @@
-import { docLocale, dt, intlLocale } from '@/i18n';
+import { docIntlLocale, docLocale, dt } from '@/i18n';
 import QRCode from 'qrcode';
 import { escapeHtml } from '@/utils/printFrame';
 
@@ -8,7 +8,7 @@ export const repairTrackingUrl = (repair) =>
 
 const etaText = (repair) =>
   repair?.estimatedCompletionAt
-    ? new Date(repair.estimatedCompletionAt).toLocaleDateString(intlLocale(), { day: '2-digit', month: '2-digit', year: 'numeric' })
+    ? new Date(repair.estimatedCompletionAt).toLocaleDateString(docIntlLocale(), { day: '2-digit', month: '2-digit', year: 'numeric' })
     : '';
 
 /**
@@ -51,7 +51,7 @@ export function repairReceiptProps(repair, storeName) {
 }
 
 const cut = (s, n) => (s.length <= n ? s : s.slice(0, n - 1) + '…');
-const shortDate = (d) => new Date(d).toLocaleDateString(intlLocale(), { day: '2-digit', month: '2-digit', year: '2-digit' });
+const shortDate = (d) => new Date(d).toLocaleDateString(docIntlLocale(), { day: '2-digit', month: '2-digit', year: '2-digit' });
 
 function labelHtml(repair, qr, storeName) {
   const client = [repair.customer?.firstName, repair.customer?.lastName].filter(Boolean).join(' ');

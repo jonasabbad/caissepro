@@ -1,11 +1,11 @@
-import { dt, intlLocale } from '@/i18n';
+import { docIntlLocale, dt, stripBidi } from '@/i18n';
 import { amountInWords } from '@/utils/amountInWords';
 
 const mad = (v) => {
   const n = v == null || Number.isNaN(Number(v)) ? 0 : Number(v);
-  return `${new Intl.NumberFormat(intlLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n).replace(/\s/g, ' ')} MAD`;
+  return `${new Intl.NumberFormat(docIntlLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n).replace(/\s/g, ' ')} MAD`;
 };
-const day = (d) => new Date(d).toLocaleDateString(intlLocale(), { day: '2-digit', month: '2-digit', year: 'numeric' });
+const day = (d) => new Date(d).toLocaleDateString(docIntlLocale(), { day: '2-digit', month: '2-digit', year: 'numeric' });
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 const cut = (s, n) => (s.length > n ? `${s.slice(0, n)}...` : s);
 
@@ -152,7 +152,7 @@ export async function summaryPdfBlob({ title, period, summary = [], tables = [] 
     if (col === 0 && i > 0) y += 16;
     doc.setFillColor(245, 245, 245).roundedRect(bx, y, 88, 13, 2, 2, 'F');
     doc.setFontSize(8).setTextColor(100).text(s.label, bx + 4, y + 5);
-    doc.setFontSize(11).setTextColor(0).setFont('helvetica', 'bold').text(String(s.value), bx + 4, y + 10.5);
+    doc.setFontSize(11).setTextColor(0).setFont('helvetica', 'bold').text(stripBidi(s.value), bx + 4, y + 10.5);
     doc.setFont('helvetica', 'normal');
   });
   y += summary.length ? 22 : 0;
@@ -175,7 +175,7 @@ export async function summaryPdfBlob({ title, period, summary = [], tables = [] 
         header();
       }
       if (r % 2 === 0) doc.setFillColor(249, 249, 249).rect(15, y - 4, 180, 6, 'F');
-      row.forEach((v, i) => doc.text(cut(String(v), Math.floor(w / 1.9)), 15 + i * w + 2, y));
+      row.forEach((v, i) => doc.text(cut(stripBidi(v), Math.floor(w / 1.9)), 15 + i * w + 2, y));
       y += 6;
     });
     y += 6;

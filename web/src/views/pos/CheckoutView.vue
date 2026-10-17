@@ -1122,7 +1122,7 @@ const customerLocked = computed(() => cart.isReturnMode && !cart.isEmpty);
             </div>
             <div class="text-end">
               <p class="font-bold text-gray-900">{{ formatCurrency(item.total) }}</p>
-              <p :class="['text-xs', item.profit >= 0 ? 'text-success-600' : 'text-danger-600']">{{ item.profit > 0 ? '+' : '' }}{{ formatCurrency(item.profit) }}</p>
+              <p :class="['text-xs', item.profit >= 0 ? 'text-success-600' : 'text-danger-600']">{{ formatCurrency(item.profit, 'DH', item.profit > 0 ? '+' : '') }}</p>
             </div>
           </div>
         </div>
@@ -1144,13 +1144,13 @@ const customerLocked = computed(() => cart.isReturnMode && !cart.isEmpty);
             <span class="text-gray-500">{{ t('pos.subtotal') }}</span><span class="font-medium">{{ formatCurrency(cart.subtotal) }}</span>
           </div>
           <div v-if="cart.discountAmount > 0" class="flex items-center justify-between text-sm text-danger-600">
-            <span>{{ t('pos.discount') }}</span><span class="font-medium">- {{ formatCurrency(cart.discountAmount) }}</span>
+            <span>{{ t('pos.discount') }}</span><span class="font-medium">{{ formatCurrency(cart.discountAmount, 'DH', '-') }}</span>
           </div>
           <div v-if="cart.applyTva" class="flex items-center justify-between text-sm">
             <span class="text-gray-500">{{ t('pos.tax') }} ({{ cart.taxRate }}%)</span><span class="font-medium">{{ formatCurrency(cart.taxAmount) }}</span>
           </div>
           <div :class="['flex items-center justify-between text-sm', cart.totalProfit >= 0 ? 'text-success-600' : 'text-danger-600']">
-            <span>{{ t('pos.profit') }}</span><span class="font-medium">{{ cart.totalProfit > 0 ? '+' : '' }}{{ formatCurrency(cart.totalProfit) }}</span>
+            <span>{{ t('pos.profit') }}</span><span class="font-medium">{{ formatCurrency(cart.totalProfit, 'DH', cart.totalProfit > 0 ? '+' : '') }}</span>
           </div>
           <div class="h-px bg-gray-200" />
           <div class="flex items-center justify-between">
@@ -1267,7 +1267,7 @@ const customerLocked = computed(() => cart.isReturnMode && !cart.isEmpty);
 
             <div v-if="saleType === 'sale' && !cart.hasTradeIn && amountPaid < cart.total && amountPaid >= 0" class="bg-amber-50 rounded-lg p-4 text-center">
               <p class="text-sm text-amber-700">{{ t('pos.discountApplied') }}</p>
-              <p class="text-2xl font-bold text-amber-600">-{{ formatCurrency(cart.total - amountPaid) }}</p>
+              <p class="text-2xl font-bold text-amber-600">{{ formatCurrency(cart.total - amountPaid, 'DH', '-') }}</p>
             </div>
             <div v-else-if="isOverpaid" class="rounded-lg border border-stone-200 bg-white p-3 space-y-3">
               <p class="text-xs font-medium text-stone-500 text-center">{{ t('pos.overpayQuestion', { amount: formatCurrency(amountPaid - amountDue) }) }}</p>
@@ -1293,7 +1293,7 @@ const customerLocked = computed(() => cart.isReturnMode && !cart.isEmpty);
                   @click="overpayMode = 'supplement'"
                 >
                   <p :class="['text-xs font-medium', overpayMode === 'supplement' ? 'text-stone-300' : 'text-stone-500']">{{ t('pos.supplement') }}</p>
-                  <p class="text-lg font-bold">+{{ formatCurrency(amountPaid - amountDue) }}</p>
+                  <p class="text-lg font-bold">{{ formatCurrency(amountPaid - amountDue, 'DH', '+') }}</p>
                   <p :class="['text-[11px] mt-1', overpayMode === 'supplement' ? 'text-stone-400' : 'text-stone-500']">{{ t('pos.saleGoesTo', { amount: formatCurrency(amountPaid) }) }}</p>
                 </button>
               </div>
@@ -1338,12 +1338,12 @@ const customerLocked = computed(() => cart.isReturnMode && !cart.isEmpty);
               </div>
               <div class="px-4 py-3 space-y-1.5 text-sm">
                 <div class="flex justify-between text-gray-600"><span>{{ t('tradeIn.cartTotal') }}</span><span class="font-medium text-gray-900">{{ formatCurrency(cart.total) }}</span></div>
-                <div class="flex justify-between text-green-700"><span>{{ t('tradeIn.tradeInDeduction') }}</span><span>- {{ formatCurrency(cart.totalTradeInValue) }}</span></div>
+                <div class="flex justify-between text-green-700"><span>{{ t('tradeIn.tradeInDeduction') }}</span><span>{{ formatCurrency(cart.totalTradeInValue, 'DH', '-') }}</span></div>
                 <div v-if="amountPaid < cart.totalAfterTradeIn && amountPaid >= 0" class="flex justify-between text-amber-700">
-                  <span>{{ t('pos.discount') }}</span><span>- {{ formatCurrency(cart.totalAfterTradeIn - amountPaid) }}</span>
+                  <span>{{ t('pos.discount') }}</span><span>{{ formatCurrency(cart.totalAfterTradeIn - amountPaid, 'DH', '-') }}</span>
                 </div>
                 <div v-else-if="amountPaid > cart.totalAfterTradeIn && overpayMode === 'supplement'" class="flex justify-between text-stone-700">
-                  <span>{{ t('pos.supplement') }}</span><span>+ {{ formatCurrency(amountPaid - cart.totalAfterTradeIn) }}</span>
+                  <span>{{ t('pos.supplement') }}</span><span>{{ formatCurrency(amountPaid - cart.totalAfterTradeIn, 'DH', '+') }}</span>
                 </div>
                 <div class="flex items-center justify-between pt-2 mt-1 border-t border-gray-100">
                   <span class="text-sm font-semibold text-gray-900">{{ t('tradeIn.finalAmount') }}</span>
@@ -1540,7 +1540,7 @@ const customerLocked = computed(() => cart.isReturnMode && !cart.isEmpty);
             <div class="bg-purple-50 rounded-lg p-4 space-y-2 text-sm">
               <div class="flex justify-between"><span class="text-gray-500">{{ t('pos.totalPrice') }}</span><span class="font-medium">{{ formatCurrency(completeUnit.salePrice) }}</span></div>
               <div class="flex justify-between">
-                <span class="text-gray-500">{{ t('pos.depositPaid') }}</span><span class="font-medium text-purple-700">- {{ formatCurrency(Number(completeUnit.reservationDeposit) || 0) }}</span>
+                <span class="text-gray-500">{{ t('pos.depositPaid') }}</span><span class="font-medium text-purple-700">{{ formatCurrency(Number(completeUnit.reservationDeposit) || 0, 'DH', '-') }}</span>
               </div>
               <div class="flex justify-between pt-2 border-t border-purple-200">
                 <span class="font-semibold text-gray-900">{{ t('payment.amountDue') }}</span>

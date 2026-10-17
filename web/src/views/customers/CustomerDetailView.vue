@@ -189,7 +189,7 @@ const METHODS = computed(() => [
             <div>
               <p class="text-sm text-gray-500">{{ hasCredit ? t('customers.creditShort') : t('customers.remainingToPay') }}</p>
               <p :class="['text-xl font-bold', owes ? 'text-danger-600' : hasCredit ? 'text-success-600' : 'text-gray-900']">
-                {{ hasCredit ? '+' : '' }}{{ formatCurrency(Math.abs(customer.balance || 0)) }}
+                {{ formatCurrency(Math.abs(customer.balance || 0), 'DH', hasCredit ? '+' : '') }}
               </p>
             </div>
           </div>

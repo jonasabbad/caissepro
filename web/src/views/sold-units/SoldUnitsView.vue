@@ -346,7 +346,7 @@ const th = 'px-4 py-3 text-start text-xs font-medium uppercase text-gray-500';
                 <span :class="['font-medium', Number(u.profit) >= 0 ? 'text-success-600' : 'text-danger-600']">
                   <template v-if="Number(u.profit) > 0">+</template>{{ formatCurrency(u.profit) }}
                 </span>
-                <p v-if="Number(u.repairCost ?? 0) > 0" class="text-xs text-amber-600">{{ t('soldUnits.repairCost') }}: -{{ formatCurrency(u.repairCost) }}</p>
+                <p v-if="Number(u.repairCost ?? 0) > 0" class="text-xs text-amber-600">{{ t('soldUnits.repairCost') }}: {{ formatCurrency(u.repairCost, 'DH', '-') }}</p>
               </td>
               <td class="px-4 py-3">
                 <div v-if="u.soldAt" class="flex items-start gap-1.5 text-success-600">

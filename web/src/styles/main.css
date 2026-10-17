@@ -12,7 +12,19 @@
   }
   [dir='rtl'] body,
   .font-arabic {
-    font-family: 'Noto Sans Arabic', system-ui, sans-serif;
+    font-family: 'Noto Sans Arabic', 'Inter Variable', Inter, system-ui, sans-serif;
+  }
+  /* Form fields inherit the page font (browsers otherwise use their own UI font, without Arabic shaping control),
+     and typed text takes its direction from its content: an email or a code typed in an Arabic form keeps its order. */
+  input,
+  textarea,
+  select,
+  button {
+    font-family: inherit;
+  }
+  [dir='rtl'] input,
+  [dir='rtl'] textarea {
+    unicode-bidi: plaintext;
   }
 }
 
@@ -64,9 +76,6 @@
   .sidebar {
     @apply fixed bottom-0 top-0 z-50 flex w-64 flex-col bg-primary-800 text-white transition-transform duration-300;
     inset-inline-start: 0;
-  }
-  [dir='rtl'] .sidebar.-translate-x-full {
-    --tw-translate-x: 100%;
   }
   .sidebar-link {
     @apply mx-2 flex items-center gap-3 rounded-lg px-4 py-2.5 text-sm font-medium text-primary-100 transition-colors duration-150;

@@ -26,7 +26,7 @@ const changeClass = computed(() => (props.change == null ? '' : props.change >= 
       <div :class="['w-12 h-12 rounded-xl flex items-center justify-center', c.bg]"><component :is="icon" :class="['w-6 h-6', c.icon]" /></div>
       <div v-if="change != null" :class="['flex items-center text-sm font-medium', changeClass]">
         <component :is="change >= 0 ? ArrowTrendingUpIcon : ArrowTrendingDownIcon" class="w-4 h-4 me-1" />
-        <span>{{ change >= 0 ? '+' : '' }}{{ change.toFixed(1) }}%</span>
+        <span>{{ $ltr(`${change >= 0 ? '+' : ''}${change.toFixed(1)}%`) }}</span>
       </div>
     </div>
     <div class="text-sm font-medium text-gray-500">{{ title }}</div>

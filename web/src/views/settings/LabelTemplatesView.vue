@@ -491,7 +491,7 @@ watch(
 
           <div class="card p-6">
             <h3 class="font-semibold text-gray-900 mb-1">{{ t('labelTemplates.livePreview') }}</h3>
-            <p class="text-xs text-gray-500 mb-4">{{ t('labelTemplates.previewNote', { size: `${previewDims.width} × ${previewDims.height} mm` }) }}</p>
+            <p class="text-xs text-gray-500 mb-4">{{ t('labelTemplates.previewNote', { size: $ltr(`${previewDims.width} × ${previewDims.height} mm`) }) }}</p>
             <div class="flex justify-center overflow-hidden rounded bg-gray-100 py-2" :style="{ height: `calc(${previewDims.height}mm * 2 + 16px)` }">
               <iframe
                 :srcdoc="previewHtml"

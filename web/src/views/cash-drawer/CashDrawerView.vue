@@ -91,11 +91,11 @@ const when = (d) => new Intl.DateTimeFormat(intlLocale(), { day: '2-digit', mont
         <div v-if="data?.dailySummary" class="grid grid-cols-2 gap-4 mt-6 pt-4 border-t border-white/20">
           <div>
             <p class="text-blue-200 text-xs">{{ t('cashDrawer.inPeriod') }}</p>
-            <p class="text-lg font-semibold">+{{ formatCurrency(data.dailySummary.totalIn) }}</p>
+            <p class="text-lg font-semibold">{{ formatCurrency(data.dailySummary.totalIn, 'DH', '+') }}</p>
           </div>
           <div>
             <p class="text-blue-200 text-xs">{{ t('cashDrawer.outPeriod') }}</p>
-            <p class="text-lg font-semibold">-{{ formatCurrency(data.dailySummary.totalOut) }}</p>
+            <p class="text-lg font-semibold">{{ formatCurrency(data.dailySummary.totalOut, 'DH', '-') }}</p>
           </div>
         </div>
       </div>

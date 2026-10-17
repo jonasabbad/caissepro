@@ -1,4 +1,5 @@
 <script setup>
+import { formatCurrency } from '@/utils/format';
 import { intlLocale } from '@/i18n';
 import { computed } from 'vue';
 import VueApexCharts from 'vue3-apexcharts';
@@ -8,7 +9,7 @@ const { t } = useI18n();
 
 /** Daily sales and profit as two smoothed areas. `data`: [{ date: 'YYYY-MM-DD', sales, profit }]. */
 const props = defineProps({ data: { type: Array, default: () => [] } });
-const money = (v) => `${new Intl.NumberFormat(intlLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v)} DH`;
+const money = (v) => formatCurrency(v);
 
 const options = computed(() => ({
   chart: {

@@ -115,7 +115,7 @@ function submitRefund() {
         <div class="flex items-center justify-between">
           <div>
             <p class="text-sm text-gray-500">{{ t('debts.netPosition') }}</p>
-            <p :class="['text-2xl font-bold mt-1', net >= 0 ? 'text-success-600' : 'text-danger-600']">{{ net >= 0 ? '+' : '' }}{{ formatCurrency(net) }}</p>
+            <p :class="['text-2xl font-bold mt-1', net >= 0 ? 'text-success-600' : 'text-danger-600']">{{ formatCurrency(net, 'DH', net >= 0 ? '+' : '') }}</p>
             <p class="text-xs text-gray-400 mt-1">{{ net >= 0 ? t('debts.toReceive') : t('debts.toPay') }}</p>
           </div>
           <div :class="['w-12 h-12 rounded-full flex items-center justify-center', net >= 0 ? 'bg-success-100' : 'bg-danger-100']">

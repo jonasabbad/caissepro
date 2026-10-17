@@ -268,7 +268,7 @@ const section = 'border-b pb-2 text-lg font-semibold text-gray-900';
             <div class="flex items-center justify-between">
               <span class="text-gray-600">{{ t('soldUnits.profit') }}</span>
               <div class="text-end">
-                <span :class="['text-xl font-bold', profit >= 0 ? 'text-success-600' : 'text-danger-600']">{{ profit >= 0 ? '+' : '' }}{{ formatCurrency(profit) }}</span>
+                <span :class="['text-xl font-bold', profit >= 0 ? 'text-success-600' : 'text-danger-600']">{{ formatCurrency(profit, 'DH', profit >= 0 ? '+' : '') }}</span>
                 <span class="ms-2 text-sm text-gray-500">({{ profitPercent }}%)</span>
               </div>
             </div>

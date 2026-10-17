@@ -1,5 +1,5 @@
 <script setup>
-import { intlLocale } from '@/i18n';
+import { intlLocale, ltr } from '@/i18n';
 // Brand → model → storage / RAM / colour / condition picker backed by the device catalogue.
 // Brands and models not in the catalogue can be typed in ("Ajouter « … »").
 import { computed, onMounted, ref, watch } from 'vue';
@@ -244,7 +244,7 @@ const chip = (active) => [
         </div>
         <div v-if="device.basePrice > 0" class="text-end">
           <p class="text-sm text-gray-500">{{ t('soldUnits.basePrice') }}</p>
-          <p class="font-bold text-black">{{ new Intl.NumberFormat(intlLocale()).format(device.basePrice) }} DH</p>
+          <p class="font-bold text-black">{{ ltr(`${new Intl.NumberFormat(intlLocale()).format(device.basePrice)} DH`) }}</p>
         </div>
       </div>
     </div>

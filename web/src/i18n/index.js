@@ -42,8 +42,17 @@ export const i18n = createI18n({
 export const currentLocale = () => i18n.global.locale.value;
 
 /** BCP 47 locale for Intl number/date formatting in the current language (English uses day/month/year, like the rest of the app). */
-const INTL = { fr: 'fr-MA', en: 'en-GB', ar: 'fr-MA' };
+// Arabic: Moroccan Arabic month names with Western digits, as used across the app and on Moroccan receipts.
+const INTL = { fr: 'fr-MA', en: 'en-GB', ar: 'ar-MA-u-nu-latn' };
 export const intlLocale = () => INTL[i18n.global.locale.value] || 'fr-MA';
+
+/**
+ * Keeps a left-to-right value (amount + currency, grouped digits, codes) in its own order inside Arabic text.
+ * Uses Unicode isolates (LRI … PDI), so it only applies when the interface is right-to-left.
+ */
+export const ltr = (s) => (i18n.global.locale.value === 'ar' && s ? `\u2066${s}\u2069` : s);
+/** Removes those marks where text goes to a PDF (its fonts have no glyph for them). */
+export const stripBidi = (s) => String(s ?? '').replace(/[\u2066-\u2069\u200E\u200F]/g, '');
 
 /**
  * Printed documents (receipts, invoices, repair tickets, report PDFs) are in English when the interface is,
@@ -51,6 +60,8 @@ export const intlLocale = () => INTL[i18n.global.locale.value] || 'fr-MA';
  */
 export const docLocale = () => (i18n.global.locale.value === 'en' ? 'en' : 'fr');
 export const dt = (key, named = {}) => i18n.global.t(key, named, { locale: docLocale() });
+/** Number/date locale for those documents (French formatting under an Arabic interface). */
+export const docIntlLocale = () => (docLocale() === 'en' ? 'en-GB' : 'fr-MA');
 
 export function setLocale(locale) {
   locale = normalize(locale);

@@ -144,7 +144,7 @@ const PRESETS = computed(() => [
       <KpiCard
         v-if="hasWidget('realProfit')"
         :title="t('dashboard.realProfit')"
-        :value="(profit > 0 ? '+' : '') + formatCurrency(profit)"
+        :value="formatCurrency(profit, 'DH', profit > 0 ? '+' : '')"
         :subtitle="`${(kpis?.realProfit?.margin ?? 0).toFixed(1)}% ${t('dashboard.margin')}`"
         :change="kpis?.realProfit?.comparison"
         :icon="BanknotesIcon"
@@ -187,7 +187,7 @@ const PRESETS = computed(() => [
         </div>
         <div class="rounded-lg bg-gray-50 p-3">
           <p class="text-gray-500">{{ t('dashboard.cogs') }}</p>
-          <p class="text-lg font-bold text-gray-900">−{{ formatCurrency(pnl.totals.cogs) }}</p>
+          <p class="text-lg font-bold text-gray-900">{{ formatCurrency(pnl.totals.cogs, 'DH', '−') }}</p>
           <p class="text-xs text-gray-500">{{ t('dashboard.repairParts') }} {{ formatCurrency(pnl.repairs.partsCost) }}</p>
         </div>
         <div class="rounded-lg bg-gray-50 p-3">
@@ -196,7 +196,7 @@ const PRESETS = computed(() => [
         </div>
         <div class="rounded-lg bg-gray-50 p-3">
           <p class="text-gray-500">{{ t('dashboard.directExpenses') }}</p>
-          <p class="text-lg font-bold text-gray-900">−{{ formatCurrency(pnl.totals.directExpenses) }}</p>
+          <p class="text-lg font-bold text-gray-900">{{ formatCurrency(pnl.totals.directExpenses, 'DH', '−') }}</p>
           <p class="text-xs text-gray-500">{{ t('dashboard.directExpensesHint') }}</p>
         </div>
         <div :class="['rounded-lg p-3 col-span-2 md:col-span-1', pnl.totals.netProfit >= 0 ? 'bg-success-50' : 'bg-danger-50']">
@@ -232,7 +232,7 @@ const PRESETS = computed(() => [
           <div class="mt-3 h-1.5 bg-gray-100 rounded-full overflow-hidden">
             <div :class="['h-full rounded-full', s.margin >= 20 ? 'bg-green-500' : s.margin >= 10 ? 'bg-amber-500' : 'bg-red-500']" :style="{ width: `${Math.min(Math.max(s.margin, 0), 100)}%` }" />
           </div>
-          <p class="text-xs text-gray-500 mt-1">Marge {{ s.margin.toFixed(1) }}%</p>
+          <p class="text-xs text-gray-500 mt-1">{{ s.margin.toFixed(1) }}% {{ t('dashboard.margin') }}</p>
         </div>
       </div>
     </div>

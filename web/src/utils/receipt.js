@@ -1,4 +1,4 @@
-import { docLocale, dt, intlLocale } from '@/i18n';
+import { docIntlLocale, docLocale, dt, stripBidi } from '@/i18n';
 import { APP_CONFIG } from '@/config/constants';
 import { formatCurrency } from '@/utils/format';
 import { escapeHtml, printHtmlDocument } from '@/utils/printFrame';
@@ -8,7 +8,7 @@ const METHODS = ['cash', 'card', 'credit', 'bank_transfer', 'check', 'mobile_mon
 export const paymentLabel = (method) => (METHODS.includes(method) ? dt(`doc.methods.${method}`) : method);
 
 export const receiptDate = (value) =>
-  new Date(value).toLocaleString(intlLocale(), { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  new Date(value).toLocaleString(docIntlLocale(), { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
 // Getters so the wording follows the current language.
 export const RECEIPT_TEXT = {
@@ -106,7 +106,7 @@ export async function printReceipt(r) {
 /** 80 mm-wide PDF of the ticket, downloaded as "<docLabel>-<number>.pdf". */
 export async function downloadReceiptPdf(r) {
   const { jsPDF } = await import('jspdf');
-  const m = (v) => formatCurrency(v).replace(/ | /g, ' ');
+  const m = (v) => stripBidi(formatCurrency(v)).replace(/ | /g, ' ');
   const lines = [];
   const W = 80;
   const add = (text, opts = {}) => lines.push({ text, ...opts });

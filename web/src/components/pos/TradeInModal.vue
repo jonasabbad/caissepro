@@ -186,7 +186,7 @@ function confirm() {
               :class="['flex items-center gap-2 px-3 py-2 rounded-lg text-sm', margin.profit >= 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700']"
             >
               <span>{{ margin.profit >= 0 ? '↗' : '↘' }}</span>
-              <span>{{ t('common.estimatedMargin') }} <strong>{{ formatCurrency(margin.profit) }}</strong> ({{ margin.percentage > 0 ? '+' : '' }}{{ margin.percentage }}%)</span>
+              <span>{{ t('common.estimatedMargin') }} <strong>{{ formatCurrency(margin.profit) }}</strong> ({{ $ltr(`${margin.percentage > 0 ? '+' : ''}${margin.percentage}%`) }})</span>
             </div>
             <div>
               <label class="label">{{ t('tradeIn.notes') }}</label>
@@ -199,7 +199,7 @@ function confirm() {
           <div v-if="summary" class="flex justify-between text-sm"><span class="text-gray-500">Appareil</span><span class="font-medium">{{ summary }}</span></div>
           <div class="flex justify-between text-sm"><span class="text-gray-500">{{ t('tradeIn.cartTotal') }}</span><span>{{ formatCurrency(cartTotal) }}</span></div>
           <div v-if="value > 0" class="flex justify-between text-sm text-green-700">
-            <span>{{ t('tradeIn.tradeInDeduction') }}</span><span>- {{ formatCurrency(value) }}</span>
+            <span>{{ t('tradeIn.tradeInDeduction') }}</span><span>{{ formatCurrency(value, 'DH', '-') }}</span>
           </div>
           <div class="flex justify-between text-lg font-bold"><span>{{ t('tradeIn.finalAmount') }}</span><span>{{ formatCurrency(finalAmount) }}</span></div>
           <div class="flex gap-3 pt-2">

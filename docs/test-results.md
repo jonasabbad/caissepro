@@ -127,3 +127,58 @@ Tested on 2026-10-17 on the local app (built-in browser, English interface) and 
 | Sale types | Direct, Credit, Reservation, Trade-in are all clickable: without a customer they open the customer picker and apply after selection; reservation on a non-device cart explains why |
 | Split payment | "Add another payment method": tested 337 DH = 100 card (slip reference) + 237 cash → two payments recorded, drawer +237 only, receipt "Split payment" |
 | Reservation completion | Offers the same five methods |
+
+---
+
+# Arabic display fix ("Bar" disappearing) — test results
+
+Tested on 2026-10-17 in the local app, desktop (1902 px) and mobile (375 px), in Arabic, French and English.
+
+## Root cause
+
+The sidebar ("barre latérale") disappeared in Arabic. `web/src/styles/main.css` had
+`[dir='rtl'] .sidebar.-translate-x-full { --tw-translate-x: 100% }`, meant to hide the closed mobile sidebar to the
+right. It was not limited to small screens, and its selector (attribute + two classes) outranked Tailwind's
+`lg:translate-x-0`, so on desktop the sidebar stayed translated off-screen (measured at x = 1887–2143 px in a
+1902 px window) while the content kept its 256 px gap. French and English never matched the rule.
+
+**Fix:** the custom rule is removed; the sidebar uses Tailwind's `rtl:` variant (no added specificity):
+`-translate-x-full rtl:translate-x-full lg:translate-x-0 rtl:lg:translate-x-0`.
+
+| Width / language | Closed | Open |
+|---|---|---|
+| Desktop FR / EN | visible at 0–256 px, content 256–1887 | — |
+| Desktop AR | visible at 1631–1887 px, content 0–1631 | — |
+| Mobile FR / EN | off-screen left (−256–0) | 0–256 |
+| Mobile AR | off-screen right (375–631) | 119–375 |
+
+No horizontal scrolling in any case.
+
+## Mixed Arabic / Latin text
+
+In a right-to-left line the browser reorders Latin words and numbers. Found and fixed:
+
+| Before (Arabic) | After |
+|---|---|
+| `DH 199,00` | `199,00 DH` — amounts are wrapped in a left-to-right isolate (`formatCurrency`) |
+| `1.858,00 DH+`, `2.6%+`, `5+` | `+1.858,00 DH`, `+2.6%`, `+5` — signs moved inside the value (15 screens) |
+| `969222 046822 2` (barcode digits) | `2 046822 969222` |
+| `mm 25 × 40` | `40 × 25 mm` |
+| French month names in Arabic (`17 oct. 2026`) | Arabic month names with Western digits (`17 أكتوبر 2026`) |
+
+Printed documents (receipts, invoices, repair tickets, PDFs) stay in French formatting under an Arabic interface and
+have the isolate marks stripped, because the PDF font has no Arabic glyphs.
+
+## Fonts
+
+- Arabic interface: **Noto Sans Arabic** (Arabic + Latin glyphs, self-hosted with `font-display: swap`, loaded per
+  Unicode range), then Inter for any missing Latin glyph.
+- French / English: Inter, with Noto Sans Arabic as fallback so Arabic words (customer names, "العربية") use the
+  proper font.
+- Form fields inherit the page font; Arabic inputs use `unicode-bidi: plaintext` so typed emails/codes keep their order.
+- Both fonts verified loaded (`document.fonts.check`) in all three languages.
+
+## Also fixed
+
+- Login error box used physical left/right borders (now logical, flips in Arabic).
+- Two leftover French texts (reports chart tooltip "Ventes/Profit", store card "Marge").

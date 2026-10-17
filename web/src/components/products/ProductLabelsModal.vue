@@ -148,7 +148,7 @@ async function copyBarcode() {
                 @click="size = key"
               >
                 {{ t(`products.labels.sizes.${key}`) }}
-                <span class="block text-xs text-gray-500">{{ dims.width }} × {{ dims.height }} mm</span>
+                <span class="block text-xs text-gray-500">{{ $ltr(`${dims.width} × ${dims.height} mm`) }}</span>
               </button>
             </div>
           </div>

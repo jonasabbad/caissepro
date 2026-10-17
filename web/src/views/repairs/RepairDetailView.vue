@@ -410,10 +410,10 @@ async function printLabel() {
           <p class="text-xs text-gray-500 mb-4">{{ t('repairs.profit.formula') }}</p>
           <div class="space-y-2 text-sm">
             <div class="flex justify-between"><span class="text-gray-600">{{ t('repairs.profit.revenue') }}</span><span class="font-medium">{{ formatCurrency(fin.revenue) }}</span></div>
-            <div class="flex justify-between"><span class="text-gray-600">{{ t('repairs.profit.parts') }}</span><span class="text-danger-600">−{{ formatCurrency(fin.partsCost) }}</span></div>
+            <div class="flex justify-between"><span class="text-gray-600">{{ t('repairs.profit.parts') }}</span><span class="text-danger-600">{{ formatCurrency(fin.partsCost, 'DH', '−') }}</span></div>
             <div class="flex justify-between border-t border-gray-100 pt-2"><span class="text-gray-700">{{ t('repairs.profit.gross') }}</span><span class="font-medium">{{ formatCurrency(fin.grossProfit) }}</span></div>
-            <div class="flex justify-between"><span class="text-gray-600">{{ t('repairs.profit.labor') }}</span><span class="text-danger-600">−{{ formatCurrency(fin.laborCost) }}</span></div>
-            <div class="flex justify-between"><span class="text-gray-600">{{ t('repairs.profit.other') }}</span><span class="text-danger-600">−{{ formatCurrency(fin.otherCost) }}</span></div>
+            <div class="flex justify-between"><span class="text-gray-600">{{ t('repairs.profit.labor') }}</span><span class="text-danger-600">{{ formatCurrency(fin.laborCost, 'DH', '−') }}</span></div>
+            <div class="flex justify-between"><span class="text-gray-600">{{ t('repairs.profit.other') }}</span><span class="text-danger-600">{{ formatCurrency(fin.otherCost, 'DH', '−') }}</span></div>
             <div :class="['flex justify-between border-t border-gray-200 pt-2 font-bold', fin.profit >= 0 ? 'text-success-700' : 'text-danger-700']">
               <span>{{ t('repairs.profit.net') }}</span><span>{{ formatCurrency(fin.profit) }}</span>
             </div>

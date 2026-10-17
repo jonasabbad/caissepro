@@ -53,7 +53,7 @@ const inputClass =
         <BrandLogo size="lg" />
       </RouterLink>
       <div>
-        <div v-if="error" class="mb-6 rounded-r-lg border-l-4 border-red-500 bg-red-50 p-4">
+        <div v-if="error" class="mb-6 rounded-e-lg border-s-4 border-red-500 bg-red-50 p-4">
           <p class="text-sm text-red-700">{{ error }}</p>
         </div>
         <form class="space-y-5" @submit.prevent="submit">

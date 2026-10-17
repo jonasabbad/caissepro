@@ -302,16 +302,16 @@ const receiptChange = computed(() => {
           <div class="flex justify-between text-sm"><span class="text-gray-500">{{ t('pos.subtotal') }}</span><span class="font-medium">{{ formatCurrency(tx.subtotal) }}</span></div>
           <div v-if="tx.taxAmount > 0" class="flex justify-between text-sm"><span class="text-gray-500">{{ t('pos.tax') }} (20%)</span><span class="font-medium">{{ formatCurrency(tx.taxAmount) }}</span></div>
           <div v-if="Number(tx.discountAmount) > 0" class="flex justify-between text-sm">
-            <span class="text-gray-500">{{ t('pos.discount') }}</span><span class="font-medium text-danger-600">-{{ formatCurrency(tx.discountAmount) }}</span>
+            <span class="text-gray-500">{{ t('pos.discount') }}</span><span class="font-medium text-danger-600">{{ formatCurrency(tx.discountAmount, 'DH', '-') }}</span>
           </div>
           <div v-else-if="Number(tx.discountAmount) < 0" class="flex justify-between text-sm">
-            <span class="text-gray-500">{{ t('pos.supplement') }}</span><span class="font-medium text-success-600">+{{ formatCurrency(-Number(tx.discountAmount)) }}</span>
+            <span class="text-gray-500">{{ t('pos.supplement') }}</span><span class="font-medium text-success-600">{{ formatCurrency(-Number(tx.discountAmount), 'DH', '+') }}</span>
           </div>
           <div class="flex justify-between pt-2 border-t border-gray-200">
             <span class="text-lg font-bold text-gray-900">{{ t('pos.total') }}</span><span class="text-lg font-bold text-gray-900">{{ formatCurrency(tx.totalAmount) }}</span>
           </div>
           <div :class="['flex justify-between text-sm', tx.totalProfit > 0 ? 'text-success-600' : tx.totalProfit < 0 ? 'text-danger-600' : 'text-gray-500']">
-            <span>{{ t('pos.profit') }}</span><span class="font-medium">{{ tx.totalProfit > 0 ? '+' : '' }}{{ formatCurrency(tx.totalProfit) }}</span>
+            <span>{{ t('pos.profit') }}</span><span class="font-medium">{{ formatCurrency(tx.totalProfit, 'DH', tx.totalProfit > 0 ? '+' : '') }}</span>
           </div>
         </div>
       </div>

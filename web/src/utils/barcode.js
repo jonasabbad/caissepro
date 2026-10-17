@@ -1,4 +1,5 @@
 import JsBarcode from 'jsbarcode';
+import { ltr } from '@/i18n';
 
 /** EAN-13 with a valid check digit (the format of generated product codes and most retail barcodes). */
 export function isEan13(code) {
@@ -40,4 +41,4 @@ export function barcodeSvg(value, { height = 60, moduleWidth = 2 } = {}) {
 }
 
 /** Groups EAN-13 digits like the printed standard (2 000123 456789 → "2 000123 456789"); other values unchanged. */
-export const formatBarcodeText = (code) => (isEan13(code) ? `${code[0]} ${code.slice(1, 7)} ${code.slice(7)}` : String(code ?? ''));
+export const formatBarcodeText = (code) => ltr(isEan13(code) ? `${code[0]} ${code.slice(1, 7)} ${code.slice(7)}` : String(code ?? ''));

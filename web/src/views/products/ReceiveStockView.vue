@@ -171,7 +171,7 @@ const stepper = 'flex h-8 w-8 items-center justify-center rounded-lg border bord
         <li v-for="(r, i) in received" :key="i" class="flex items-center justify-between text-sm">
           <span class="text-gray-700"><CheckCircleIcon class="me-1 inline-block h-4 w-4 text-success-500" /> {{ r.name }}</span>
           <span class="text-gray-500">
-            <template v-if="r.boxes > 0">{{ r.boxes }} × {{ r.packSize }} · </template>+{{ r.units }}
+            {{ $ltr(`${r.boxes > 0 ? `${r.boxes} × ${r.packSize} · ` : ''}+${r.units}`) }}
           </span>
         </li>
       </ul>
