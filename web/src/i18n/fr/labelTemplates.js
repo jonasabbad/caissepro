@@ -91,6 +91,9 @@ export default {
       "pixel": "Google Pixel",
       "ipad": "iPad",
       "macbook": "MacBook"
-    }
+    },
+    editTemplate: "Modifier le modèle",
+    usingTemplate: "Modèle : {size} · {paper}",
+    layout: {"title":"Format et mise en page","hint":"Ces réglages sont ceux utilisés pour l’aperçu et l’impression des étiquettes (téléphones et produits).","preset":"Format","custom":"Personnalisé","width":"Largeur (mm)","height":"Hauteur (mm)","paddingX":"Marge gauche/droite (mm)","paddingY":"Marge haut/bas (mm)","fontSize":"Taille du texte (pt)","priceSize":"Taille du prix (pt)","lineSpacing":"Interligne","barcodeHeight":"Hauteur du code-barres (mm)","textPosition":"Position du texte","above":"Au-dessus du code-barres","below":"Sous le code-barres","align":"Alignement","alignStart":"Début de ligne","alignCenter":"Centré","paper":"Support","paper_roll":"Rouleau (imprimante thermique)","paper_sheet":"Planche A4","columns":"Étiquettes par rangée","rows":"Rangées par planche","gapX":"Espace horizontal (mm)","gapY":"Espace vertical (mm)","sheetMarginX":"Marge de la planche gauche/droite (mm)","sheetMarginY":"Marge de la planche haut/bas (mm)","testPrint":"Imprimer un essai","unsaved":"Modifications non enregistrées","formats":{"50x25":"50 × 25 mm","40x25":"40 × 25 mm","40x30":"40 × 30 mm","58x40":"58 × 40 mm","30x20":"30 × 20 mm","2x40x25":"2 × (40 × 25 mm) par rangée","a4-3x8":"Planche A4 · 24 étiquettes (70 × 37)","a4-4x10":"Planche A4 · 40 étiquettes (48,5 × 25,4)","a4-5x13":"Planche A4 · 65 étiquettes (38 × 21,2)"}},
   }
 };

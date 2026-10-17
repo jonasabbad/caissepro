@@ -109,6 +109,8 @@ export default {
     },
     barcodeLabel: "Étiquette code-barres",
     barcodeContent: "Contenu du code-barres",
+    printStickers: "Imprimer les étiquettes ({n})",
+    selectedCount: "{n} appareil(s) sélectionné(s)",
   },
   reservation: {
     title: 'Réservation',

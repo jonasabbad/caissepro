@@ -1,7 +1,8 @@
 import type { FastifyInstance } from 'fastify';
 import { prisma } from '../lib/prisma.js';
 import { badRequest } from '../lib/errors.js';
-import { num, r2 } from '../lib/serialize.js';
+import { num, r2, serialize } from '../lib/serialize.js';
+import { expensesWhere } from '../lib/expenses.js';
 import { authed, ok, type Req } from '../lib/route.js';
 import { endOfDay, qStr, startOfDay } from '../lib/pagination.js';
 import { customerStats } from './customers.js';
@@ -404,7 +405,29 @@ async function repairsReport(tenantId: string, p: Period, q: Record<string, stri
   };
 }
 
-const BUILDERS = { sales: salesReport, inventory: inventoryReport, customers: customersReport, suppliers: suppliersReport, repairs: repairsReport } as const;
+/** Direct expenses of the period (by expense date): totals, by category, payment method and day, and the list. */
+async function expensesReport(tenantId: string, p: Period, q: Record<string, string> = {}) {
+  const where = { ...expensesWhere(tenantId, p.from, p.to), ...(qStr(q.category) ? { category: q.category } : {}), ...(qStr(q.paymentMethod) ? { paymentMethod: q.paymentMethod } : {}) };
+  const rows = await prisma.expense.findMany({ where, orderBy: [{ date: 'desc' }, { createdAt: 'desc' }] });
+  const sum = (list: typeof rows) => r2(list.reduce((s, e) => s + num(e.amount), 0));
+  const group = (key: (e: (typeof rows)[number]) => string) => {
+    const m = new Map<string, typeof rows>();
+    for (const e of rows) m.set(key(e), [...(m.get(key(e)) ?? []), e]);
+    return [...m.entries()].map(([k, list]) => ({ key: k, count: list.length, amount: sum(list) })).sort((a, b) => b.amount - a.amount);
+  };
+  const total = sum(rows);
+  const days = Math.max(1, Math.round((p.to.getTime() - p.from.getTime()) / 86_400_000));
+  return {
+    summary: { total, count: rows.length, averagePerDay: r2(total / days), cash: sum(rows.filter((e) => e.paymentMethod === 'cash')) },
+    byCategory: group((e) => e.category),
+    byPaymentMethod: group((e) => e.paymentMethod),
+    byDay: group((e) => isoDay(e.date)).sort((a, b) => a.key.localeCompare(b.key)),
+    expenses: serialize(rows),
+    profit: await businessPnl(tenantId, p.from, p.to),
+  };
+}
+
+const BUILDERS = { sales: salesReport, inventory: inventoryReport, customers: customersReport, suppliers: suppliersReport, repairs: repairsReport, expenses: expensesReport } as const;
 type ReportType = keyof typeof BUILDERS;
 
 const csvCell = (v: unknown) => {
@@ -443,6 +466,9 @@ export default async function reportRoutes(app: FastifyInstance) {
     } else if (type === 'repairs') {
       rows.push(['Réparation', 'Client', 'Technicien', 'Statut', 'Paiement', 'Prix', 'Pièces', 'Main d’œuvre', 'Autres', 'Profit', 'Réalisée le']);
       for (const x of r.repairs) rows.push([x.repairNumber, x.customer, x.technician, x.status, x.paymentStatus, x.revenue, x.partsCost, x.laborCost, x.otherCost, x.profit, x.realizedAt?.slice(0, 10) ?? '']);
+    } else if (type === 'expenses') {
+      rows.push(['Date', 'Description', 'Catégorie', 'Paiement', 'Bénéficiaire', 'Montant']);
+      for (const x of r.expenses) rows.push([String(x.date).slice(0, 10), x.title, x.category, x.paymentMethod, x.recipient ?? '', x.amount]);
     } else {
       rows.push(['Fournisseur', 'Commandes', 'Dépensé', 'Dette'], ...r.topSuppliers.map((s: any) => [s.name, s.orders, s.spent, s.debt]));
     }

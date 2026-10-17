@@ -26,6 +26,7 @@ export default {
     kitchen: 'Cuisine',
     menu: 'Menu',
     repairs: 'Réparations',
+    expenses: "Dépenses",
   },
   auth: {
     login: 'Connexion',

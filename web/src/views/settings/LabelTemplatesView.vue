@@ -1,4 +1,5 @@
 <script setup>
+import { DEVICE_CATEGORY_SLUGS } from '@/config/categories';
 import { computed, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useQuery, useQueryClient } from '@tanstack/vue-query';
@@ -9,9 +10,8 @@ import { labelTemplatesApi, SOLD_UNITS_KEY } from '@/api/labelTemplates';
 import { useActivity } from '@/composables/useActivity';
 import { useAuthStore } from '@/stores/auth';
 import Toast from '@/components/ui/Toast.vue';
-import { currentLocale } from '@/i18n';
-import { barcodeSvg, formatBarcodeText } from '@/utils/barcode';
-import { LABEL_SIZES, labelsDocument } from '@/utils/printFrame';
+import { LABEL_PRESETS, normalizeLayout, pageOf, printLabels, sampleLabel } from '@/utils/labelRenderer';
+import LabelPreview from '@/components/ui/LabelPreview.vue';
 
 const { t } = useI18n();
 const auth = useAuthStore();
@@ -24,7 +24,7 @@ const fail = (message) => (toast.value = { show: true, message, type: 'error' })
 const storeName = computed(() => auth.storeName || t('common.myStore'));
 
 // Device categories are handled by the per-device template, not as product categories.
-const DEVICE_SLUGS = ['smartphones', 'tablettes', 'pc-portables', 'macbooks'];
+const DEVICE_SLUGS = DEVICE_CATEGORY_SLUGS;
 const { data: allCategories, isLoading, isError, refetch } = useQuery({ queryKey: ['categories'], queryFn: () => categoriesApi.getAll() });
 const categories = computed(() => (allCategories.value || []).filter((c) => !isPhoneSeller.value || !DEVICE_SLUGS.includes(c.slug || '')));
 
@@ -35,7 +35,9 @@ const fields = ref({});
 const saving = ref(false);
 const loadingTpl = ref(false);
 
+const layout = ref(normalizeLayout({}));
 function applyTemplate(tpl, isDevice) {
+  layout.value = normalizeLayout(tpl);
   fields.value = {
     includeQr: tpl.includeQr ?? true,
     includeName: tpl.includeName ?? true,
@@ -152,7 +154,7 @@ async function saveVariant() {
   } else return;
   saving.value = true;
   try {
-    const saved = await labelTemplatesApi.saveSoldUnitVariant({ brand, deviceType, ...fields.value });
+    const saved = await labelTemplatesApi.saveSoldUnitVariant({ brand, deviceType, ...config() });
     await refetchVariants();
     queryClient.invalidateQueries({ queryKey: ['label-template-variants'] });
     creatingVariant.value = false;
@@ -181,8 +183,8 @@ async function save() {
   if (isUnits.value && (creatingVariant.value || editingVariant.value)) return saveVariant();
   saving.value = true;
   try {
-    if (isUnits.value) await labelTemplatesApi.saveForSoldUnits(fields.value);
-    else await labelTemplatesApi.save({ categoryId: selected.value, ...fields.value });
+    if (isUnits.value) await labelTemplatesApi.saveForSoldUnits(config());
+    else await labelTemplatesApi.save({ categoryId: selected.value, ...config() });
     ok(t('labelTemplates.saveSuccess'));
   } catch {
     fail(t('common.error'));
@@ -215,7 +217,7 @@ async function applySelected() {
   if (!chosen.value.size) return fail(t('labelTemplates.selectAtLeastOne'));
   saving.value = true;
   try {
-    await Promise.all([...chosen.value].map((id) => labelTemplatesApi.save({ categoryId: id, ...fields.value })));
+    await Promise.all([...chosen.value].map((id) => labelTemplatesApi.save({ categoryId: id, ...config() })));
     ok(t('labelTemplates.savedToCategories', { count: chosen.value.size }));
     showApply.value = false;
     chosen.value = new Set();
@@ -228,8 +230,8 @@ async function applySelected() {
 async function applyAll() {
   saving.value = true;
   try {
-    const jobs = categories.value.map((c) => labelTemplatesApi.save({ categoryId: c.id, ...fields.value }));
-    if (isPhoneSeller.value) jobs.push(labelTemplatesApi.saveForSoldUnits(fields.value));
+    const jobs = categories.value.map((c) => labelTemplatesApi.save({ categoryId: c.id, ...config() }));
+    if (isPhoneSeller.value) jobs.push(labelTemplatesApi.saveForSoldUnits(config()));
     await Promise.all(jobs);
     ok(t('labelTemplates.savedToAll'));
     showApply.value = false;
@@ -256,33 +258,32 @@ const FIELDS = computed(() => [
   { key: 'includePrice', label: t('labelTemplates.price') },
   { key: 'includeCompany', label: t('labelTemplates.companyName') },
 ]);
-const sampleName = computed(() => (isUnits.value ? (fields.value.hideBrand ? '15 Pro Max' : 'iPhone 15 Pro Max') : 'Coque silicone'));
-const samplePrice = computed(() => (isUnits.value ? '15 500 DH' : '49 DH'));
-// Preview built with the same renderer as printing: products on compact labels, devices on standard ones.
-// The barcode is always printed (it identifies the item); QR codes are only used for repairs.
-const previewDims = computed(() => (isUnits.value ? LABEL_SIZES.standard : LABEL_SIZES.compact));
-const previewHtml = computed(() => {
-  const f = fields.value;
-  const code = isUnits.value ? '353456789012345' : '2001234567893';
-  const details = isUnits.value
-    ? [[f.includeStorage && '256 GB', f.includeColor && 'Noir'].filter(Boolean).join(' - '), f.includeCondition && t('soldUnits.conditions.new'), f.includeBatteryHealth && '100%'].filter(Boolean).join(' · ')
-    : '';
-  return labelsDocument(
-    [
-      {
-        lines: [
-          f.includeName && { text: sampleName.value, size: isUnits.value ? 8.5 : 7.5, bold: isUnits.value },
-          details && { text: details, size: 7, bold: false },
-          f.includePrice && { text: samplePrice.value, size: isUnits.value ? 9.5 : 10 },
-        ],
-        barcodeSvg: barcodeSvg(code),
-        barcodeText: !isUnits.value || f.includeImei ? formatBarcodeText(code) : '',
-        footer: f.includeCompany ? storeName.value : '',
-      },
-    ],
-    { ...previewDims.value, lang: currentLocale() },
-  );
+// What is saved: the include/hide switches plus the layout. The preview and printing read the same values.
+const config = () => ({ ...fields.value, ...layout.value });
+const sample = computed(() => sampleLabel(isUnits.value, fields.value, storeName.value));
+const page = computed(() => pageOf(layout.value));
+const presetKey = computed(() => {
+  const l = layout.value;
+  const p = LABEL_PRESETS.find((x) => x.width === l.width && x.height === l.height && x.paper === l.paper && (x.columns ?? 1) === l.columns);
+  return p ? p.key : 'custom';
 });
+function applyPreset(key) {
+  const p = LABEL_PRESETS.find((x) => x.key === key);
+  if (!p) return;
+  const { key: _k, ...values } = p;
+  layout.value = normalizeLayout({ ...layout.value, rows: 1, gapX: 2, gapY: 2, ...values });
+}
+// An emptied number field keeps the previous value instead of falling back to the default.
+const setLayout = (k, v) => {
+  if (typeof v === 'number' && !Number.isFinite(v)) return;
+  layout.value = normalizeLayout({ ...layout.value, [k]: v });
+};
+const testPrint = () => printLabels([{ layout: layout.value, labels: Array(page.value.perPage).fill(sample.value) }], { title: t('labelTemplates.layout.testPrint') });
+const NUMBER_FIELDS = [
+  ['width', 0.5], ['height', 0.5], ['paddingX', 0.5], ['paddingY', 0.5], ['fontSize', 0.5], ['priceSize', 0.5], ['lineSpacing', 0.05], ['barcodeHeight', 0.5],
+];
+const SHEET_FIELDS = [['columns', 1], ['rows', 1], ['gapX', 0.5], ['gapY', 0.5], ['sheetMarginX', 0.5], ['sheetMarginY', 0.5]];
+const ROLL_FIELDS = [['columns', 1], ['gapX', 0.5]];
 
 watch(
   categories,
@@ -489,17 +490,60 @@ watch(
             </div>
           </div>
 
+          <div class="card space-y-4 p-6">
+            <div>
+              <h3 class="font-semibold text-gray-900">{{ t('labelTemplates.layout.title') }}</h3>
+              <p class="text-xs text-gray-500">{{ t('labelTemplates.layout.hint') }}</p>
+            </div>
+            <div>
+              <label class="label" for="lt-preset">{{ t('labelTemplates.layout.preset') }}</label>
+              <select id="lt-preset" class="input" :value="presetKey" @change="applyPreset($event.target.value)">
+                <option v-for="p in LABEL_PRESETS" :key="p.key" :value="p.key">{{ t(`labelTemplates.layout.formats.${p.key}`) }}</option>
+                <option value="custom" disabled>{{ t('labelTemplates.layout.custom') }}</option>
+              </select>
+            </div>
+            <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <div v-for="[k, step] in NUMBER_FIELDS" :key="k">
+                <label class="label text-xs" :for="`lt-${k}`">{{ t(`labelTemplates.layout.${k}`) }}</label>
+                <input :id="`lt-${k}`" type="number" :step="step" min="0" class="input py-1.5 text-sm" :value="layout[k]" @change="setLayout(k, $event.target.valueAsNumber)" />
+              </div>
+            </div>
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div>
+                <label class="label text-xs" for="lt-textPosition">{{ t('labelTemplates.layout.textPosition') }}</label>
+                <select id="lt-textPosition" class="input py-1.5 text-sm" :value="layout.textPosition" @change="setLayout('textPosition', $event.target.value)">
+                  <option value="above">{{ t('labelTemplates.layout.above') }}</option>
+                  <option value="below">{{ t('labelTemplates.layout.below') }}</option>
+                </select>
+              </div>
+              <div>
+                <label class="label text-xs" for="lt-align">{{ t('labelTemplates.layout.align') }}</label>
+                <select id="lt-align" class="input py-1.5 text-sm" :value="layout.align" @change="setLayout('align', $event.target.value)">
+                  <option value="start">{{ t('labelTemplates.layout.alignStart') }}</option>
+                  <option value="center">{{ t('labelTemplates.layout.alignCenter') }}</option>
+                </select>
+              </div>
+              <div>
+                <label class="label text-xs" for="lt-paper">{{ t('labelTemplates.layout.paper') }}</label>
+                <select id="lt-paper" class="input py-1.5 text-sm" :value="layout.paper" @change="setLayout('paper', $event.target.value)">
+                  <option value="roll">{{ t('labelTemplates.layout.paper_roll') }}</option>
+                  <option value="sheet">{{ t('labelTemplates.layout.paper_sheet') }}</option>
+                </select>
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              <div v-for="[k, step] in layout.paper === 'sheet' ? SHEET_FIELDS : ROLL_FIELDS" :key="k">
+                <label class="label text-xs" :for="`lt-${k}`">{{ t(`labelTemplates.layout.${k}`) }}</label>
+                <input :id="`lt-${k}`" type="number" :step="step" min="0" class="input py-1.5 text-sm" :value="layout[k]" @change="setLayout(k, $event.target.valueAsNumber)" />
+              </div>
+            </div>
+          </div>
+
           <div class="card p-6">
             <h3 class="font-semibold text-gray-900 mb-1">{{ t('labelTemplates.livePreview') }}</h3>
-            <p class="text-xs text-gray-500 mb-4">{{ t('labelTemplates.previewNote', { size: $ltr(`${previewDims.width} × ${previewDims.height} mm`) }) }}</p>
-            <div class="flex justify-center overflow-hidden rounded bg-gray-100 py-2" :style="{ height: `calc(${previewDims.height}mm * 2 + 16px)` }">
-              <iframe
-                :srcdoc="previewHtml"
-                :title="t('labelTemplates.livePreview')"
-                class="box-content border-2 border-dashed border-gray-300 bg-white"
-                :style="{ width: `${previewDims.width}mm`, height: `${previewDims.height}mm`, transform: 'scale(2)', transformOrigin: 'top center' }"
-              />
-            </div>
+            <p class="text-xs text-gray-500 mb-4">{{ t('labelTemplates.previewNote', { size: $ltr(`${layout.width} × ${layout.height} mm`) }) }} · {{ t(`labelTemplates.layout.paper_${layout.paper}`) }}</p>
+            <LabelPreview :layout="layout" :labels="[sample]" :max-height="layout.paper === 'sheet' ? 420 : 220" :title="t('labelTemplates.livePreview')" />
+            <button type="button" class="btn-secondary btn-sm mt-3" @click="testPrint">{{ t('labelTemplates.layout.testPrint') }}</button>
           </div>
         </template>
       </div>

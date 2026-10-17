@@ -1,4 +1,6 @@
 <script setup>
+import { hasManagerRole } from '@/utils/format';
+import { useAuthStore } from '@/stores/auth';
 import { intlLocale } from '@/i18n';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -28,6 +30,7 @@ import KpiCard from '@/components/dashboard/KpiCard.vue';
 import SalesChart from '@/components/dashboard/SalesChart.vue';
 
 const { t } = useI18n();
+const canManageExpenses = computed(() => hasManagerRole(useAuthStore().currentUser?.roles));
 const { hasWidget, productsLabelKey } = useActivity();
 const subscription = useSubscriptionStore();
 
@@ -197,7 +200,11 @@ const PRESETS = computed(() => [
         <div class="rounded-lg bg-gray-50 p-3">
           <p class="text-gray-500">{{ t('dashboard.directExpenses') }}</p>
           <p class="text-lg font-bold text-gray-900">{{ formatCurrency(pnl.totals.directExpenses, 'DH', '−') }}</p>
-          <p class="text-xs text-gray-500">{{ t('dashboard.directExpensesHint') }}</p>
+          <p class="text-xs text-gray-500">{{ t('expenses.businessExpenses') }} {{ formatCurrency(pnl.totals.businessExpenses ?? 0) }} · {{ t('expenses.repairCosts') }} {{ formatCurrency(pnl.totals.repairDirectCosts ?? pnl.totals.directExpenses) }}</p>
+          <div v-if="canManageExpenses" class="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs font-medium">
+            <RouterLink :to="{ name: 'expenses', query: { new: 1 } }" class="text-primary-600 hover:underline">+ {{ t('expenses.add') }}</RouterLink>
+            <RouterLink :to="{ name: 'expenses' }" class="text-gray-600 hover:underline">{{ t('expenses.manage') }}</RouterLink>
+          </div>
         </div>
         <div :class="['rounded-lg p-3 col-span-2 md:col-span-1', pnl.totals.netProfit >= 0 ? 'bg-success-50' : 'bg-danger-50']">
           <p class="text-gray-500">{{ t('dashboard.netProfit') }}</p>

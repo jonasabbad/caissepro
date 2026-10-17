@@ -25,6 +25,9 @@ import { repairsApi } from '@/api/repairs';
 import { formatCurrency } from '@/utils/format';
 import { conditionBadge, isComputerUnit } from '@/utils/soldUnitDisplay';
 import UnitLabelModal from '@/components/sold-units/UnitLabelModal.vue';
+import { labelTemplatesApi } from '@/api/labelTemplates';
+import { settingsApi } from '@/api/misc';
+import { deviceLabel, layoutKey, normalizeLayout, printLabels } from '@/utils/labelRenderer';
 import BarcodeIcon from '@/components/ui/BarcodeIcon.vue';
 import DateRangePicker from '@/components/ui/DateRangePicker.vue';
 import Toast from '@/components/ui/Toast.vue';
@@ -165,6 +168,39 @@ const CONDITIONS = computed(() => [
   { value: 'grade_c', label: t('soldUnits.conditions.gradeC') },
 ]);
 
+// ── Bulk stickers: each device uses its template (brand / type variant or default) from Settings ──
+const selectedUnits = ref(new Map());
+const toggleUnit = (u) => (selectedUnits.value.has(u.id) ? selectedUnits.value.delete(u.id) : selectedUnits.value.set(u.id, u));
+const allUnitsSelected = computed(() => units.value.length > 0 && units.value.every((u) => selectedUnits.value.has(u.id)));
+function toggleAllUnits() {
+  const all = allUnitsSelected.value;
+  for (const u of units.value) all ? selectedUnits.value.delete(u.id) : selectedUnits.value.set(u.id, u);
+}
+const printingStickers = ref(false);
+async function printStickers() {
+  printingStickers.value = true;
+  try {
+    const settings = await settingsApi.getTenantSettings().catch(() => null);
+    const ctx = { storeName: settings?.storeName || settings?.tenantName || '', printing: settings?.printing || {} };
+    const cache = new Map();
+    const groups = new Map();
+    for (const u of selectedUnits.value.values()) {
+      const k = `${(u.brand || '').toLowerCase()}|${u.deviceType || ''}`;
+      if (!cache.has(k)) cache.set(k, await labelTemplatesApi.getForSoldUnit(u.brand, u.deviceType));
+      const tpl = cache.get(k);
+      const layout = normalizeLayout(tpl);
+      const key = layoutKey(layout);
+      if (!groups.has(key)) groups.set(key, { layout, labels: [] });
+      groups.get(key).labels.push(deviceLabel(u, tpl, ctx));
+    }
+    if (groups.size) printLabels([...groups.values()], { title: t('soldUnits.printLabel') });
+  } catch {
+    toast.value = { show: true, message: t('common.genericError'), type: 'error' };
+  } finally {
+    printingStickers.value = false;
+  }
+}
+
 function openLabel(u) {
   labelUnit.value = u;
   labelOpen.value = true;
@@ -260,13 +296,20 @@ const th = 'px-4 py-3 text-start text-xs font-medium uppercase text-gray-500';
     </div>
 
     <div class="card overflow-hidden">
-      <div class="border-b border-gray-100 px-4 py-3">
-        <p class="text-sm text-gray-500">{{ total }} {{ t('common.units') }}</p>
+      <div class="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 px-4 py-3">
+        <p class="text-sm text-gray-500">{{ selectedUnits.size ? t('soldUnits.selectedCount', { n: selectedUnits.size }) : `${total} ${t('common.units')}` }}</p>
+        <div v-if="selectedUnits.size" class="flex items-center gap-2">
+          <button class="rounded px-2 py-1 text-sm text-gray-600 hover:bg-gray-100" @click="selectedUnits.clear()">{{ t('common.cancel') }}</button>
+          <button class="btn-primary btn-sm inline-flex items-center gap-1.5" :disabled="printingStickers" @click="printStickers">
+            <BarcodeIcon class="h-4 w-4" /> {{ t('soldUnits.printStickers', { n: selectedUnits.size }) }}
+          </button>
+        </div>
       </div>
       <div class="overflow-x-auto">
         <table class="w-full">
           <thead class="border-b border-gray-200 bg-gray-50">
             <tr>
+              <th class="w-10 px-4 py-3"><input type="checkbox" class="rounded" :checked="allUnitsSelected" :aria-label="t('products.labels.selectAll')" @change="toggleAllUnits" /></th>
               <th :class="th">{{ t('soldUnits.device') }}</th>
               <th :class="th">{{ t('soldUnits.imeiSerial') }}</th>
               <th :class="th">{{ t('soldUnits.condition') }}</th>
@@ -279,9 +322,10 @@ const th = 'px-4 py-3 text-start text-xs font-medium uppercase text-gray-500';
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-200">
-            <tr v-if="isLoading"><td colspan="9" class="px-4 py-8 text-center text-gray-500">{{ t('common.loading') }}</td></tr>
-            <tr v-else-if="units.length === 0"><td colspan="9" class="px-4 py-8 text-center text-gray-500">{{ t('soldUnits.noUnits') }}</td></tr>
+            <tr v-if="isLoading"><td colspan="10" class="px-4 py-8 text-center text-gray-500">{{ t('common.loading') }}</td></tr>
+            <tr v-else-if="units.length === 0"><td colspan="10" class="px-4 py-8 text-center text-gray-500">{{ t('soldUnits.noUnits') }}</td></tr>
             <tr v-for="u in units" :key="u.id" class="hover:bg-gray-50">
+              <td class="px-4 py-3"><input type="checkbox" class="rounded" :checked="selectedUnits.has(u.id)" :aria-label="t('products.labels.select')" @change="toggleUnit(u)" /></td>
               <td class="px-4 py-3">
                 <div class="flex items-center gap-3">
                   <div :class="['rounded-lg p-2', iconTile(u)]">

@@ -26,6 +26,7 @@ export default {
     kitchen: 'المطبخ',
     menu: 'القائمة',
     repairs: 'الإصلاحات',
+    expenses: "المصاريف",
   },
   auth: {
     login: 'تسجيل الدخول',

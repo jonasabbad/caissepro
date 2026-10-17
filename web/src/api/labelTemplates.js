@@ -61,16 +61,14 @@ async function fetchTemplate(key, defaults) {
   }
 }
 
+/** Saves on the server (errors are reported to the caller); the local copy is only updated once saved. */
 async function saveTemplate(key, tpl) {
   const value = { ...tpl, categoryId: key };
-  cache.set(key, value);
+  const { data } = await http.put(`/label-templates/${encodeURIComponent(key)}`, value);
+  const saved = data.data.template || data.data;
+  cache.set(key, saved);
   persist();
-  try {
-    const { data } = await http.put(`/label-templates/${encodeURIComponent(key)}`, value);
-    return data.data.template || data.data;
-  } catch {
-    return value;
-  }
+  return saved;
 }
 
 export const labelTemplatesApi = {

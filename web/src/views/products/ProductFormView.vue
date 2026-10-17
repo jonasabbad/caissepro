@@ -1,4 +1,5 @@
 <script setup>
+import { DEVICE_CATEGORY_SLUGS } from '@/config/categories';
 import { computed, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
@@ -6,8 +7,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { ArrowLeftIcon } from '@heroicons/vue/24/outline';
 import { productsApi, categoriesApi, accessoryCatalogApi } from '@/api/products';
 import { useActivity } from '@/composables/useActivity';
-import { formatCurrency } from '@/utils/format';
 import Toast from '@/components/ui/Toast.vue';
+import { useAuthStore } from '@/stores/auth';
+import { formatCurrency, hasManagerRole } from '@/utils/format';
 import ProductImageInput from '@/components/products/ProductImageInput.vue';
 
 const { t } = useI18n();
@@ -15,6 +17,7 @@ const route = useRoute();
 const router = useRouter();
 const queryClient = useQueryClient();
 const { activityType } = useActivity();
+const auth = useAuthStore();
 
 const showVariants = computed(() => activityType.value !== 'phone_seller');
 const isClothing = computed(() => activityType.value === 'clothing');
@@ -70,7 +73,28 @@ const { data: product, isLoading } = useQuery({
   enabled: isEdit,
 });
 const { data: categories } = useQuery({ queryKey: ['categories'], queryFn: () => categoriesApi.getAll() });
-const PHONE_CATEGORY_SLUGS = ['smartphones', 'tablettes', 'pc-portables', 'macbooks'];
+// Quick "New category": created in the database, added to every category list and selected here.
+const canManageCategories = computed(() => hasManagerRole(auth.currentUser?.roles));
+const newCategory = ref(null);
+const creatingCategory = ref(false);
+const categoryError = ref('');
+async function createCategory() {
+  const name = (newCategory.value || '').trim();
+  categoryError.value = '';
+  if (!name) return (categoryError.value = t('validation.required'));
+  creatingCategory.value = true;
+  try {
+    const c = await categoriesApi.create({ name });
+    await queryClient.invalidateQueries({ queryKey: ['categories'] });
+    form.value.categoryId = c.id;
+    newCategory.value = null;
+  } catch (e) {
+    categoryError.value = e.response?.data?.message || t('common.genericError');
+  } finally {
+    creatingCategory.value = false;
+  }
+}
+const PHONE_CATEGORY_SLUGS = DEVICE_CATEGORY_SLUGS;
 const visibleCategories = computed(() => {
   if (!categories.value) return [];
   return activityType.value === 'phone_seller' ? categories.value.filter((c) => !PHONE_CATEGORY_SLUGS.includes(c.slug || '')) : categories.value;
@@ -303,6 +327,15 @@ const chip = (active) =>
                 <option v-for="c in visibleCategories" :key="c.id" :value="c.id">{{ c.name }}</option>
               </select>
               <p v-if="errors.categoryId" class="mt-1 text-sm text-danger-600">{{ errors.categoryId }}</p>
+              <div v-if="canManageCategories" class="mt-1">
+                <div v-if="newCategory !== null" class="flex items-center gap-2">
+                  <input v-model="newCategory" type="text" maxlength="80" class="input py-1.5 text-sm" :placeholder="t('categoryAdmin.namePlaceholder')" :aria-label="t('categoryAdmin.name')" @keydown.enter.prevent="createCategory" />
+                  <button type="button" class="btn-primary btn-sm" :disabled="creatingCategory" @click="createCategory">{{ t('common.add') }}</button>
+                  <button type="button" class="btn-secondary btn-sm" @click="newCategory = null">{{ t('common.cancel') }}</button>
+                </div>
+                <button v-else type="button" class="text-sm font-medium text-primary-600 hover:underline" @click="newCategory = ''">+ {{ t('categoryAdmin.quickAdd') }}</button>
+                <p v-if="categoryError" class="mt-1 text-sm text-danger-600">{{ categoryError }}</p>
+              </div>
             </div>
             <ProductImageInput v-model="form.imageUrl" :name="form.name" />
             <p v-if="hasMatrix" class="text-sm text-gray-500">{{ t('products.variantBarcodeHint') }}</p>

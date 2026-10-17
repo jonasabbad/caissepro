@@ -62,7 +62,7 @@ describe('repair accounting', () => {
     expect(k.realProfit.total).toBe(370);
     expect(k.repairs).toEqual(expect.objectContaining({ revenue: 900, profit: 330, count: 1 }));
     expect(k.dailySales.total).toBe(50); // sales KPI stays sales-only: repair revenue is not mixed into it
-    expect(k.profitBreakdown.totals).toEqual({ revenue: 950, cogs: 360, grossProfit: 590, directExpenses: 220, netProfit: 370, margin: 38.95 });
+    expect(k.profitBreakdown.totals).toEqual({ revenue: 950, cogs: 360, grossProfit: 590, directExpenses: 220, repairDirectCosts: 220, businessExpenses: 0, netProfit: 370, margin: 38.95 });
     const trend = (await api.get('/dashboard/sales-trend?days=7')).body.data.trend.at(-1);
     expect([trend.sales, trend.repairRevenue, trend.repairProfit, trend.profit]).toEqual([50, 900, 330, 370]);
 

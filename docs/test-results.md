@@ -182,3 +182,71 @@ have the isolate marks stripped, because the PDF font has no Arabic glyphs.
 
 - Login error box used physical left/right borders (now logical, flips in Arabic).
 - Two leftover French texts (reports chart tooltip "Ventes/Profit", store card "Marge").
+
+---
+
+# Direct expenses, phone sticker templates, product categories — test results
+
+Tested on 2026-10-17: 56 server tests pass (new: `expenses.test.ts`, 4 tests), web build passes, translations complete
+(FR/EN/AR, 96 API messages covered), and the flows below were run in the local app in English.
+
+## Direct expenses
+
+Before: the dashboard's "Direct expenses" only held repair technician/other costs and there was no way to record
+business expenses. Now: an **Expenses** page (sidebar, and "+ Add expense" / "Manage expenses" on the dashboard's
+profit card), managers only.
+
+| Check (UI) | Result |
+|---|---|
+| Empty form / negative amount | "The description is required", "Enter an amount greater than 0" |
+| Add 120.50 cash (dashboard link) | Business expenses +120.50, direct expenses +120.50, net profit −120.50, cash drawer −120.50 |
+| Edit to 150 by card | Business expenses 180 (30 + 150); drawer back to its starting balance (cash reversed, card does not touch it) |
+| Same description/amount/day again | "Duplicate expense?" warning, nothing saved unless confirmed |
+| Search "water", category "Rent" | Matching rows only / empty state |
+| Delete the card expense | Business expenses back to 30, net profit restored, drawer unchanged; record kept (soft delete) |
+| Reports → Expenses (month) | Total, count, average per day, cash part, by category, by method, list, profit statement, PDF and CSV |
+
+Server tests also cover: re-sent form (same idempotency key) creates one expense; drawer history shows each
+movement and reversal; cashiers get 403; pagination and date filters.
+
+## Phone stickers use the Label Templates settings
+
+Before: the template stored a size but printing ignored it (fixed 50 × 25 mm), and product labels had their own size
+picker. Now one renderer (`web/src/utils/labelRenderer.js`) is used by the Settings preview, the phone sticker dialog,
+bulk phone stickers and product labels, reading the saved template: width/height, margins, text and price sizes,
+line spacing, barcode height, text above/below the barcode, alignment, roll or A4 sheet, labels per row, rows, gaps,
+sheet margins; plus the existing field switches. The server returns every template complete (defaults filled in).
+
+| Check | Result |
+|---|---|
+| Settings → Phones: format "2 × 40 × 25", text 9 pt, Save | Saved: 40 × 25, 2 per row, gap 2, 9 pt (read back from the API) |
+| Phone sticker dialog | "Template: 40 × 25 mm · Roll"; preview page 82 × 25 mm, grid 2 × 40 mm, 9 pt |
+| Print 3 copies (output captured) | Same page/grid/fonts as the preview; 3 labels on 2 rows |
+| Template set to A4 sheet 3 × 8 (70 × 37), bulk print 2 phones | One 210 × 297 mm page, 3-column grid of 70 × 37 mm, both phones |
+| Settings preview | Shows the whole A4 sheet / roll row exactly as printed |
+
+Your phone template was put back to 50 × 25 mm roll after the test.
+
+## Product categories
+
+Categories → "Add category". Built-in categories are shared and cannot be renamed or deleted (they can be hidden when
+unused); categories you create belong to your business.
+
+| Check (UI) | Result |
+|---|---|
+| Create "TEST Smartwatches"; create "test SMARTWATCHES" | Created; second refused: The category "TEST Smartwatches" already exists |
+| Product form | New category in the dropdown; "+ New category" created "TEST Quick Cat" and selected it |
+| Product in the new category | Shown by the Products category filter and as a POS chip ("TEST Smartwatches 1") with its card |
+| Label templates | The new category appears there too |
+| Delete "TEST Smartwatches" (1 product) | Refused without a target; "Move and delete" moved the product to "TEST Quick Cat", then deleted |
+
+Server tests also cover: other businesses cannot see or use your categories; renames show on products; sales history
+of moved products is kept.
+
+## Not verified / limitations
+
+- The printer itself: the print documents were captured and checked, not printed on a physical label printer.
+- Receipt attachments were tested on the server (image/PDF validation) but not through the file dialog.
+- Product labels now follow each category's template size; the size picker they had is gone (set the size per
+  category in Settings → Label templates).
+- Test data left: expense "water" (yours, 30 DH) untouched; TEST category "TEST Quick Cat" with product "TEST Watch Band".

@@ -21,6 +21,7 @@ import {
   TruckIcon,
   UsersIcon,
   WrenchScrewdriverIcon,
+  ReceiptPercentIcon,
 } from '@heroicons/vue/24/outline';
 import { http } from '@/api/http';
 import { reservationRefundsApi } from '@/api/reservations';
@@ -45,6 +46,7 @@ const TABS = computed(() => [
   { id: 'customers', icon: UsersIcon, label: 'reports.customers' },
   { id: 'suppliers', icon: TruckIcon, label: 'reports.suppliers' },
   { id: 'repairs', icon: WrenchScrewdriverIcon, label: 'reports.repairs' },
+  { id: 'expenses', icon: ReceiptPercentIcon, label: 'expenses.title' },
 ]);
 // Repairs tab filters.
 const repairFilters = ref({ repairerId: '', status: '', paymentStatus: '' });
@@ -62,6 +64,8 @@ const inventory = computed(() => (tab.value === 'inventory' ? report.value : nul
 const customers = computed(() => (tab.value === 'customers' ? report.value : null));
 const suppliers = computed(() => (tab.value === 'suppliers' ? report.value : null));
 const repairsReport = computed(() => (tab.value === 'repairs' ? report.value : null));
+const expensesReport = computed(() => (tab.value === 'expenses' ? report.value : null));
+const expMax = computed(() => Math.max(1, ...(expensesReport.value?.byCategory || []).map((c) => c.amount)));
 const REPAIR_STATUSES = ['pending', 'in_progress', 'completed', 'delivered', 'cancelled'];
 const PAYMENT_STATUSES = ['unpaid', 'partial', 'paid'];
 const PAY_BADGE = { unpaid: 'bg-red-100 text-red-700', partial: 'bg-amber-100 text-amber-700', paid: 'bg-emerald-100 text-emerald-700' };
@@ -224,6 +228,22 @@ async function exportPdf() {
           ? [t('reports.customer'), t('reports.purchases'), t('reports.tradeIns'), t('reports.returns'), t('reports.totalSpent')]
           : [t('reports.customer'), t('reports.purchases'), t('reports.returns'), t('reports.totalSpent')],
         rows: r.topCustomers.map((c) => (isPhoneSeller.value ? [c.name, String(c.purchases), String(c.exchanges || 0), String(c.returns || 0), dh(c.spent)] : [c.name, String(c.purchases), String(c.returns || 0), dh(c.spent)])),
+      });
+  } else if (tab.value === 'expenses') {
+    doc.title = t('expenses.report');
+    doc.summary = [
+      { label: t('expenses.total'), value: dh(r.summary.total) },
+      { label: t('expenses.count', { n: r.summary.count }), value: String(r.summary.count) },
+      { label: t('expenses.perDay'), value: dh(r.summary.averagePerDay) },
+      { label: t('expenses.cashOut'), value: dh(r.summary.cash) },
+    ];
+    if (r.byCategory?.length)
+      doc.tables.push({ title: t('expenses.byCategory'), headers: [t('expenses.fields.category'), t('reports.amount')], rows: r.byCategory.map((c) => [t(`expenses.categories.${c.key}`), dh(c.amount)]) });
+    if (r.expenses?.length)
+      doc.tables.push({
+        title: t('expenses.title'),
+        headers: [t('expenses.fields.date'), t('expenses.fields.title'), t('expenses.fields.category'), t('expenses.fields.paymentMethod'), t('reports.amount')],
+        rows: r.expenses.map((e) => [shortDate(e.date), e.title, t(`expenses.categories.${e.category}`), t(`expenses.methods.${e.paymentMethod}`), dh(e.amount)]),
       });
   } else if (tab.value === 'repairs') {
     doc.title = t('reports.repairsTitle');
@@ -1043,6 +1063,69 @@ async function exportPdf() {
           </table>
         </div>
         <div v-else class="p-8 text-center text-gray-400">{{ t('reports.noData') }}</div>
+      </div>
+    </template>
+
+    <template v-else-if="expensesReport">
+      <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <div class="card p-4"><p class="text-sm text-gray-500">{{ t('expenses.total') }}</p><p class="mt-1 text-2xl font-bold text-gray-900">{{ formatCurrency(expensesReport.summary.total) }}</p></div>
+        <div class="card p-4"><p class="text-sm text-gray-500">{{ t('expenses.count', { n: expensesReport.summary.count }) }}</p><p class="mt-1 text-2xl font-bold text-gray-900">{{ expensesReport.summary.count }}</p></div>
+        <div class="card p-4"><p class="text-sm text-gray-500">{{ t('expenses.perDay') }}</p><p class="mt-1 text-2xl font-bold text-gray-900">{{ formatCurrency(expensesReport.summary.averagePerDay) }}</p></div>
+        <div class="card p-4"><p class="text-sm text-gray-500">{{ t('expenses.cashOut') }}</p><p class="mt-1 text-2xl font-bold text-gray-900">{{ formatCurrency(expensesReport.summary.cash) }}</p></div>
+      </div>
+      <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <div class="card p-5">
+          <h3 class="mb-4 font-semibold text-gray-900">{{ t('expenses.byCategory') }}</h3>
+          <div v-if="expensesReport.byCategory.length" class="space-y-3">
+            <div v-for="c in expensesReport.byCategory" :key="c.key">
+              <div class="mb-1 flex justify-between text-sm"><span class="text-gray-700">{{ t(`expenses.categories.${c.key}`) }} <span class="text-gray-400">({{ c.count }})</span></span><span class="font-medium">{{ formatCurrency(c.amount) }}</span></div>
+              <div class="h-2 overflow-hidden rounded-full bg-gray-100"><div class="h-full rounded-full bg-gray-900" :style="{ width: `${(c.amount / expMax) * 100}%` }" /></div>
+            </div>
+          </div>
+          <p v-else class="py-6 text-center text-gray-400">{{ t('reports.noData') }}</p>
+        </div>
+        <div class="card p-5">
+          <h3 class="mb-4 font-semibold text-gray-900">{{ t('reports.profitStatement') }}</h3>
+          <table class="w-full text-sm">
+            <tbody class="divide-y divide-gray-100">
+              <tr><td class="py-2 text-gray-600">{{ t('dashboard.revenue') }}</td><td class="py-2 text-end">{{ formatCurrency(expensesReport.profit.totals.revenue) }}</td></tr>
+              <tr><td class="py-2 text-gray-600">{{ t('dashboard.grossProfit') }}</td><td class="py-2 text-end">{{ formatCurrency(expensesReport.profit.totals.grossProfit) }}</td></tr>
+              <tr><td class="py-2 text-gray-600">{{ t('expenses.repairCosts') }}</td><td class="py-2 text-end text-danger-600">{{ formatCurrency(expensesReport.profit.totals.repairDirectCosts, 'DH', '−') }}</td></tr>
+              <tr><td class="py-2 text-gray-600">{{ t('expenses.businessExpenses') }}</td><td class="py-2 text-end text-danger-600">{{ formatCurrency(expensesReport.profit.totals.businessExpenses, 'DH', '−') }}</td></tr>
+              <tr class="font-semibold"><td class="py-2">{{ t('dashboard.netProfit') }}</td><td class="py-2 text-end">{{ formatCurrency(expensesReport.profit.totals.netProfit) }}</td></tr>
+            </tbody>
+          </table>
+          <p class="mt-3 text-xs text-gray-500">{{ t('expenses.byMethod') }}:
+            <span v-for="(m, i) in expensesReport.byPaymentMethod" :key="m.key">{{ i ? ' · ' : '' }}{{ t(`expenses.methods.${m.key}`) }} {{ formatCurrency(m.amount) }}</span>
+          </p>
+        </div>
+      </div>
+      <div class="card overflow-hidden">
+        <div class="flex items-center justify-between border-b border-gray-100 p-4">
+          <h3 class="font-semibold text-gray-900">{{ t('expenses.title') }}</h3>
+          <RouterLink :to="{ name: 'expenses' }" class="text-sm font-medium text-primary-600 hover:underline">{{ t('expenses.manage') }}</RouterLink>
+        </div>
+        <div v-if="expensesReport.expenses.length" class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead class="bg-gray-50"><tr>
+              <th class="px-4 py-3 text-start font-medium text-gray-500">{{ t('expenses.fields.date') }}</th>
+              <th class="px-4 py-3 text-start font-medium text-gray-500">{{ t('expenses.fields.title') }}</th>
+              <th class="px-4 py-3 text-start font-medium text-gray-500">{{ t('expenses.fields.category') }}</th>
+              <th class="px-4 py-3 text-start font-medium text-gray-500">{{ t('expenses.fields.paymentMethod') }}</th>
+              <th class="px-4 py-3 text-end font-medium text-gray-500">{{ t('reports.amount') }}</th>
+            </tr></thead>
+            <tbody class="divide-y divide-gray-100">
+              <tr v-for="e in expensesReport.expenses" :key="e.id">
+                <td class="whitespace-nowrap px-4 py-3 text-gray-600">{{ shortDate(e.date) }}</td>
+                <td class="px-4 py-3">{{ e.title }}<span v-if="e.recipient" class="block text-xs text-gray-500">{{ e.recipient }}</span></td>
+                <td class="px-4 py-3">{{ t(`expenses.categories.${e.category}`) }}</td>
+                <td class="px-4 py-3">{{ t(`expenses.methods.${e.paymentMethod}`) }}</td>
+                <td class="whitespace-nowrap px-4 py-3 text-end font-medium">{{ formatCurrency(e.amount) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div v-else class="p-8 text-center text-gray-400">{{ t('expenses.empty') }}</div>
       </div>
     </template>
 

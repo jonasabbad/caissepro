@@ -61,9 +61,10 @@ export const productsApi = {
 };
 
 export const categoriesApi = {
-  async getAll() {
+  /** Categories this business can use (built-in + its own). `all` also returns hidden built-ins. */
+  async getAll({ all = false } = {}) {
     try {
-      const { data } = await http.get('/categories');
+      const { data } = await http.get('/categories', { params: all ? { all: 1 } : {} });
       return data.data.categories;
     } catch (e) {
       if (e.response?.status === 404) return [];
@@ -73,6 +74,23 @@ export const categoriesApi = {
   async getById(id) {
     const { data } = await http.get(`/categories/${id}`);
     return data.data.category;
+  },
+  async create(payload) {
+    const { data } = await http.post('/categories', payload);
+    return data.data.category;
+  },
+  async update(id, payload) {
+    const { data } = await http.put(`/categories/${id}`, payload);
+    return data.data.category;
+  },
+  /** Refused (409) while products use it, unless `reassignTo` names the category that receives them. */
+  async remove(id, reassignTo) {
+    const { data } = await http.delete(`/categories/${id}`, { params: reassignTo ? { reassignTo } : {} });
+    return data.data;
+  },
+  async setHidden(id, hidden) {
+    const { data } = await http.patch(`/categories/${id}/visibility`, { hidden });
+    return data.data;
   },
 };
 

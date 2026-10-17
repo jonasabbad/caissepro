@@ -10,6 +10,7 @@ import { moveStock, stockStatus } from '../lib/stock.js';
 import { resolveStoreId } from '../lib/tenant.js';
 import { isAllowedImageUrl, removeUpload } from '../lib/uploads.js';
 import { generateProductBarcode } from '../lib/codes.js';
+import { assertCategoryUsable } from './categories.js';
 
 const money = z.coerce.number().min(0);
 const optMoney = z.union([z.coerce.number().min(0), z.null()]).optional();
@@ -50,6 +51,7 @@ function checkImage(tenantId: string, url: string | null | undefined) {
 async function createProduct(tx: Prisma.TransactionClient, tenantId: string, storeId: string | null, userId: string, input: ProductInput) {
   checkImage(tenantId, input.imageUrl);
   await assertUniqueBarcode(tenantId, input.barcode, undefined, tx);
+  await assertCategoryUsable(tenantId, input.categoryId);
   const barcode = input.barcode || (await generateProductBarcode(tx, tenantId));
   const stock = input.stockQuantity ?? 0;
   const minStock = input.minStockLevel ?? 5;
@@ -169,6 +171,7 @@ export default async function productRoutes(app: FastifyInstance) {
     const input = productSchema.partial().parse(req.body);
     await assertUniqueBarcode(req.auth.tenantId, input.barcode, existing.id);
     checkImage(req.auth.tenantId, input.imageUrl);
+    if (input.categoryId) await assertCategoryUsable(req.auth.tenantId, input.categoryId);
     const minStock = input.minStockLevel ?? existing.minStockLevel;
     const product = await prisma.product.update({
       where: { id: existing.id },

@@ -30,6 +30,7 @@ const PREFIXED = {
   'Main d’œuvre': 'repairLabor',
   'Achat pièce': 'repairPart',
   'Paiement fournisseur': 'supplierPayment',
+  Dépense: 'expense',
   Annulation: 'cancellation',
 };
 

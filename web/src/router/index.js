@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { useSubscriptionStore } from '@/stores/subscription';
 import { Roles, SELLER_MODE_ROUTES } from '@/config/constants';
+import { hasManagerRole } from '@/utils/format';
 
 // Lazy view resolver. Screens not built yet resolve to a placeholder so the app stays usable.
 const views = import.meta.glob('../views/**/*.vue');
@@ -63,6 +64,8 @@ const routes = [
       { path: 'invoices/:id/preview', name: 'invoice-preview', component: page('invoices/InvoicePreviewView') },
       { path: 'transactions/:id', name: 'transaction-detail', component: page('transactions/TransactionDetailView') },
       { path: 'reports', name: 'reports', component: page('reports/ReportsView') },
+      { path: 'expenses', name: 'expenses', component: page('expenses/ExpensesView'), meta: { managersOnly: true } },
+      { path: 'categories', name: 'categories', component: page('products/CategoriesView'), meta: { managersOnly: true } },
       { path: 'repairs', name: 'repairs', component: page('repairs/RepairsView') },
       { path: 'repairs/new', name: 'repair-new', component: page('repairs/RepairFormView') },
       { path: 'repairs/:id/edit', name: 'repair-edit', component: page('repairs/RepairFormView') },
@@ -133,6 +136,9 @@ router.beforeEach(async (to, from) => {
     if (!isSuperAdmin && user?.roles?.includes(Roles.CASHIER) && user?.roles?.length === 1 && to.path !== '/app/pos') {
       return { name: 'pos' };
     }
+
+    // Financial and catalogue administration screens are for managers.
+    if (to.meta.managersOnly && !isSuperAdmin && !hasManagerRole(user?.roles)) return { name: 'dashboard' };
 
     // A locked account can only reach selling screens.
     if (auth.sellerMode && !SELLER_MODE_ROUTES.has(to.name)) {

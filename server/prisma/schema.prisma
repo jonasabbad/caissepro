@@ -102,6 +102,7 @@ model RefreshToken {
 
 model Category {
   id           String   @id @default(uuid())
+  tenantId     String? // null = built-in category shared by every business of the activity
   activityType String
   name         String
   slug         String
@@ -114,6 +115,7 @@ model Category {
   products Product[]
 
   @@unique([activityType, slug])
+  @@index([tenantId])
 }
 
 model Product {
@@ -544,6 +546,32 @@ model RepairExpense {
 }
 
 // ─── Labels, announcements, misc ─────────────────────────────────────────────
+
+/// Direct business expenses (rent, salaries, utilities…). Soft-deleted so the history and cash movements stay explainable.
+model Expense {
+  id            String    @id @default(uuid())
+  tenantId      String
+  storeId       String?
+  title         String
+  category      String // rent | salaries | utilities | telecom | transport | supplies | marketing | maintenance | fees | taxes | other
+  amount        Decimal
+  date          DateTime
+  paymentMethod String // cash | card | bank_transfer
+  recipient     String?
+  notes         String?
+  receiptUrl    String?
+  receiptName   String?
+  clientRef     String? // idempotency key from the entry form
+  createdBy     String?
+  updatedBy     String?
+  deletedAt     DateTime?
+  deletedBy     String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([tenantId, clientRef])
+  @@index([tenantId, date])
+}
 
 model LabelTemplate {
   id         String   @id @default(uuid())

@@ -7,7 +7,7 @@ const STOCK_KPIS = [
   { id: 'customerDebt', priority: 3 },
   { id: 'supplierDebt', priority: 4 },
 ];
-const RETAIL_NAV = ['dashboard', 'pos', 'products', 'categories', 'inventoryMovements', 'customers', 'suppliers', 'supplierOrders', 'transactions', 'invoices', 'debts', 'reports', 'users', 'employees', 'settings'];
+const RETAIL_NAV = ['dashboard', 'pos', 'products', 'categories', 'inventoryMovements', 'customers', 'suppliers', 'supplierOrders', 'transactions', 'invoices', 'debts', 'expenses', 'reports', 'users', 'employees', 'settings'];
 
 export const ACTIVITIES = {
   phone_seller: {
@@ -20,7 +20,7 @@ export const ACTIVITIES = {
     descriptionAr: 'بيع الهواتف والإكسسوارات',
     modules: ['core', 'inventory', 'phone-seller'],
     dashboardWidgets: STOCK_WIDGETS,
-    navItems: ['dashboard', 'pos', 'products', 'soldUnits', 'categories', 'inventoryMovements', 'customers', 'suppliers', 'supplierOrders', 'transactions', 'invoices', 'repairs', 'debts', 'reports', 'users', 'employees', 'settings'],
+    navItems: ['dashboard', 'pos', 'products', 'soldUnits', 'categories', 'inventoryMovements', 'customers', 'suppliers', 'supplierOrders', 'transactions', 'invoices', 'repairs', 'debts', 'expenses', 'reports', 'users', 'employees', 'settings'],
     kpiConfig: STOCK_KPIS,
     enabled: true,
   },
@@ -62,7 +62,7 @@ export const ACTIVITIES = {
     descriptionAr: 'صالون الحلاقة والعناية',
     modules: ['core', 'services', 'appointments'],
     dashboardWidgets: ['dailySales', 'todayAppointments', 'customerDebt', 'topServices'],
-    navItems: ['dashboard', 'pos', 'appointments', 'services', 'customers', 'transactions', 'reports', 'users', 'employees', 'settings'],
+    navItems: ['dashboard', 'pos', 'appointments', 'services', 'customers', 'transactions', 'expenses', 'reports', 'users', 'employees', 'settings'],
     kpiConfig: [
       { id: 'dailySales', priority: 1 },
       { id: 'todayAppointments', priority: 2 },
@@ -80,7 +80,7 @@ export const ACTIVITIES = {
     descriptionAr: 'مطعم ومقهى',
     modules: ['core', 'tables', 'kitchen'],
     dashboardWidgets: ['dailySales', 'activeTables', 'pendingOrders', 'topDishes'],
-    navItems: ['dashboard', 'pos', 'tables', 'kitchen', 'menu', 'customers', 'transactions', 'reports', 'users', 'employees', 'settings'],
+    navItems: ['dashboard', 'pos', 'tables', 'kitchen', 'menu', 'customers', 'transactions', 'expenses', 'reports', 'users', 'employees', 'settings'],
     kpiConfig: [
       { id: 'dailySales', priority: 1 },
       { id: 'activeTables', priority: 2 },

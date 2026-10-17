@@ -109,6 +109,8 @@ export default {
     },
     barcodeLabel: "Barcode label",
     barcodeContent: "Barcode content",
+    printStickers: "Print stickers ({n})",
+    selectedCount: "{n} device(s) selected",
   },
   reservation: {
     title: 'Reservation',

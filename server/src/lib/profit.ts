@@ -1,5 +1,6 @@
 import { prisma, Prisma, type Tx } from './prisma.js';
 import { num, r2 } from './serialize.js';
+import { expensesPnl } from './expenses.js';
 
 /**
  * Accounting rules shared by repairs, the dashboard and the reports (see docs/accounting.md).
@@ -16,8 +17,9 @@ import { num, r2 } from './serialize.js';
  * - Revenue = net sales (sales − refunds) + realized repair revenue
  * - Cost of goods = cost of goods sold (net of returns) + repair parts
  * - Gross profit = Revenue − Cost of goods
- * - Direct expenses = repair technician/external + other repair costs
+ * - Direct expenses = repair technician/external + other repair costs + business expenses (Expense, by expense date)
  * - Net profit = Gross profit − Direct expenses
+ * Business expenses never include stock purchases (counted as COGS when sold) or repair costs (counted on the repair).
  */
 
 export type ExpenseType = 'part' | 'stock_part' | 'labor' | 'other';
@@ -129,16 +131,18 @@ export async function salesPnl(tenantId: string, from: Date, to: Date, storeId?:
 
 /** The whole business for a period: sales + realized repairs, with gross and net profit. */
 export async function businessPnl(tenantId: string, from: Date, to: Date, storeId?: string | null) {
-  const [sales, repairs] = await Promise.all([salesPnl(tenantId, from, to, storeId), repairsPnl(tenantId, from, to, { storeId })]);
+  const [sales, repairs, expenses] = await Promise.all([salesPnl(tenantId, from, to, storeId), repairsPnl(tenantId, from, to, { storeId }), expensesPnl(tenantId, from, to, storeId)]);
   const revenue = r2(sales.netRevenue + repairs.revenue);
   const cogs = r2(sales.cogs + repairs.partsCost);
   const grossProfit = r2(revenue - cogs);
-  const directExpenses = r2(repairs.laborCost + repairs.otherCost);
+  const repairDirectCosts = r2(repairs.laborCost + repairs.otherCost);
+  const directExpenses = r2(repairDirectCosts + expenses.total);
   const netProfit = r2(grossProfit - directExpenses);
   const { rows: _rows, ...repairTotals } = repairs;
   return {
     sales,
     repairs: repairTotals,
-    totals: { revenue, cogs, grossProfit, directExpenses, netProfit, margin: revenue ? r2((netProfit / revenue) * 100) : 0 },
+    expenses,
+    totals: { revenue, cogs, grossProfit, directExpenses, repairDirectCosts, businessExpenses: expenses.total, netProfit, margin: revenue ? r2((netProfit / revenue) * 100) : 0 },
   };
 }

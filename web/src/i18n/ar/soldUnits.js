@@ -109,6 +109,8 @@ export default {
     },
     barcodeLabel: "ملصق الباركود",
     barcodeContent: "محتوى الباركود",
+    printStickers: "طباعة الملصقات ({n})",
+    selectedCount: "{n} جهاز محدد",
   },
   reservation: {
     title: 'الحجز',

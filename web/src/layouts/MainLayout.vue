@@ -18,6 +18,8 @@ import {
   WrenchScrewdriverIcon,
   WalletIcon,
   ChartBarIcon,
+  ReceiptPercentIcon,
+  TagIcon,
   UserGroupIcon,
   CalendarDaysIcon,
   SparklesIcon,
@@ -100,6 +102,7 @@ const navigation = computed(() => [
   { id: 'cashDrawer', name: t('nav.cashDrawer'), href: '/app/cash-drawer', icon: BanknotesIcon },
   { id: 'products', name: t(productsLabelKey.value), href: '/app/products', icon: CubeIcon },
   { id: 'soldUnits', name: t('nav.soldUnits'), href: '/app/sold-units', icon: DevicePhoneMobileIcon },
+  { id: 'categories', name: t('nav.categories'), href: '/app/categories', icon: TagIcon },
   { id: 'inventoryMovements', name: t('nav.inventoryMovements'), href: '/app/inventory-movements', icon: ArrowsRightLeftIcon },
   { id: 'customers', name: t('nav.customers'), href: '/app/customers', icon: UsersIcon },
   { id: 'suppliers', name: t('nav.suppliers'), href: '/app/suppliers', icon: TruckIcon },
@@ -108,6 +111,7 @@ const navigation = computed(() => [
   { id: 'invoices', name: t('nav.invoices'), href: '/app/invoices', icon: DocumentTextIcon },
   { id: 'repairs', name: t('nav.repairs'), href: '/app/repairs', icon: WrenchScrewdriverIcon },
   { id: 'debts', name: t('nav.debts'), href: '/app/debts', icon: WalletIcon },
+  { id: 'expenses', name: t('nav.expenses'), href: '/app/expenses', icon: ReceiptPercentIcon },
   { id: 'reports', name: t('nav.reports'), href: '/app/reports', icon: ChartBarIcon },
   { id: 'users', name: t('nav.users'), href: '/app/users', icon: UsersIcon },
   { id: 'employees', name: t('employees.title'), href: '/app/employees', icon: UserGroupIcon },
@@ -127,7 +131,7 @@ const visibleNavigation = computed(() =>
       const plan = sub.status?.plan;
       return auth.currentUser?.roles?.includes(Roles.ADMIN) && [Plans.PROFESSIONNEL, Plans.PREMIUM, Plans.LIFETIME].includes(plan);
     }
-    if (item.id === 'employees') return hasManagerRole(auth.currentUser?.roles);
+    if (['employees', 'expenses', 'categories'].includes(item.id)) return hasManagerRole(auth.currentUser?.roles);
     return true;
   }),
 );

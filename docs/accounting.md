@@ -54,8 +54,8 @@ and repair profit**, which avoids counting the same cost twice.
 | Revenue | Net sales + realized repair revenue |
 | Cost of goods | Cost of goods sold + repair parts |
 | **Gross profit** | Revenue − cost of goods |
-| Direct expenses | Repair technician/external costs + other repair costs |
-| **Net profit** | Gross profit − direct expenses = sales gross profit + repair profit |
+| Direct expenses | Repair technician/external costs + other repair costs + business expenses (Expenses page, by expense date) |
+| **Net profit** | Gross profit − direct expenses = sales gross profit + repair profit − business expenses |
 | Margin | Net profit ÷ revenue |
 
 The dashboard's sales KPI ("Ventes du jour") stays sales only. Repair revenue and profit have their own figures and
@@ -64,6 +64,20 @@ repairs report. Every period selector (today, week, month, custom range) uses th
 
 ## What is not modelled
 
-- Overheads such as rent and salaries: there is no general expense ledger, so "net profit" means profit after
-  direct costs of sales and repairs.
+- Depreciation, accruals and stock write-downs: net profit is cash-basis for expenses (by expense date) and
+  realization-basis for repairs, not a full accrual accounting.
 - TVA is excluded from the profit figures only to the extent it is excluded from the prices entered.
+
+## Business expenses (Expenses page)
+
+- Categories: rent, salaries, utilities, telecom, transport, supplies, advertising, premises upkeep, fees, taxes, other.
+- Counted in **direct expenses** on the date of the expense (not the date it was entered). Deleted expenses are kept
+  (soft delete) but excluded everywhere.
+- **Not** for stock purchases (supplier orders: their cost is counted when the goods are sold) or repair costs (entered
+  on the repair): counting them here too would deduct them twice. The form says so.
+- Cash expenses take the money out of the store's cash drawer (cash out, "Dépense - …"). Changing the amount or the
+  payment method, or deleting, records the reversal (cash in, "Annulation dépense - …"). Card and bank transfer do
+  not touch the drawer. Manual drawer withdrawals are movements of cash, not expenses.
+- Duplicates: each form submission carries an idempotency key (a resent form creates one expense), and an expense with
+  the same day, amount and description needs an explicit confirmation.
+- Managers only: cashiers and viewers cannot see or change expenses.

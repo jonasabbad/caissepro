@@ -49,6 +49,7 @@ export default {
       reservationDepositRefund: 'Remboursement acompte réservation',
       supplierPayment: 'Paiement fournisseur - {ref}',
       cancellation: 'Annulation - {ref}',
+      expense: 'Dépense - {ref}',
     },
   },
 };

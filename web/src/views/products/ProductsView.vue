@@ -1,4 +1,5 @@
 <script setup>
+import { DEVICE_CATEGORY_SLUGS } from '@/config/categories';
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
@@ -46,7 +47,7 @@ const pendingDeleteId = ref(null);
 const notify = (message, type = 'success') => (toast.value = { show: true, message, type });
 
 // Phones are managed as serialised units, so their categories are hidden from the accessories catalogue.
-const PHONE_CATEGORY_SLUGS = ['smartphones', 'tablettes', 'pc-portables', 'macbooks'];
+const PHONE_CATEGORY_SLUGS = DEVICE_CATEGORY_SLUGS;
 const { data: categories } = useQuery({ queryKey: ['categories'], queryFn: () => categoriesApi.getAll() });
 const visibleCategories = computed(() => {
   if (!categories.value) return [];

@@ -26,6 +26,7 @@ export default {
     kitchen: 'Kitchen',
     menu: 'Menu',
     repairs: 'Repairs',
+    expenses: "Expenses",
   },
   auth: {
     login: 'Sign in',

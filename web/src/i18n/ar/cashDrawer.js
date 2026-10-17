@@ -48,6 +48,7 @@ export default {
       reservationDepositRefund: 'استرجاع عربون الحجز',
       supplierPayment: 'دفع للمورد - {ref}',
       cancellation: 'إلغاء - {ref}',
+      expense: 'مصروف - {ref}',
     },
   },
 };

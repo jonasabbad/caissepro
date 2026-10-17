@@ -48,6 +48,7 @@ export default {
       reservationDepositRefund: 'Reservation deposit refund',
       supplierPayment: 'Supplier payment - {ref}',
       cancellation: 'Cancellation - {ref}',
+      expense: 'Expense - {ref}',
     },
   },
 };
