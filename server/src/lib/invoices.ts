@@ -18,8 +18,8 @@ export interface InvoiceNumbering {
   nextInvoiceNumber: number;
 }
 
-/** Auto-entrepreneur flat income tax on turnover; 0.5 % is the rate for trade (commerce) activities. */
-export const DEFAULT_IR_FLAT_RATE = 0.5;
+/** Auto-entrepreneur flat income tax on turnover (settings default: 1 %, stored as businessInfo.flatTaxRate). */
+export const DEFAULT_IR_FLAT_RATE = 1;
 
 export function numbering(businessInfo: string | null | undefined): InvoiceNumbering {
   const b = parseJson<Partial<InvoiceNumbering>>(businessInfo, {});

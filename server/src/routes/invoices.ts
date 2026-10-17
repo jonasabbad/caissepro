@@ -127,7 +127,7 @@ export default async function invoiceRoutes(app: FastifyInstance) {
     if (dateFrom > dateTo) throw badRequest('La date de début doit être antérieure à la date de fin');
     await syncTransactionInvoices(req.auth.tenantId);
     const tenant = await getTenant(req.auth.tenantId);
-    const rate = Number(parseJson<{ irFlatRate?: number }>(tenant.businessInfo, {}).irFlatRate) || DEFAULT_IR_FLAT_RATE;
+    const rate = Number(parseJson<{ flatTaxRate?: number }>(tenant.businessInfo, {}).flatTaxRate) || DEFAULT_IR_FLAT_RATE;
     const t = await invoiceTotals(req.auth.tenantId, startOfDay(dateFrom), endOfDay(dateTo));
     return ok({ totalRevenue: t.ttc, flatTaxRate: rate, irAmount: r2((t.ttc * rate) / 100), invoiceCount: t.count, period: { from: dateFrom, to: dateTo } });
   });

@@ -85,7 +85,7 @@ describe('invoices', () => {
     const today = localDay();
     const [x] = (await api.get('/invoices')).body.data.invoices;
     let ir = (await api.post('/invoices/ir/calculate-period', { dateFrom: today, dateTo: today })).body.data;
-    expect([ir.totalRevenue, ir.invoiceCount, ir.flatTaxRate, ir.irAmount]).toEqual([200, 2, 0.5, 1]);
+    expect([ir.totalRevenue, ir.invoiceCount, ir.flatTaxRate, ir.irAmount]).toEqual([200, 2, 1, 2]);
     await api.patch(`/invoices/${x.id}/archive`);
     expect((await api.get('/invoices')).body.data.total).toBe(1);
     expect((await api.get('/invoices?isArchived=true')).body.data.invoices[0].id).toBe(x.id);
