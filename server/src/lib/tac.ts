@@ -114,66 +114,170 @@ export async function learnTac(tx: Tx, tenantId: string, unit: { imei?: string |
   else await tx.tacModel.create({ data: { ...data, tenantId, tac } });
 }
 
-/**
- * Parses a TAC file (CSV with a header). Recognised columns (case-insensitive): tac; brand / manufacturer / vendor /
- * name1; model / marketing_name / model_name / name2 / name; optional type / device_type.
- */
-export function parseTacCsv(text: string) {
-  const lines = text.split(/\r?\n/).filter((l) => l.trim());
-  const split = (l: string) => {
-    const out: string[] = [];
-    let cur = '';
-    let q = false;
-    for (let i = 0; i < l.length; i++) {
-      const c = l[i];
-      if (c === '"' && l[i + 1] === '"' && q) (cur += '"'), i++;
-      else if (c === '"') q = !q;
-      else if ((c === ',' || c === ';') && !q) out.push(cur), (cur = '');
-      else cur += c;
-    }
-    out.push(cur);
-    return out.map((s) => s.trim());
+export interface TacRow {
+  tac: string;
+  brand: string;
+  model: string;
+  modelNumber: string | null;
+  deviceType: string | null;
+}
+
+function toRow(tacRaw: unknown, brand: unknown, model: unknown, type?: unknown): TacRow | null {
+  const tac = String(tacRaw ?? '').replace(/\D/g, '');
+  const b = String(brand ?? '').trim();
+  const m = String(model ?? '').replace(/\s+/g, ' ').trim();
+  if (!/^\d{8}$/.test(tac) || !b || !m) return null;
+  const t = String(type ?? '').toLowerCase();
+  return {
+    tac,
+    brand: normalizeBrand(b),
+    model: m,
+    modelNumber: modelNumberOf(m),
+    deviceType: /tablet/.test(t) ? 'tablet' : /watch|wearable/.test(t) ? 'watch' : /phone|handheld|mobile|feature/.test(t) ? 'phone' : null,
   };
-  const head = split(lines[0]).map((h) => h.toLowerCase().replace(/\s+/g, '_'));
-  const col = (...names: string[]) => head.findIndex((h) => names.includes(h));
-  const iTac = col('tac');
-  const iBrand = col('brand', 'manufacturer', 'vendor', 'name1', 'brand_name');
-  const iModel = col('model', 'marketing_name', 'model_name', 'name2', 'name');
-  const iType = col('type', 'device_type');
-  if (iTac < 0 || iBrand < 0 || iModel < 0) throw new Error(`Unrecognised TAC file header: ${lines[0]}`);
-  const rows = [];
-  for (const l of lines.slice(1)) {
-    const c = split(l);
-    const tac = (c[iTac] || '').replace(/\D/g, '');
-    const brand = c[iBrand] || '';
-    const model = c[iModel] || '';
-    if (!/^\d{8}$/.test(tac) || !brand || !model) continue;
-    const type = iType >= 0 ? (c[iType] || '').toLowerCase() : '';
-    rows.push({
-      tac,
-      brand: normalizeBrand(brand),
-      model: model.replace(/\s+/g, ' '),
-      modelNumber: modelNumberOf(model),
-      deviceType: /tablet/.test(type) ? 'tablet' : /watch|wearable/.test(type) ? 'watch' : /phone|handheld|mobile/.test(type) ? 'phone' : null,
-    });
+}
+
+const TAC_COLS = ['tac'];
+const BRAND_COLS = ['brand', 'manufacturer', 'vendor', 'name1', 'brand_name', 'make'];
+const MODEL_COLS = ['model', 'marketing_name', 'model_name', 'name2', 'name', 'device', 'device_name'];
+const TYPE_COLS = ['type', 'device_type', 'equipment_type'];
+
+function splitCsvLine(l: string) {
+  const out: string[] = [];
+  let cur = '';
+  let q = false;
+  for (let i = 0; i < l.length; i++) {
+    const c = l[i];
+    if (c === '"' && l[i + 1] === '"' && q) (cur += '"'), i++;
+    else if (c === '"') q = !q;
+    else if ((c === ',' || c === ';' || c === '\t') && !q) out.push(cur), (cur = '');
+    else cur += c;
   }
+  out.push(cur);
+  return out.map((s) => s.trim());
+}
+
+/**
+ * CSV TAC file. Columns are found by header name (tac; brand / manufacturer / vendor / name1; model / marketing_name /
+ * model_name / name2 / name; optional type). When the header uses other names (or there is none), they are found from
+ * the contents: the column of 8-digit numbers is the TAC, the next two text columns are brand then model.
+ */
+export function parseTacCsv(text: string): TacRow[] {
+  const lines = text.replace(/^﻿/, '').split(/\r?\n/).filter((l) => l.trim());
+  if (!lines.length) return [];
+  const first = splitCsvLine(lines[0]);
+  const head = first.map((h) => h.toLowerCase().replace(/[\s-]+/g, '_'));
+  const col = (names: string[]) => head.findIndex((h) => names.includes(h));
+  let iTac = col(TAC_COLS);
+  let iBrand = col(BRAND_COLS);
+  let iModel = col(MODEL_COLS);
+  const iType = col(TYPE_COLS);
+  let body = lines.slice(1);
+  if (iTac < 0 || iBrand < 0 || iModel < 0) {
+    if (first.some((c) => /^\d{8}$/.test(c))) body = lines; // no header line
+    const sample = body.slice(0, 200).map(splitCsvLine);
+    const width = Math.max(...sample.map((r) => r.length));
+    const share = (i: number, test: (v: string) => boolean) => sample.filter((r) => test(r[i] ?? '')).length / sample.length;
+    const cols = [...Array(width).keys()];
+    iTac = cols.find((i) => share(i, (v) => /^\d{8}$/.test(v)) > 0.5) ?? -1;
+    const textCols = cols.filter((i) => i !== iTac && share(i, (v) => /[A-Za-z]/.test(v)) > 0.5);
+    iBrand = textCols[0] ?? -1;
+    iModel = textCols[1] ?? -1;
+    if (iTac < 0 || iBrand < 0 || iModel < 0) throw new Error(`Unrecognised TAC file: no TAC / brand / model columns in "${lines[0].slice(0, 120)}"`);
+  }
+  return body
+    .map(splitCsvLine)
+    .map((c) => toRow(c[iTac], c[iBrand], c[iModel], iType >= 0 ? c[iType] : ''))
+    .filter((r): r is TacRow => !!r);
+}
+
+const CONTAINER_KEYS = new Set(['brands', 'brand', 'models', 'model', 'tacs', 'tac', 'data', 'devices', 'items', 'manufacturers']);
+
+/**
+ * JSON TAC file: either records with the same field names as the CSV, or a tree such as
+ * { brands: { Apple: { models: [ { "iPhone 6": { tacs: ["35…", …] } } ] } } } or { Apple: { "iPhone 6": ["35…"] } }:
+ * every list of 8-digit codes is attributed to the first and last names on its path (brand, model).
+ */
+export function parseTacJson(text: string): TacRow[] {
+  const data = JSON.parse(text.replace(/^﻿/, ''));
+  const rows: TacRow[] = [];
+  const pick = (o: Record<string, unknown>, names: string[]) => {
+    const k = Object.keys(o).find((x) => names.includes(x.toLowerCase().replace(/[\s-]+/g, '_')));
+    return k ? o[k] : undefined;
+  };
+  const isTac = (v: unknown) => /^\d{8}$/.test(String(v));
+  const walk = (node: unknown, names: string[]) => {
+    if (Array.isArray(node)) {
+      if (node.length && node.every(isTac)) {
+        if (names.length >= 2) for (const t of node) {
+          const r = toRow(t, names[0], names[names.length - 1]);
+          if (r) rows.push(r);
+        }
+        return;
+      }
+      for (const x of node) walk(x, names);
+      return;
+    }
+    if (!node || typeof node !== 'object') return;
+    const o = node as Record<string, unknown>;
+    const tac = pick(o, TAC_COLS);
+    if (tac !== undefined && (typeof tac === 'string' || typeof tac === 'number')) {
+      const r = toRow(tac, pick(o, BRAND_COLS) ?? names[0], pick(o, MODEL_COLS) ?? names[names.length - 1], pick(o, TYPE_COLS));
+      if (r) rows.push(r);
+      return;
+    }
+    for (const [k, v] of Object.entries(o)) walk(v, CONTAINER_KEYS.has(k.toLowerCase()) ? names : [...names, k]);
+  };
+  walk(data, []);
   return rows;
 }
 
-/** Replaces the reference rows of one source by the rows of a TAC file. Returns the number imported. */
-export async function importTacRows(rows: ReturnType<typeof parseTacCsv>, source: string) {
-  await prisma.$transaction(async (tx) => {
-    await tx.tacModel.deleteMany({ where: { tenantId: '', source } });
-    const seen = new Set<string>();
-    for (const r of rows) {
-      if (seen.has(r.tac)) continue;
-      seen.add(r.tac);
-      await tx.tacModel.upsert({
-        where: { tenantId_tac: { tenantId: '', tac: r.tac } },
-        create: { ...r, tenantId: '', source },
-        update: { ...r, source },
-      });
-    }
-  });
-  return new Set(rows.map((r) => r.tac)).size;
+export function parseTacFile(text: string, fileName = '') {
+  const t = text.replace(/^﻿/, '').trimStart();
+  return /\.json$/i.test(fileName) || t.startsWith('{') || t.startsWith('[') ? parseTacJson(text) : parseTacCsv(text);
+}
+
+/**
+ * What a TAC file actually covers, before importing it: codes per brand and, for Apple and Samsung phones, how many
+ * codes map to models of the app's catalogue and which catalogue models have no code at all.
+ */
+export function tacCoverage(rows: TacRow[]) {
+  const unique = [...new Map(rows.map((r) => [r.tac, r])).values()];
+  const brands = new Map<string, number>();
+  for (const r of unique) brands.set(r.brand, (brands.get(r.brand) ?? 0) + 1);
+  const focus = (brand: string) => {
+    const mine = unique.filter((r) => r.brand === brand);
+    const matched = mine.map((r) => matchCatalog(r.brand, r.model, 'phone')).filter((m) => !!m);
+    const covered = new Set(matched.map((m) => m!.model));
+    const catalogModels = catalogFor('phone').filter((d) => d.brand === brand).map((d) => d.model);
+    return {
+      tacs: mine.length,
+      mappedToCatalog: matched.length,
+      catalogModelsCovered: covered.size,
+      catalogModels: catalogModels.length,
+      missing: catalogModels.filter((m) => !covered.has(m)),
+    };
+  };
+  return { tacs: unique.length, brands: [...brands.entries()].sort((a, b) => b[1] - a[1]), apple: focus('Apple'), samsung: focus('Samsung') };
+}
+
+/** Replaces the reference rows of one source by the rows of a TAC file. Returns the number of distinct TACs. */
+export async function importTacRows(rows: TacRow[], source: string) {
+  const unique = [...new Map(rows.map((r) => [r.tac, r])).values()];
+  await prisma.$transaction(
+    async (tx) => {
+      await tx.tacModel.deleteMany({ where: { tenantId: '', source } });
+      // A TAC already provided by another reference source is updated; the others are inserted in batches.
+      const existing = new Set((await tx.tacModel.findMany({ where: { tenantId: '' }, select: { tac: true } })).map((r) => r.tac));
+      const fresh = unique.filter((r) => !existing.has(r.tac));
+      for (let i = 0; i < fresh.length; i += 500) {
+        await tx.tacModel.createMany({ data: fresh.slice(i, i + 500).map((r) => ({ ...r, tenantId: '', source })) });
+      }
+      for (const r of unique.filter((r) => existing.has(r.tac))) {
+        await tx.tacModel.update({ where: { tenantId_tac: { tenantId: '', tac: r.tac } }, data: { ...r, source } });
+      }
+    },
+    { timeout: 600_000 },
+  );
+  return unique.length;
 }

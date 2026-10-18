@@ -1,27 +1,46 @@
 /**
- * Imports reference TAC data (TAC → manufacturer / model) used to pre-fill the Add device form.
+ * Imports reference TAC data (TAC → manufacturer / model) used to pre-fill Add a device → Phone.
  *
- *   npm run tac:import -w server -- <file.csv> "<source and licence>"
+ *   npm run tac:import -w server -- <file.csv|file.json> --check            report what the file covers, import nothing
+ *   npm run tac:import -w server -- <file.csv|file.json> ["<source>"]        import (default source: Osmocom, CC BY-SA 3.0)
  *
- * The file is a CSV with a header containing a TAC column, a brand column (brand / manufacturer / vendor / name1) and
- * a model column (model / marketing_name / model_name / name2 / name). Examples of sources:
- * - Osmocom TAC database (community-maintained, CC BY-SA 3.0, incomplete): "Osmocom tacdb (CC BY-SA 3.0)"
- * - a licensed export (GSMA Device Database, 51Degrees, DeviceAtlas…) under that vendor's terms.
- * Importing again with the same source replaces its rows. Each row keeps the source, shown next to the suggestion.
+ * CSV or JSON. Columns are recognised by name (tac; brand / manufacturer / vendor / name1; model / marketing_name /
+ * model_name / name2 / name) or, failing that, from their contents. Importing the same source again replaces its rows.
+ * The source text is shown next to every suggestion it provides (attribution).
  */
 import { readFileSync } from 'node:fs';
-import { importTacRows, parseTacCsv } from '../src/lib/tac.js';
+import { basename } from 'node:path';
+import { importTacRows, parseTacFile, tacCoverage } from '../src/lib/tac.js';
 import { prisma } from '../src/lib/prisma.js';
 
-const [file, source] = process.argv.slice(2);
-if (!file || !source) {
-  console.error('Usage: npm run tac:import -w server -- <file.csv> "<source and licence>"');
+const DEFAULT_SOURCE = 'Osmocom TAC database (tacdb.osmocom.org), CC BY-SA 3.0';
+const args = process.argv.slice(2);
+const check = args.includes('--check');
+const [file, source = DEFAULT_SOURCE] = args.filter((a) => a !== '--check');
+if (!file) {
+  console.error('Usage: npm run tac:import -w server -- <file.csv|file.json> [--check] ["<source and licence>"]');
   process.exit(1);
 }
-const rows = parseTacCsv(readFileSync(file, 'utf8'));
-const n = await importTacRows(rows, source);
-const brands = new Map<string, number>();
-for (const r of rows) brands.set(r.brand, (brands.get(r.brand) ?? 0) + 1);
-console.log(`${n} TACs imported from ${file} (${source}).`);
-console.log('Top brands:', [...brands.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([b, c]) => `${b} ${c}`).join(', '));
+
+const rows = parseTacFile(readFileSync(file, 'utf8'), basename(file));
+const cov = tacCoverage(rows);
+const pct = (a: number, b: number) => (b ? `${Math.round((a / b) * 100)}%` : '—');
+console.log(`${basename(file)}: ${cov.tacs} distinct TACs`);
+console.log(`Top brands: ${cov.brands.slice(0, 10).map(([b, n]) => `${b} ${n}`).join(', ')}`);
+for (const [name, c] of [['Apple', cov.apple], ['Samsung', cov.samsung]] as const) {
+  console.log(
+    `${name}: ${c.tacs} TACs, ${c.mappedToCatalog} mapped to catalogue models; catalogue phone models covered ${c.catalogModelsCovered}/${c.catalogModels} (${pct(c.catalogModelsCovered, c.catalogModels)})`,
+  );
+  if (c.missing.length) console.log(`  not covered: ${c.missing.slice(0, 25).join(', ')}${c.missing.length > 25 ? ` … (+${c.missing.length - 25})` : ''}`);
+}
+if (!cov.tacs) {
+  console.error('No TAC rows recognised in this file: nothing to import.');
+  process.exit(1);
+}
+if (check) {
+  console.log('--check: nothing imported.');
+} else {
+  const n = await importTacRows(rows, source);
+  console.log(`Imported ${n} TACs as "${source}".`);
+}
 await prisma.$disconnect();

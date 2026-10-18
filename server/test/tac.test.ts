@@ -78,3 +78,30 @@ describe('IMEI → device identification (TAC)', () => {
     expect(matchCatalog('Apple', 'iPhone 99')).toBeNull();
   });
 });
+
+describe('TAC files', () => {
+  it('reads the CSV and JSON shapes, with or without known headers, and reports coverage', async () => {
+    const { parseTacFile, tacCoverage } = await import('../src/lib/tac.js');
+    // Unknown header names: columns found from the contents.
+    const csv = 'code;maker;device;extra\n35395010;Apple;iPhone 15 Pro (A2848);x\n35000011;Samsung;Galaxy S24 Ultra 5G (SM-S928B);y\nbad;Nokia;3310;z';
+    expect(parseTacFile(csv, 'x.csv').map((r) => [r.tac, r.brand, r.model])).toEqual([
+      ['35395010', 'Apple', 'iPhone 15 Pro (A2848)'],
+      ['35000011', 'Samsung', 'Galaxy S24 Ultra 5G (SM-S928B)'],
+    ]);
+    // No header line at all.
+    expect(parseTacFile('35395010,Apple,iPhone 15\n35395011,Apple,iPhone 15', 'x.csv')).toHaveLength(2);
+    // Records.
+    expect(parseTacFile(JSON.stringify([{ tac: '35395012', manufacturer: 'Apple Inc', marketing_name: 'iPhone 14' }]), 'x.json')[0]).toMatchObject({ brand: 'Apple', model: 'iPhone 14' });
+    // Brand → models → tacs tree.
+    const tree = { brands: { Apple: { models: [{ 'iPhone 13': { tacs: ['35395013', '35395014'] } }] }, Samsung: { models: [{ 'Galaxy S23': { tacs: ['35000012'] } }] } } };
+    expect(parseTacFile(JSON.stringify(tree), 'x.json').map((r) => [r.tac, r.brand, r.model])).toEqual([
+      ['35395013', 'Apple', 'iPhone 13'],
+      ['35395014', 'Apple', 'iPhone 13'],
+      ['35000012', 'Samsung', 'Galaxy S23'],
+    ]);
+    const cov = tacCoverage(parseTacFile(csv, 'x.csv'));
+    expect([cov.tacs, cov.apple.tacs, cov.apple.mappedToCatalog, cov.samsung.catalogModelsCovered]).toEqual([2, 1, 1, 1]);
+    expect(cov.apple.missing).toContain('iPhone 14');
+    expect(() => parseTacFile('a,b\nx,y', 'x.csv')).toThrow(/Unrecognised/);
+  });
+});
