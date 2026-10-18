@@ -18,6 +18,7 @@ import SearchableSelect from '@/components/ui/SearchableSelect.vue';
 import Toast from '@/components/ui/Toast.vue';
 import ProductImageInput from '@/components/products/ProductImageInput.vue';
 import { soldUnitsApi, isValidImei } from '@/api/soldUnits';
+import { apiErrorMessage } from '@/api/http';
 import { suppliersApi } from '@/api/suppliers';
 import { formatCurrency } from '@/utils/format';
 
@@ -101,43 +102,52 @@ function onDeviceLoaded(d) {
 }
 
 // ── IMEI first: identify brand / model from the TAC (first 8 digits), without overwriting what was typed ──
-const tac = ref({ status: 'idle', device: null }); // idle | loading | found | notFound | error
+const tac = ref({ status: 'idle', device: null, code: '', reason: '' }); // idle | loading | found | notFound | error
 const tacSuggestion = ref(null);
 const autofilled = ref(false);
 let lastTac = '';
-const deviceName = (d) => `${d.brand} ${d.model}`.trim();
+const deviceName = (d) => `${d.brand} ${d.model || ''}`.trim();
+/** Fills what the TAC record supports: brand and model, or only the brand when the record names no model. */
 function applyIdentified(d) {
-  const sameModel = device.value.brand === d.brand && device.value.model === d.model;
-  device.value = { ...device.value, brand: d.brand, model: d.model, ...(sameModel ? {} : { storage: '', ram: '', color: '' }) };
+  if (!d.model) {
+    if (device.value.brand !== d.brand) device.value = { ...device.value, brand: d.brand, model: '', storage: '', ram: '', color: '' };
+  } else {
+    const sameModel = device.value.brand === d.brand && device.value.model === d.model;
+    device.value = { ...device.value, brand: d.brand, model: d.model, ...(sameModel ? {} : { storage: '', ram: '', color: '' }) };
+  }
   autofilled.value = true;
   tacSuggestion.value = null;
+}
+async function identify(code) {
+  tac.value = { status: 'loading', device: null, code, reason: '' };
+  tacSuggestion.value = null;
+  autofilled.value = false;
+  try {
+    const r = await soldUnitsApi.lookupTac(code);
+    if (lastTac !== code) return; // the IMEI changed meanwhile
+    if (!r?.found || !r.device) return (tac.value = { status: 'notFound', device: null, code, reason: '' });
+    const d = r.device;
+    tac.value = { status: 'found', device: d, code, reason: '' };
+    // Fill what is empty; anything already entered that differs is only replaced on confirmation.
+    const conflict = (device.value.brand && device.value.brand !== d.brand) || (d.model && device.value.model && device.value.model !== d.model);
+    if (conflict) tacSuggestion.value = d;
+    else applyIdentified(d);
+  } catch (e) {
+    if (lastTac === code) tac.value = { status: 'error', device: null, code, reason: apiErrorMessage(e) };
+  }
 }
 watch(
   () => details.value.imei,
   async (imei) => {
     if (!isPhone.value || isEdit.value) return;
     if (!imei || !isValidImei(imei)) {
-      if (!imei) (tac.value = { status: 'idle', device: null }), (tacSuggestion.value = null), (lastTac = '');
+      if (!imei || imei.length < 15) (tac.value = { status: 'idle', device: null, code: '', reason: '' }), (tacSuggestion.value = null), (lastTac = '');
       return;
     }
     const code = imei.slice(0, 8);
     if (code === lastTac) return;
     lastTac = code;
-    tac.value = { status: 'loading', device: null };
-    tacSuggestion.value = null;
-    try {
-      const r = await soldUnitsApi.lookupTac(code);
-      if (lastTac !== code) return;
-      if (!r.found) return (tac.value = { status: 'notFound', device: null });
-      const d = r.device;
-      tac.value = { status: 'found', device: d };
-      // Fill what is empty; anything already entered that differs is only replaced on confirmation.
-      const conflict = (device.value.brand && device.value.brand !== d.brand) || (device.value.model && device.value.model !== d.model);
-      if (conflict) tacSuggestion.value = d;
-      else applyIdentified(d);
-    } catch {
-      if (lastTac === code) tac.value = { status: 'error', device: null };
-    }
+    await identify(code);
   },
 );
 const imeiInput = ref(null);
@@ -268,16 +278,27 @@ const section = 'border-b pb-2 text-lg font-semibold text-gray-900';
             </div>
           </div>
           <div v-else-if="tac.status === 'found'" class="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-900">
-            <p class="font-semibold">{{ t('soldUnits.tac.identified', { device: deviceName(tac.device) }) }}</p>
-            <p v-if="autofilled">{{ t('soldUnits.tac.filled') }}</p>
+            <template v-if="tac.device.model">
+              <p class="font-semibold">{{ t('soldUnits.tac.identified', { device: deviceName(tac.device) }) }}</p>
+              <p v-if="autofilled">{{ t('soldUnits.tac.filled') }}</p>
+              <p v-if="tac.device.modelVia === 'modelNumber'" class="text-xs">{{ t('soldUnits.tac.viaModelNumber', { value: tac.device.modelNumber }) }}</p>
+            </template>
+            <template v-else>
+              <p class="font-semibold">{{ t('soldUnits.tac.brandOnly', { brand: tac.device.brand }) }}</p>
+              <p v-if="autofilled">{{ t('soldUnits.tac.brandFilled') }}</p>
+            </template>
+            <p v-if="tac.device.sourceModelName && tac.device.sourceModelName !== tac.device.model" class="text-xs">{{ t('soldUnits.tac.sourceName', { name: tac.device.sourceModelName }) }}</p>
             <p v-if="tac.device.modelNumber" class="text-xs">{{ t('soldUnits.tac.modelNumber', { value: tac.device.modelNumber }) }}</p>
             <p class="text-xs text-green-800">
               {{ tac.device.source === 'own' ? t('soldUnits.tac.sourceOwn', { n: tac.device.seenCount }) : t('soldUnits.tac.sourceReference', { name: tac.device.sourceName }) }}
             </p>
-            <p v-if="!tac.device.inCatalog" class="mt-1 text-xs text-amber-800">{{ t('soldUnits.tac.notInCatalog') }}</p>
+            <p v-if="tac.device.model && !tac.device.inCatalog" class="mt-1 text-xs text-amber-800">{{ t('soldUnits.tac.notInCatalog') }}</p>
           </div>
-          <p v-else-if="tac.status === 'notFound'" class="rounded-lg bg-gray-50 p-3 text-sm text-gray-600">{{ t('soldUnits.tac.notFound') }}</p>
-          <p v-else-if="tac.status === 'error'" class="rounded-lg bg-gray-50 p-3 text-sm text-gray-600">{{ t('soldUnits.tac.unavailable') }}</p>
+          <p v-else-if="tac.status === 'notFound'" class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900" role="status">{{ t('soldUnits.tac.notFound', { tac: tac.code }) }}</p>
+          <div v-else-if="tac.status === 'error'" class="rounded-lg border border-danger-200 bg-danger-50 p-3 text-sm text-danger-800" role="alert">
+            <p>{{ t('soldUnits.tac.unavailable', { reason: tac.reason }) }}</p>
+            <button type="button" class="btn-secondary btn-sm mt-2" @click="identify(tac.code)">{{ t('soldUnits.tac.retry') }}</button>
+          </div>
           <p class="text-xs text-gray-400">{{ t('soldUnits.tac.privacy') }}</p>
         </div>
 

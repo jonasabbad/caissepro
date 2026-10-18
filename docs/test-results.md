@@ -338,3 +338,15 @@ In the app: Add a device → Phone opens with the IMEI focused; wrong check digi
 Galaxy S24 Ultra and loads its storage options, with the source shown; only `/tac/99000101` (8 digits) was requested;
 changing to an iPhone code with Samsung already filled asked before replacing (kept / used on demand); an unknown code
 showed "not identified" and kept the fields; saving that phone by hand made its code recognised. Test devices removed.
+
+## IMEI identification fix (2026-10-19)
+
+Cause: the Osmocom import read the licence banner as the header, then took the contributor column as the model ("Ryd",
+"tacdb submission") and dropped rows with an empty contributor (iPhone 4 TAC 01242200 missing). The API therefore
+returned meaningless models or nothing. Fixed parser (banner, duplicate `name` columns, `aka`, brand-only rows),
+lookup (verified model or brand only), form (brand-only fill, not-found and failure messages with retry); re-imported
+22,524 TACs. Automated: 68 tests pass (real export layout included).
+In the app, Add a device → Phone with IMEIs built on real TACs of the file: 35915207 → Apple iPhone 7 (storage options
+loaded); 35603310 → Samsung Galaxy S10e (from SM-G970U); 35067889 → Samsung Galaxy A51 (from "aka"); 35753906 →
+Samsung, model left to choose; 12345678 → "Device model not found in the TAC database"; a failed request → message
+and "Try again", which then filled Apple iPhone 7.

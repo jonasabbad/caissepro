@@ -760,6 +760,7 @@ model TacModel {
   brand       String
   model       String
   modelNumber String?
+  aliases     String? // other names for this TAC in the source ("aka"), comma-separated
   deviceType  String?
   source      String // "own" or the imported file's source / licence
   seenCount   Int      @default(1)

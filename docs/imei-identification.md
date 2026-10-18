@@ -66,3 +66,28 @@ it under the same licence. Using it inside the app for your business does not re
 No free source identifies every iPhone and Samsung, and Apple / Samsung use many TACs per model (regions, versions).
 For complete coverage, a licensed GSMA or vendor export can be imported with the command above; until then the
 business's own records fill in models it has already handled.
+
+## What the form fills, per TAC record (since 2026-10-19)
+
+| The record gives | The form |
+|---|---|
+| A name (model or "aka") matching a catalogue model, e.g. "iPhone 7 A1778 TD-LTE 32GB" → iPhone 7, "SM-A515F/DSN" aka "Galaxy A51" | Brand + catalogue model (its storage / colour options load) |
+| A Samsung model number of a catalogue model, e.g. SM-G970U → Galaxy S10e (Samsung's naming) | Brand + catalogue model, with "model taken from model number …" |
+| A real marketing name not in the catalogue, e.g. "Galaxy S7", "iPhone 4" | Brand + that name (storage / colour by hand) |
+| Only a model number or nothing usable, e.g. "SM-J100H" | Brand only, with the database name and model number shown; choose the model |
+| No record | "Device model not found in the TAC database for this code (…)" — fill in by hand; the code is learned on save |
+| Request failed | The reason and a "Try again" button; the form stays usable |
+
+The database name, the model number and the source are always shown next to the result, so a suggestion can be checked.
+
+## Osmocom export format and coverage (file of 2026-10-18)
+
+The export starts with a licence banner line; its header is `tac,name,name,contributor,comment,gsmarena,gsmarena,aka`
+(first `name` = brand, second = model, `aka` = other names). TACs keep their leading zeros (01242200 = iPhone 4).
+A first import of 2026-10-18 read the wrong columns (contributor as model) and dropped records without a contributor;
+the importer was fixed and the file re-imported: 22,524 TACs.
+
+Coverage of that file for the catalogue's phones: Apple 218 TACs, 161 resolving to catalogue models, 9 of 50 catalogue
+iPhones (nothing for iPhone 12–16); Samsung 1,441 TACs, mostly older models, 5 of 79 catalogue Galaxy models. Recent
+iPhones and Galaxys are therefore identified from the business's own saved devices (or a licensed TAC file), not from
+this database. `--check` prints these figures for any file.

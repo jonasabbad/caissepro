@@ -105,3 +105,36 @@ describe('TAC files', () => {
     expect(() => parseTacFile('a,b\nx,y', 'x.csv')).toThrow(/Unrecognised/);
   });
 });
+
+describe('Osmocom TAC export', () => {
+  it('reads the real export layout and resolves only what the records support', async () => {
+    const { parseTacFile, resolveModel } = await import('../src/lib/tac.js');
+    const file = [
+      'Osmocom TAC database under CC-BY-SA v3.0 (c) Harald Welte 2016',
+      'tac,name,name,contributor,comment,gsmarena,gsmarena,aka',
+      '01242200,Apple,iPhone 4,,,http://x,http://y,"iPhone 4 16GB,iPhone 4 32GB"',
+      '35915207,Apple,iPhone 7 A1778 TD-LTE 32GB,Ryd,,,,',
+      '35067889,Samsung,SM-A515F/DSN,tacdb submission,,,,Galaxy A51',
+      '35603310,Samsung,SM-G970U,OsmoTACDB client,,,,',
+      '35753906,Samsung,SM-J100H,,,,,',
+      '49013920,Nokia,1610,OsmoDevCon 2014,,,,"1610+,1611"',
+    ].join('\n');
+    const rows = parseTacFile(file, 'tacdb.csv');
+    // Banner skipped, both "name" columns read as brand / model, leading zeros and empty contributors kept.
+    expect(rows.map((r) => [r.tac, r.brand, r.model])).toEqual([
+      ['01242200', 'Apple', 'iPhone 4'],
+      ['35915207', 'Apple', 'iPhone 7 A1778 TD-LTE 32GB'],
+      ['35067889', 'Samsung', 'SM-A515F/DSN'],
+      ['35603310', 'Samsung', 'SM-G970U'],
+      ['35753906', 'Samsung', 'SM-J100H'],
+      ['49013920', 'Nokia', '1610'],
+    ]);
+    expect(rows[2].aliases).toBe('Galaxy A51');
+    const res = (i: number) => resolveModel(rows[i].brand, rows[i].model, rows[i].aliases, 'phone');
+    expect(res(1)).toEqual({ model: 'iPhone 7', inCatalog: true, via: 'name' });
+    expect(res(2)).toEqual({ model: 'Galaxy A51', inCatalog: true, via: 'name' }); // from "aka"
+    expect(res(3)).toEqual({ model: 'Galaxy S10e', inCatalog: true, via: 'modelNumber' });
+    expect(res(0)).toEqual({ model: 'iPhone 4', inCatalog: false, via: 'name' }); // real name, not in the catalogue
+    expect(res(4)).toEqual({ model: null, inCatalog: false, via: null }); // only a model number: brand only
+  });
+});
