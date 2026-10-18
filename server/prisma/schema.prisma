@@ -749,3 +749,23 @@ model SupplierPayment {
   @@index([tenantId, supplierId])
   @@index([invoiceId])
 }
+
+/// Type Allocation Code (first 8 IMEI digits) → manufacturer / model, used to pre-fill the Add device form.
+/// tenantId = a business's own records (learned from the devices it saved; private to it)
+/// tenantId = "" = reference data imported from a TAC file (see scripts/import-tac.ts), with its source.
+model TacModel {
+  id          String   @id @default(uuid())
+  tenantId    String   @default("")
+  tac         String
+  brand       String
+  model       String
+  modelNumber String?
+  deviceType  String?
+  source      String // "own" or the imported file's source / licence
+  seenCount   Int      @default(1)
+  updatedAt   DateTime @updatedAt
+  createdAt   DateTime @default(now())
+
+  @@unique([tenantId, tac])
+  @@index([tac])
+}

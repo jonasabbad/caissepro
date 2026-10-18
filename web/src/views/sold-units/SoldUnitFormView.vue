@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
 import {
   ArrowLeftIcon,
+  ArrowPathIcon,
   CheckCircleIcon,
   ClockIcon,
   ComputerDesktopIcon,
@@ -99,6 +100,51 @@ function onDeviceLoaded(d) {
   if (details.value.salePrice === 0) details.value.salePrice = d.basePrice;
 }
 
+// ── IMEI first: identify brand / model from the TAC (first 8 digits), without overwriting what was typed ──
+const tac = ref({ status: 'idle', device: null }); // idle | loading | found | notFound | error
+const tacSuggestion = ref(null);
+const autofilled = ref(false);
+let lastTac = '';
+const deviceName = (d) => `${d.brand} ${d.model}`.trim();
+function applyIdentified(d) {
+  const sameModel = device.value.brand === d.brand && device.value.model === d.model;
+  device.value = { ...device.value, brand: d.brand, model: d.model, ...(sameModel ? {} : { storage: '', ram: '', color: '' }) };
+  autofilled.value = true;
+  tacSuggestion.value = null;
+}
+watch(
+  () => details.value.imei,
+  async (imei) => {
+    if (!isPhone.value || isEdit.value) return;
+    if (!imei || !isValidImei(imei)) {
+      if (!imei) (tac.value = { status: 'idle', device: null }), (tacSuggestion.value = null), (lastTac = '');
+      return;
+    }
+    const code = imei.slice(0, 8);
+    if (code === lastTac) return;
+    lastTac = code;
+    tac.value = { status: 'loading', device: null };
+    tacSuggestion.value = null;
+    try {
+      const r = await soldUnitsApi.lookupTac(code);
+      if (lastTac !== code) return;
+      if (!r.found) return (tac.value = { status: 'notFound', device: null });
+      const d = r.device;
+      tac.value = { status: 'found', device: d };
+      // Fill what is empty; anything already entered that differs is only replaced on confirmation.
+      const conflict = (device.value.brand && device.value.brand !== d.brand) || (device.value.model && device.value.model !== d.model);
+      if (conflict) tacSuggestion.value = d;
+      else applyIdentified(d);
+    } catch {
+      if (lastTac === code) tac.value = { status: 'error', device: null };
+    }
+  },
+);
+const imeiInput = ref(null);
+onMounted(() => {
+  if (isPhone.value && !isEdit.value) setTimeout(() => imeiInput.value?.focus(), 50);
+});
+
 const imeiCheck = computed(() => {
   const imei = details.value.imei;
   if (!isPhone.value || !imei) return null;
@@ -188,6 +234,53 @@ const section = 'border-b pb-2 text-lg font-semibold text-gray-900';
 
     <form v-else class="grid grid-cols-1 gap-6 lg:grid-cols-2" @submit.prevent="submit">
       <div class="space-y-6">
+        <div v-if="isPhone" class="card space-y-3 border-2 border-gray-900 p-6">
+          <h2 :class="section">{{ t('soldUnits.tac.title') }}</h2>
+          <p class="text-sm text-gray-500">{{ t('soldUnits.tac.hint') }}</p>
+          <div class="relative">
+            <input
+              ref="imeiInput"
+              v-model.trim="details.imei"
+              type="text"
+              inputmode="numeric"
+              autocomplete="off"
+              maxlength="15"
+              placeholder="000000000000000"
+              :aria-label="t('soldUnits.imei')"
+              :class="['input py-3 font-mono text-xl tracking-widest', { 'input-error': errors.imei, 'border-green-500': imeiCheck?.valid }]"
+              @keydown.enter.prevent
+            />
+            <div class="absolute end-3 top-1/2 -translate-y-1/2">
+              <ArrowPathIcon v-if="tac.status === 'loading'" class="h-5 w-5 animate-spin text-gray-400" />
+              <CheckCircleIcon v-else-if="imeiCheck?.valid" class="h-5 w-5 text-green-500" />
+              <XCircleIcon v-else-if="details.imei" class="h-5 w-5 text-danger-500" />
+            </div>
+          </div>
+          <p v-if="imeiCheck" :class="['text-sm', imeiCheck.valid ? 'text-green-600' : 'text-danger-600']">{{ imeiCheck.message }}</p>
+          <p v-if="errors.imei && !imeiCheck" class="text-sm text-danger-600">{{ errors.imei }}</p>
+
+          <p v-if="tac.status === 'loading'" class="text-sm text-gray-500">{{ t('soldUnits.tac.loading') }}</p>
+          <div v-else-if="tacSuggestion" class="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm">
+            <p class="text-amber-900">{{ t('soldUnits.tac.conflict', { found: deviceName(tacSuggestion), current: deviceName(device) }) }}</p>
+            <div class="mt-2 flex flex-wrap gap-2">
+              <button type="button" class="btn-primary btn-sm" @click="applyIdentified(tacSuggestion)">{{ t('soldUnits.tac.useFound', { found: deviceName(tacSuggestion) }) }}</button>
+              <button type="button" class="btn-secondary btn-sm" @click="tacSuggestion = null">{{ t('soldUnits.tac.keepMine') }}</button>
+            </div>
+          </div>
+          <div v-else-if="tac.status === 'found'" class="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-900">
+            <p class="font-semibold">{{ t('soldUnits.tac.identified', { device: deviceName(tac.device) }) }}</p>
+            <p v-if="autofilled">{{ t('soldUnits.tac.filled') }}</p>
+            <p v-if="tac.device.modelNumber" class="text-xs">{{ t('soldUnits.tac.modelNumber', { value: tac.device.modelNumber }) }}</p>
+            <p class="text-xs text-green-800">
+              {{ tac.device.source === 'own' ? t('soldUnits.tac.sourceOwn', { n: tac.device.seenCount }) : t('soldUnits.tac.sourceReference', { name: tac.device.sourceName }) }}
+            </p>
+            <p v-if="!tac.device.inCatalog" class="mt-1 text-xs text-amber-800">{{ t('soldUnits.tac.notInCatalog') }}</p>
+          </div>
+          <p v-else-if="tac.status === 'notFound'" class="rounded-lg bg-gray-50 p-3 text-sm text-gray-600">{{ t('soldUnits.tac.notFound') }}</p>
+          <p v-else-if="tac.status === 'error'" class="rounded-lg bg-gray-50 p-3 text-sm text-gray-600">{{ t('soldUnits.tac.unavailable') }}</p>
+          <p class="text-xs text-gray-400">{{ t('soldUnits.tac.privacy') }}</p>
+        </div>
+
         <div class="card space-y-4 p-6">
           <h2 :class="section">{{ t('soldUnits.deviceInfo') }}</h2>
           <DeviceCatalogSelect v-model="device" :disabled="isEdit" :device-type="deviceType" @device-loaded="onDeviceLoaded" />
@@ -198,25 +291,6 @@ const section = 'border-b pb-2 text-lg font-semibold text-gray-900';
 
         <div class="card space-y-4 p-6">
           <h2 :class="section">{{ t('soldUnits.identification') }}</h2>
-          <div v-if="isPhone">
-            <label class="label">{{ t('soldUnits.imei') }}</label>
-            <div class="relative">
-              <input
-                v-model="details.imei"
-                type="text"
-                maxlength="15"
-                placeholder="000000000000000"
-                :class="['input font-mono', { 'input-error': errors.imei, 'border-green-500': imeiCheck?.valid }]"
-                @keydown.enter.prevent
-              />
-              <div class="absolute end-3 top-1/2 -translate-y-1/2">
-                <CheckCircleIcon v-if="imeiCheck?.valid" class="h-5 w-5 text-green-500" />
-                <XCircleIcon v-else-if="details.imei" class="h-5 w-5 text-danger-500" />
-              </div>
-            </div>
-            <p v-if="imeiCheck" :class="['mt-1 text-sm', imeiCheck.valid ? 'text-green-600' : 'text-danger-600']">{{ imeiCheck.message }}</p>
-            <p v-if="errors.imei && !imeiCheck" class="mt-1 text-sm text-danger-600">{{ errors.imei }}</p>
-          </div>
           <div>
             <label class="label">{{ t('soldUnits.serialNumber') }} <span class="font-normal text-gray-400">({{ t('common.optional') }})</span></label>
             <input

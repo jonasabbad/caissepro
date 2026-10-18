@@ -128,5 +128,6 @@ export default {
     quantityMinOne: "يجب أن تكون الكمية 1 على الأقل",
     orderInvoicedPayThere: "هذه الطلبية مفوترة: سجّل الدفعة على الفاتورة {number}",
     cancelOrderInvoiceFirst: "ألغِ فاتورة هذه الطلبية أولاً",
+    invalidTac: "رمز TAC غير صالح",
   },
 };

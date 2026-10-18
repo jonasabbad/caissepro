@@ -100,14 +100,14 @@ watch(
   },
 );
 watch(brand, (v, old) => {
-  if (props.disabled || v === old) return;
+  if (props.disabled || v === old || v === props.modelValue.brand) return;
   model.value = '';
   storage.value = '';
   color.value = '';
   emitValue();
 });
 watch(model, (v, old) => {
-  if (props.disabled || v === old) return;
+  if (props.disabled || v === old || v === props.modelValue.model) return;
   storage.value = '';
   ram.value = '';
   color.value = '';

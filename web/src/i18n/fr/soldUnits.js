@@ -114,6 +114,7 @@ export default {
     photo: "Photo de l’appareil",
     viewGrid: "Vue en grille",
     viewList: "Vue en liste",
+    tac: {"title":"IMEI du téléphone","hint":"Saisissez ou scannez l’IMEI (*#06#) : la marque et le modèle sont remplis quand ils peuvent être identifiés.","privacy":"Seuls les 8 premiers chiffres (code du modèle) servent à l’identification ; l’IMEI n’est envoyé à aucun service extérieur.","loading":"Identification…","identified":"Identifié : {device}","filled":"Marque et modèle remplis. Vérifiez-les, puis complétez la capacité, la couleur, l’état et les prix.","modelNumber":"Référence modèle : {value}","sourceOwn":"Source : vos appareils déjà enregistrés avec ce code ({n})","sourceReference":"Source : {name}","notInCatalog":"Modèle absent du catalogue : choisissez la capacité et la couleur à la main.","conflict":"Cet IMEI correspond à {found}. Vous avez saisi {current}.","useFound":"Utiliser {found}","keepMine":"Garder ma saisie","notFound":"Modèle non identifié pour ce code : choisissez la marque et le modèle ci-dessous. Il sera reconnu la prochaine fois.","unavailable":"Identification indisponible : remplissez les champs à la main."},
   },
   reservation: {
     title: 'Réservation',

@@ -77,6 +77,11 @@ export const soldUnitsApi = {
   async getByImei(imei) {
     return (await this.getAll({ query: imei, limit: 1 })).units.find((u) => u.imei === imei) || null;
   },
+  /** Identification from the TAC (first 8 IMEI digits only — the full IMEI is never sent for this). */
+  async lookupTac(tac) {
+    const { data } = await http.get(`/phone-seller/sold-units/tac/${tac}`);
+    return data.data;
+  },
   async create(payload) {
     const { data } = await http.post('/phone-seller/sold-units', payload);
     return data.data.unit;

@@ -8,6 +8,7 @@ import { authed, ok, type Req } from '../lib/route.js';
 import { dateRange, pageMeta, pageParams, qBool, qStr } from '../lib/pagination.js';
 import { resolveStoreId } from '../lib/tenant.js';
 import { isAllowedImageUrl, removeUpload } from '../lib/uploads.js';
+import { learnTac, lookupTac } from '../lib/tac.js';
 
 const REF_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
 
@@ -99,7 +100,7 @@ export async function createUnit(
   input: UnitInput,
   extra: Partial<Prisma.SoldUnitUncheckedCreateInput> = {},
 ) {
-  return tx.soldUnit.create({
+  const unit = await tx.soldUnit.create({
     data: {
       tenantId: ctx.tenantId,
       storeId: ctx.storeId,
@@ -129,6 +130,9 @@ export async function createUnit(
       ...extra,
     },
   });
+  // Remembers this TAC → brand / model for the next device with the same model (see lib/tac.ts).
+  await learnTac(tx, ctx.tenantId, unit);
+  return unit;
 }
 
 export default async function soldUnitRoutes(app: FastifyInstance) {
@@ -234,6 +238,16 @@ export default async function soldUnitRoutes(app: FastifyInstance) {
     return ok({ unit: serialize(updated) });
   });
 
+  /**
+   * Device identification from a TAC (first 8 IMEI digits; the full IMEI is never sent here). Answers from this
+   * business's own devices first, then imported reference TAC data. found: false = fill in by hand.
+   */
+  app.get(`${base}/tac/:tac`, async (req: Req<unknown, unknown, { tac: string }>) => {
+    if (!/^\d{8}$/.test(req.params.tac)) throw badRequest('TAC invalide');
+    const device = await lookupTac(req.auth.tenantId, req.params.tac);
+    return ok({ found: !!device, device });
+  });
+
   app.get(`${base}/available`, async (req: Req<unknown, Record<string, string>>) => {
     const q = req.query;
     const units = await prisma.soldUnit.findMany({
@@ -296,7 +310,11 @@ export default async function soldUnitRoutes(app: FastifyInstance) {
       salePrice: r2(sale),
       profit: r2(sale - purchase - num(existing.repairCost)),
     };
-    const unit = await prisma.soldUnit.update({ where: { id: existing.id }, data });
+    const unit = await prisma.$transaction(async (tx) => {
+      const u = await tx.soldUnit.update({ where: { id: existing.id }, data });
+      if (input.imei !== undefined || input.brand !== undefined || input.model !== undefined) await learnTac(tx, req.auth.tenantId, u);
+      return u;
+    });
     // A replaced or removed photo is deleted from storage.
     if (input.imageUrl !== undefined && (input.imageUrl || null) !== existing.imageUrl) await removeUpload(req.auth.tenantId, existing.imageUrl);
     const [full] = await withUnitRelations([unit]);

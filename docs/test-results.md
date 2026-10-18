@@ -326,3 +326,15 @@ keeps it; removing clears it; deleting the device deletes its file; another busi
 In the app: TEST devices with their own photos and one without (placeholder by device type), grid 2 / 3 / 4 per row at
 375 / 768 / 1440 px with square images, no horizontal scroll; photo shown in the edit form, removed and saved (file
 deleted, other device's photo kept); search and the list view (with thumbnails) still work.
+
+## IMEI identification (2026-10-18)
+
+Automated (`server/test/tac.test.ts`, 66 tests pass in total): Luhn validation; unknown TAC → not found; a saved device
+teaches its TAC (brand / model only — no IMEI, storage or price in the answer); another business does not see it;
+editing a device updates it; importing a TAC file (Osmocom-style header) maps "iPhone 15 Pro (A2848)" and
+"SM-S921B Galaxy S24" to catalogue models with their model numbers; the business's own record wins over the file;
+re-importing a source replaces it.
+In the app: Add a device → Phone opens with the IMEI focused; wrong check digit refused; a known code fills Samsung
+Galaxy S24 Ultra and loads its storage options, with the source shown; only `/tac/99000101` (8 digits) was requested;
+changing to an iPhone code with Samsung already filled asked before replacing (kept / used on demand); an unknown code
+showed "not identified" and kept the fields; saving that phone by hand made its code recognised. Test devices removed.
