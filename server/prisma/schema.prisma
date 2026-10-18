@@ -35,14 +35,14 @@ model Tenant {
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
-  stores     Store[]
-  users      User[]
-  products   Product[]
-  customers  Customer[]
-  suppliers  Supplier[]
-  soldUnits  SoldUnit[]
-  employees  Employee[]
-  repairers  Repairer[]
+  stores    Store[]
+  users     User[]
+  products  Product[]
+  customers Customer[]
+  suppliers Supplier[]
+  soldUnits SoldUnit[]
+  employees Employee[]
+  repairers Repairer[]
 }
 
 model Store {
@@ -146,9 +146,9 @@ model Product {
 
   movements InventoryMovement[]
 
+  @@unique([tenantId, barcode]) // one product per barcode within a business
   @@index([tenantId])
   @@index([tenantId, barcode])
-  @@unique([tenantId, barcode]) // one product per barcode within a business
 }
 
 model InventoryMovement {
@@ -200,6 +200,7 @@ model SoldUnit {
   chargeCycles             Int?
   notes                    String?
   accessories              String? // JSON string[]
+  imageUrl                 String? // photo of this device (uploaded), shown in lists and on its page
   hasWarranty              Boolean   @default(true)
   warrantyDays             Int?
   warrantyExpiresAt        DateTime?
@@ -269,23 +270,23 @@ model Customer {
 }
 
 model CustomerPayment {
-  id            String   @id @default(uuid())
-  tenantId      String
-  customerId    String
-  customer      Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  amount        Decimal
-  method        String   @default("cash")
-  reference     String?
-  notes         String?
-  allocations   String   @default("[]") // JSON [{transactionId, amount}]
-  createdBy     String?
-  createdAt     DateTime @default(now())
+  id          String   @id @default(uuid())
+  tenantId    String
+  customerId  String
+  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  amount      Decimal
+  method      String   @default("cash")
+  reference   String?
+  notes       String?
+  allocations String   @default("[]") // JSON [{transactionId, amount}]
+  createdBy   String?
+  createdAt   DateTime @default(now())
 }
 
 model Supplier {
-  id             String   @id @default(uuid())
+  id             String            @id @default(uuid())
   tenantId       String
-  tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant         Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   name           String
   contactName    String?
   email          String?
@@ -293,12 +294,13 @@ model Supplier {
   address        String?
   city           String?
   notes          String?
-  totalOrders    Int      @default(0)
-  totalPurchased Decimal  @default(0)
-  currentBalance Decimal  @default(0) // amount the store owes the supplier
-  isActive       Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  totalOrders    Int               @default(0)
+  totalPurchased Decimal           @default(0)
+  currentBalance Decimal           @default(0) // amount the store owes the supplier
+  invoices       SupplierInvoice[]
+  isActive       Boolean           @default(true)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
 
   @@index([tenantId])
 }
@@ -364,31 +366,31 @@ model Employee {
 // ─── Sales ───────────────────────────────────────────────────────────────────
 
 model Transaction {
-  id                String    @id @default(uuid())
-  tenantId          String
-  storeId           String?
-  cashierId         String?
-  employeeId        String?
-  customerId        String?
-  transactionNumber String
-  type              String    @default("sale") // sale | return | reservation | trade_in
-  status            String    @default("completed") // completed | partial | pending | cancelled | refunded
-  subtotal          Decimal   @default(0)
-  taxAmount         Decimal   @default(0)
-  taxRate           Decimal   @default(0)
-  discountAmount    Decimal   @default(0)
-  totalAmount       Decimal   @default(0)
-  amountPaid        Decimal   @default(0)
-  amountRemaining   Decimal   @default(0)
-  totalCost         Decimal   @default(0)
-  totalProfit       Decimal   @default(0)
-  tradeInValue      Decimal   @default(0)
+  id                    String    @id @default(uuid())
+  tenantId              String
+  storeId               String?
+  cashierId             String?
+  employeeId            String?
+  customerId            String?
+  transactionNumber     String
+  type                  String    @default("sale") // sale | return | reservation | trade_in
+  status                String    @default("completed") // completed | partial | pending | cancelled | refunded
+  subtotal              Decimal   @default(0)
+  taxAmount             Decimal   @default(0)
+  taxRate               Decimal   @default(0)
+  discountAmount        Decimal   @default(0)
+  totalAmount           Decimal   @default(0)
+  amountPaid            Decimal   @default(0)
+  amountRemaining       Decimal   @default(0)
+  totalCost             Decimal   @default(0)
+  totalProfit           Decimal   @default(0)
+  tradeInValue          Decimal   @default(0)
   originalTransactionId String?
-  notes             String?
-  cancelReason      String?
-  cancelledAt       DateTime?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  notes                 String?
+  cancelReason          String?
+  cancelledAt           DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
   items    TransactionItem[]
   payments Payment[]
@@ -398,24 +400,24 @@ model Transaction {
 }
 
 model TransactionItem {
-  id            String      @id @default(uuid())
-  transactionId String
-  transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
-  productId     String?
-  soldUnitId    String?
-  productName   String
-  sku           String?
-  quantity      Int
-  unitPrice     Decimal
-  costPrice     Decimal     @default(0)
-  discount      Decimal     @default(0)
-  taxAmount     Decimal     @default(0)
-  totalPrice    Decimal
-  profit        Decimal     @default(0)
-  saleMode      String? // unit | pack
-  variants      String? // JSON
-  returnedQuantity Int      @default(0)
-  originalItemId String?
+  id               String      @id @default(uuid())
+  transactionId    String
+  transaction      Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  productId        String?
+  soldUnitId       String?
+  productName      String
+  sku              String?
+  quantity         Int
+  unitPrice        Decimal
+  costPrice        Decimal     @default(0)
+  discount         Decimal     @default(0)
+  taxAmount        Decimal     @default(0)
+  totalPrice       Decimal
+  profit           Decimal     @default(0)
+  saleMode         String? // unit | pack
+  variants         String? // JSON
+  returnedQuantity Int         @default(0)
+  originalItemId   String?
 }
 
 model Payment {
@@ -447,7 +449,6 @@ model CaisseMovement {
 
   @@index([storeId, createdAt])
 }
-
 
 // ─── Invoices ────────────────────────────────────────────────────────────────
 
@@ -495,36 +496,36 @@ model Repairer {
 }
 
 model Repair {
-  id                String    @id @default(uuid())
-  tenantId          String
-  storeId           String?
-  repairNumber      String
-  customerId        String?
-  deviceDescription String
-  soldUnitId        String?
-  repairerId        String?
-  diagnosticNotes   String?
-  fixedPrice        Decimal?
-  totalCost         Decimal   @default(0)
-  status            String    @default("pending") // pending | in_progress | completed | delivered | cancelled
-  receivedAt        DateTime  @default(now())
-  completedAt       DateTime?
-  deliveredAt       DateTime?
-  transactionId     String?
-  createdBy         String?
-  notes             String?
+  id                    String    @id @default(uuid())
+  tenantId              String
+  storeId               String?
+  repairNumber          String
+  customerId            String?
+  deviceDescription     String
+  soldUnitId            String?
+  repairerId            String?
+  diagnosticNotes       String?
+  fixedPrice            Decimal?
+  totalCost             Decimal   @default(0)
+  status                String    @default("pending") // pending | in_progress | completed | delivered | cancelled
+  receivedAt            DateTime  @default(now())
+  completedAt           DateTime?
+  deliveredAt           DateTime?
+  transactionId         String?
+  createdBy             String?
+  notes                 String?
   // Payments collected from the customer (repairs are paid here, never through the POS).
-  amountPaid        Decimal   @default(0)
-  paymentStatus     String    @default("unpaid") // unpaid | partial | paid
-  payments          String    @default("[]") // JSON [{id, amount, method, reference?, paidAt, userId}]
+  amountPaid            Decimal   @default(0)
+  paymentStatus         String    @default("unpaid") // unpaid | partial | paid
+  payments              String    @default("[]") // JSON [{id, amount, method, reference?, paidAt, userId}]
   // When the repair became realized income: completed/delivered AND fully paid. Null otherwise.
-  realizedAt        DateTime?
+  realizedAt            DateTime?
   /// Legacy: costs added to the linked stock device's cost instead of the repair (repairs before 2026-10-17 only).
-  costsCapitalized  Boolean   @default(false)
+  costsCapitalized      Boolean   @default(false)
   estimatedCompletionAt DateTime?
-  trackingToken     String?   @unique // public status link encoded in the repair QR code
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  trackingToken         String?   @unique // public status link encoded in the repair QR code
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
   expenses RepairExpense[]
 
@@ -532,19 +533,19 @@ model Repair {
 }
 
 model RepairExpense {
-  id          String   @id @default(uuid())
-  repairId    String
-  repair      Repair   @relation(fields: [repairId], references: [id], onDelete: Cascade)
-  tenantId    String
-  description String
-  amount      Decimal
-  type        String   @default("part") // part (bought for the job) | stock_part (taken from inventory) | labor | other
-  productId   String? // stock_part: the product taken from stock
-  quantity    Int? // stock_part: pieces taken
-  unitCost    Decimal? // stock_part: product cost price at the time
-  repairerId  String? // labor: the technician paid
-  paidFromDrawer Boolean @default(false) // paid in cash from the drawer
-  createdAt   DateTime @default(now())
+  id             String   @id @default(uuid())
+  repairId       String
+  repair         Repair   @relation(fields: [repairId], references: [id], onDelete: Cascade)
+  tenantId       String
+  description    String
+  amount         Decimal
+  type           String   @default("part") // part (bought for the job) | stock_part (taken from inventory) | labor | other
+  productId      String? // stock_part: the product taken from stock
+  quantity       Int? // stock_part: pieces taken
+  unitCost       Decimal? // stock_part: product cost price at the time
+  repairerId     String? // labor: the technician paid
+  paidFromDrawer Boolean  @default(false) // paid in cash from the drawer
+  createdAt      DateTime @default(now())
 }
 
 // ─── Labels, announcements, misc ─────────────────────────────────────────────
@@ -590,7 +591,6 @@ model LabelTemplate {
   @@index([tenantId, categoryId])
 }
 
-
 model Announcement {
   id        String    @id @default(uuid())
   title     String
@@ -622,21 +622,21 @@ model PublicOrder {
 }
 
 model SubscriptionPlan {
-  id           String   @id @default(uuid())
-  code         String   @unique
-  name         String
-  description  String?
-  monthlyPrice Decimal
-  yearlyPrice  Decimal?
-  features     String   @default("[]") // JSON [{key, label, included}]
+  id            String   @id @default(uuid())
+  code          String   @unique
+  name          String
+  description   String?
+  monthlyPrice  Decimal
+  yearlyPrice   Decimal?
+  features      String   @default("[]") // JSON [{key, label, included}]
   maxStores     Int?
   maxUsers      Int?
   maxProducts   Int?
   maxStockUnits Int?
-  isActive     Boolean  @default(true)
-  sortOrder    Int      @default(0)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  isActive      Boolean  @default(true)
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
 
 model SubscriptionPayment {
@@ -668,4 +668,84 @@ model PlatformSettings {
 model DataMigration {
   id    String   @id
   ranAt DateTime @default(now())
+}
+
+// ─── Supplier invoices ───────────────────────────────────────────────────────
+
+/// A purchase invoice from a supplier. draft: editable, owes nothing · confirmed: owed, payable, receivable · cancelled.
+/// Remaining = total − sum of non-voided payments. Stock moves only through per-line received quantities.
+model SupplierInvoice {
+  id                String    @id @default(uuid())
+  tenantId          String
+  storeId           String?
+  supplierId        String
+  supplier          Supplier  @relation(fields: [supplierId], references: [id])
+  number            String // internal, unique per business (FF-2026-0001)
+  supplierRef       String? // the supplier's own invoice number
+  supplierOrderId   String? // created from a purchase order: stock is received on the order, its debt moves here
+  status            String    @default("draft") // draft | confirmed | cancelled
+  invoiceDate       DateTime
+  dueDate           DateTime?
+  subtotal          Decimal   @default(0)
+  discount          Decimal   @default(0)
+  taxRate           Decimal   @default(0) // % applied to subtotal − discount
+  taxAmount         Decimal   @default(0)
+  extraCharges      Decimal   @default(0) // shipping, handling…
+  extraChargesLabel String?
+  total             Decimal   @default(0)
+  amountPaid        Decimal   @default(0)
+  notes             String?
+  paymentTerms      String?
+  confirmedAt       DateTime?
+  cancelledAt       DateTime?
+  cancelReason      String?
+  createdBy         String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  items    SupplierInvoiceItem[]
+  payments SupplierPayment[]
+
+  @@unique([tenantId, number])
+  @@index([tenantId, supplierId])
+  @@index([tenantId, invoiceDate])
+}
+
+model SupplierInvoiceItem {
+  id               String          @id @default(uuid())
+  invoiceId        String
+  invoice          SupplierInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  position         Int             @default(0)
+  productId        String? // null = new product, created when the line is first received
+  productName      String
+  reference        String? // barcode or SKU
+  quantity         Int
+  quantityReceived Int             @default(0)
+  unitCost         Decimal
+  lineTotal        Decimal
+  newRetailPrice   Decimal? // for a new product
+  newCategoryId    String?
+}
+
+/// One payment to a supplier. Never deleted: a mistaken payment is voided (cash payments go back into the drawer).
+model SupplierPayment {
+  id         String           @id @default(uuid())
+  tenantId   String
+  supplierId String
+  invoiceId  String?
+  invoice    SupplierInvoice? @relation(fields: [invoiceId], references: [id])
+  amount     Decimal
+  method     String // cash | card | bank_transfer | check
+  paidAt     DateTime
+  reference  String?
+  notes      String?
+  fromOrder  Boolean          @default(false) // carried over from the purchase order (already out of the drawer)
+  storeId    String?
+  voidedAt   DateTime?
+  voidReason String?
+  createdBy  String?
+  createdAt  DateTime         @default(now())
+
+  @@index([tenantId, supplierId])
+  @@index([invoiceId])
 }

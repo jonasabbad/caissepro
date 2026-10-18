@@ -111,6 +111,9 @@ export default {
     barcodeContent: "Barcode content",
     printStickers: "Print stickers ({n})",
     selectedCount: "{n} device(s) selected",
+    photo: "Device photo",
+    viewGrid: "Grid view",
+    viewList: "List view",
   },
   reservation: {
     title: 'Reservation',

@@ -63,3 +63,37 @@ describe('product images', () => {
     expect(js.status).toBe(400);
   });
 });
+
+describe('device images', () => {
+  it('links a photo to each device, replaces and removes it, and refuses foreign URLs', async () => {
+    const { api } = await newTenant();
+    const other = await newTenant();
+    const a = (await api.post('/uploads/images', { dataUrl: PNG })).body.data.url;
+    const b = (await api.post('/uploads/images', { dataUrl: WEBP })).body.data.url;
+    const foreign = (await other.api.post('/uploads/images', { dataUrl: PNG })).body.data.url;
+    const base = { brand: 'Apple', model: 'iPhone 13', purchasePrice: 3000, salePrice: 3900 };
+
+    expect((await api.post('/phone-seller/sold-units', { ...base, imageUrl: foreign })).status).toBe(400);
+    const u1 = (await api.post('/phone-seller/sold-units', { ...base, imageUrl: a })).body.data.unit;
+    const u2 = (await api.post('/phone-seller/sold-units', { ...base, model: 'iPhone 14' })).body.data.unit;
+    expect([u1.imageUrl, u2.imageUrl]).toEqual([a, null]);
+    // Each device keeps its own photo in lists and on its page.
+    const list = (await api.get('/phone-seller/sold-units?stock=all')).body.data.units;
+    expect(Object.fromEntries(list.map((u: any) => [u.id, u.imageUrl]))).toMatchObject({ [u1.id]: a, [u2.id]: null });
+    expect((await api.get(`/phone-seller/sold-units/${u1.id}`)).body.data.unit.imageUrl).toBe(a);
+
+    // Replacing deletes the old file; removing clears the field; editing other fields keeps the photo.
+    expect((await api.put(`/phone-seller/sold-units/${u1.id}`, { imageUrl: b })).body.data.unit.imageUrl).toBe(b);
+    expect(existsSync(fileOf(a))).toBe(false);
+    expect((await api.put(`/phone-seller/sold-units/${u1.id}`, { salePrice: 4000 })).body.data.unit.imageUrl).toBe(b);
+    expect((await api.put(`/phone-seller/sold-units/${u1.id}`, { imageUrl: foreign })).status).toBe(400);
+    expect((await api.put(`/phone-seller/sold-units/${u1.id}`, { imageUrl: null })).body.data.unit.imageUrl).toBeNull();
+    expect(existsSync(fileOf(b))).toBe(false);
+
+    // Deleting a device deletes its photo.
+    const c = (await api.post('/uploads/images', { dataUrl: PNG })).body.data.url;
+    await api.put(`/phone-seller/sold-units/${u2.id}`, { imageUrl: c });
+    await api.delete(`/phone-seller/sold-units/${u2.id}`);
+    expect(existsSync(fileOf(c))).toBe(false);
+  });
+});

@@ -4,7 +4,8 @@ import { prisma, Prisma } from '../lib/prisma.js';
 import { notFound } from '../lib/errors.js';
 import { num, r2, serialize } from '../lib/serialize.js';
 import { authed, ok, type Req } from '../lib/route.js';
-import { qStr } from '../lib/pagination.js';
+import { dateRange, qStr } from '../lib/pagination.js';
+import { supplierBalances, supplierStatement } from '../lib/suppliers.js';
 
 const supplierSchema = z.object({
   name: z.string().trim().min(1, 'Le nom est obligatoire'),
@@ -16,20 +17,16 @@ const supplierSchema = z.object({
   notes: z.string().optional().nullable(),
 });
 
-/** balance < 0 = amount the shop still owes the supplier (unpaid submitted orders). */
+/**
+ * balance < 0 = amount the shop still owes the supplier (confirmed invoices + submitted orders not invoiced, see
+ * lib/suppliers.ts), with purchases, payments and overdue amounts.
+ */
 export async function supplierStats(tenantId: string, ids: string[]) {
-  const orders = await prisma.supplierOrder.findMany({
-    where: { tenantId, supplierId: { in: ids }, status: { notIn: ['draft', 'cancelled'] } },
-    select: { supplierId: true, totalAmount: true, amountRemaining: true },
-  });
-  const out = new Map<string, { orderCount: number; totalPurchases: number; balance: number }>();
+  const balances = await supplierBalances(tenantId, ids);
+  const out = new Map<string, { orderCount: number; invoiceCount: number; totalPurchases: number; totalPaid: number; balance: number; overdue: number; overdueCount: number }>();
   for (const id of ids) {
-    const mine = orders.filter((o) => o.supplierId === id);
-    out.set(id, {
-      orderCount: mine.length,
-      totalPurchases: r2(mine.reduce((s, o) => s + num(o.totalAmount), 0)),
-      balance: r2(-mine.reduce((s, o) => s + num(o.amountRemaining), 0)),
-    });
+    const b = balances.get(id)!;
+    out.set(id, { orderCount: b.orderCount, invoiceCount: b.invoiceCount, totalPurchases: b.totalPurchases, totalPaid: b.totalPaid, balance: r2(-b.outstanding), overdue: b.overdue, overdueCount: b.overdueCount });
   }
   return out;
 }
@@ -73,6 +70,15 @@ export default async function supplierRoutes(app: FastifyInstance) {
     return ok({ orders: serialize(orders) });
   });
 
+  /** Account statement: purchases, payments, running balance, overdue invoices (dateFrom/dateTo optional). */
+  app.get('/suppliers/:id/statement', async (req: Req<unknown, Record<string, string>, { id: string }>) => {
+    const s = await prisma.supplier.findFirst({ where: { id: req.params.id, tenantId: req.auth.tenantId } });
+    if (!s) throw notFound('Supplier', req.params.id);
+    const range = dateRange(req.query.dateFrom, req.query.dateTo);
+    const statement = await supplierStatement(req.auth.tenantId, s.id, range?.gte, range?.lte);
+    return ok({ supplier: serialize(s), ...statement });
+  });
+
   app.post('/suppliers', async (req: Req<z.infer<typeof supplierSchema>>, reply) => {
     const body = supplierSchema.parse(req.body);
     const s = await prisma.supplier.create({ data: { tenantId: req.auth.tenantId, ...body } });
@@ -91,7 +97,7 @@ export default async function supplierRoutes(app: FastifyInstance) {
   app.delete('/suppliers/:id', async (req: Req<unknown, unknown, { id: string }>) => {
     const existing = await prisma.supplier.findFirst({ where: { id: req.params.id, tenantId: req.auth.tenantId } });
     if (!existing) throw notFound('Supplier', req.params.id);
-    const used = await prisma.supplierOrder.count({ where: { supplierId: existing.id } });
+    const used = (await prisma.supplierOrder.count({ where: { supplierId: existing.id } })) + (await prisma.supplierInvoice.count({ where: { supplierId: existing.id } }));
     if (used > 0) await prisma.supplier.update({ where: { id: existing.id }, data: { isActive: false } });
     else await prisma.supplier.delete({ where: { id: existing.id } });
     return ok({ deleted: true });

@@ -26,6 +26,7 @@ const PREFIXED = {
   'Remboursement client': 'customerRefund',
   'Paiement dette client': 'customerDebtPayment',
   'Annulation dépense': 'expenseReversal',
+  'Annulation paiement fournisseur': 'supplierPaymentReversal',
   'Paiement réparation': 'repairPayment',
   'Main d’œuvre': 'repairLabor',
   'Achat pièce': 'repairPart',

@@ -7,6 +7,7 @@ import { authed, ok, type Req } from '../lib/route.js';
 import { endOfDay, qStr, startOfDay } from '../lib/pagination.js';
 import { customerStats } from './customers.js';
 import { supplierStats } from './suppliers.js';
+import { invoicedOrderIds } from '../lib/suppliers.js';
 import { isoDay, revenueWhere } from './dashboard.js';
 import { businessPnl, repairFinancials } from '../lib/profit.js';
 import { parseJson } from '../lib/serialize.js';
@@ -267,12 +268,18 @@ async function customersReport(tenantId: string, p: Period) {
 }
 
 async function suppliersReport(tenantId: string, p: Period) {
-  const [suppliers, orders] = await Promise.all([
+  const [suppliers, orders, invoices, invoiced] = await Promise.all([
     prisma.supplier.findMany({ where: { tenantId } }),
     prisma.supplierOrder.findMany({ where: { tenantId, orderedAt: { gte: p.from, lte: p.to } }, orderBy: { orderedAt: 'desc' } }),
+    prisma.supplierInvoice.findMany({ where: { tenantId, status: 'confirmed', invoiceDate: { gte: p.from, lte: p.to } }, orderBy: { invoiceDate: 'desc' } }),
+    invoicedOrderIds(tenantId),
   ]);
   const stats = await supplierStats(tenantId, suppliers.map((s) => s.id));
-  const counted = orders.filter((o) => o.status !== 'draft' && o.status !== 'cancelled');
+  // One purchase per row: an invoiced order is counted through its invoice.
+  const counted = [
+    ...orders.filter((o) => o.status !== 'draft' && o.status !== 'cancelled' && !invoiced.has(o.id)).map((o) => ({ supplierId: o.supplierId, totalAmount: o.totalAmount, orderedAt: o.orderedAt })),
+    ...invoices.map((i) => ({ supplierId: i.supplierId, totalAmount: i.total, orderedAt: i.invoiceDate })),
+  ].sort((a, b) => b.orderedAt.getTime() - a.orderedAt.getTime());
   const byStatus = new Map<string, number>();
   for (const o of orders) byStatus.set(o.status, (byStatus.get(o.status) ?? 0) + 1);
   const name = new Map(suppliers.map((s) => [s.id, s.name]));
@@ -314,7 +321,9 @@ async function suppliersReport(tenantId: string, p: Period) {
         amountRemaining: num(o.amountRemaining),
         orderedAt: o.orderedAt.toISOString(),
       })),
-    suppliersWithDebt: suppliers.filter((s) => debtOf(s.id) > 0).map((s) => ({ supplierId: s.id, name: s.name, phone: s.phone, debt: debtOf(s.id) })),
+    suppliersWithDebt: suppliers
+      .filter((s) => debtOf(s.id) > 0)
+      .map((s) => ({ supplierId: s.id, name: s.name, phone: s.phone, debt: debtOf(s.id), overdue: stats.get(s.id)?.overdue ?? 0 })),
     ordersByStatus: [...byStatus.entries()].map(([status, count]) => ({ status, count })),
   };
 }

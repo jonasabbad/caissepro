@@ -32,7 +32,7 @@ describe('dashboard', () => {
     // Margin = net profit / net revenue (290 sales − 50 refunded).
     expect(k.realProfit.margin).toBeCloseTo(79.17, 1);
     expect(k.customerDebt).toEqual({ total: 80, count: 1, overdue: 0 });
-    expect(k.supplierDebt).toEqual({ total: 100, count: 1 });
+    expect(k.supplierDebt).toEqual({ total: 100, count: 1, overdue: 0 });
     expect(k.newCustomersToday).toBe(1);
 
     const today = localDay();

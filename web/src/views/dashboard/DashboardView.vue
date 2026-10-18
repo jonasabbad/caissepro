@@ -165,7 +165,7 @@ const PRESETS = computed(() => [
         v-if="hasWidget('supplierDebt')"
         :title="t('dashboard.supplierDebt')"
         :value="formatCurrency(kpis?.supplierDebt?.total ?? 0)"
-        :subtitle="`${kpis?.supplierDebt?.count ?? 0} ${t('dashboard.fournisseurs')}`"
+        :subtitle="`${kpis?.supplierDebt?.count ?? 0} ${t('dashboard.fournisseurs')}${kpis?.supplierDebt?.overdue ? ` · ${t('suppliers.overdueShort', { amount: formatCurrency(kpis.supplierDebt.overdue) })}` : ''}`"
         :icon="TruckIcon"
         color="red"
       />

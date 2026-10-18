@@ -64,8 +64,20 @@ async function loadOrder(tenantId: string, id: string, tx: Tx | typeof prisma = 
 }
 
 async function present(order: Awaited<ReturnType<typeof loadOrder>>) {
-  const supplier = await prisma.supplier.findUnique({ where: { id: order.supplierId }, select: { id: true, name: true, phone: true } });
-  return serialize({ ...order, supplier, payments: parseJson<OrderPayment[]>(order.payments, []) });
+  const [supplier, invoice] = await Promise.all([
+    prisma.supplier.findUnique({ where: { id: order.supplierId }, select: { id: true, name: true, phone: true } }),
+    activeInvoice(order.id),
+  ]);
+  return serialize({ ...order, supplier, invoice, payments: parseJson<OrderPayment[]>(order.payments, []) });
+}
+
+/** The invoice that took over this order's debt, if any (its payments are then recorded on the invoice). */
+const activeInvoice = (orderId: string) =>
+  prisma.supplierInvoice.findFirst({ where: { supplierOrderId: orderId, status: { not: 'cancelled' } }, select: { id: true, number: true, status: true } });
+
+async function assertNotInvoiced(orderId: string) {
+  const inv = await activeInvoice(orderId);
+  if (inv) throw badRequest(`Cette commande est facturée : enregistrez le paiement sur la facture ${inv.number}`);
 }
 
 /** received when every product line is fully received and every device has been added to stock. */
@@ -212,6 +224,7 @@ export default async function supplierOrderRoutes(app: FastifyInstance) {
   app.post('/supplier-orders/:id/cancel', async (req: Req<unknown, unknown, { id: string }>) => {
     const order = await loadOrder(req.auth.tenantId, req.params.id);
     if (!['draft', 'pending'].includes(order.status)) throw badRequest('Seule une commande non réceptionnée peut être annulée');
+    if (await activeInvoice(order.id)) throw badRequest('Annulez d’abord la facture de cette commande');
     await prisma.supplierOrder.update({ where: { id: order.id }, data: { status: 'cancelled' } });
     return ok({ order: await present(await loadOrder(req.auth.tenantId, order.id)) });
   });
@@ -226,6 +239,7 @@ export default async function supplierOrderRoutes(app: FastifyInstance) {
     const body = receiveSchema.parse(req.body);
     const order = await loadOrder(req.auth.tenantId, req.params.id);
     if (['draft', 'cancelled'].includes(order.status)) throw badRequest("Cette commande ne peut pas être réceptionnée");
+    if (body.paymentAmount) await assertNotInvoiced(order.id);
     await prisma.$transaction(async (tx) => {
       for (const r of body.items) {
         const item = order.items.find((i) => i.id === r.itemId);
@@ -259,6 +273,7 @@ export default async function supplierOrderRoutes(app: FastifyInstance) {
     const order = await loadOrder(req.auth.tenantId, req.params.id);
     if (['draft', 'cancelled'].includes(order.status)) throw badRequest('Paiement impossible sur cette commande');
     if (num(order.amountRemaining) <= 0) throw badRequest('Cette commande est déjà payée');
+    await assertNotInvoiced(order.id);
     await prisma.$transaction((tx) => applyPayment(tx, order.id, amount, { id: req.auth.userId, name: userName(req) }, note));
     return ok({ order: await present(await loadOrder(req.auth.tenantId, order.id)) });
   });

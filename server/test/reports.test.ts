@@ -47,7 +47,7 @@ describe('reports', () => {
     const sup = (await api.get(`/reports?type=suppliers&${q}`)).body.data.report;
     expect(sup.summary).toEqual({ totalSuppliers: 1, activeSuppliers: 1, totalOrders: 1, draftOrders: 0, totalSpent: 100, totalDebt: 70 });
     expect(sup.pendingOrders[0]).toEqual(expect.objectContaining({ orderNumber: order.orderNumber, supplier: 'Grossiste', amount: 100, amountPaid: 30, amountRemaining: 70 }));
-    expect(sup.suppliersWithDebt).toEqual([{ supplierId: supplier.id, name: 'Grossiste', phone: '0600', debt: 70 }]);
+    expect(sup.suppliersWithDebt).toEqual([{ supplierId: supplier.id, name: 'Grossiste', phone: '0600', debt: 70, overdue: 0 }]);
 
     const csv = await api.get(`/reports/export?type=sales&format=excel&${q}`);
     expect(csv.headers['content-type']).toContain('text/csv');

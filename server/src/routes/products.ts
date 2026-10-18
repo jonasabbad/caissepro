@@ -48,7 +48,7 @@ function checkImage(tenantId: string, url: string | null | undefined) {
   if (url && !isAllowedImageUrl(tenantId, url)) throw badRequest('URL d’image invalide');
 }
 
-async function createProduct(tx: Prisma.TransactionClient, tenantId: string, storeId: string | null, userId: string, input: ProductInput) {
+export async function createProduct(tx: Prisma.TransactionClient, tenantId: string, storeId: string | null, userId: string, input: ProductInput) {
   checkImage(tenantId, input.imageUrl);
   await assertUniqueBarcode(tenantId, input.barcode, undefined, tx);
   await assertCategoryUsable(tenantId, input.categoryId);

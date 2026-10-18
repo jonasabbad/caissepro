@@ -7,6 +7,7 @@ import { num, r2, serialize, toJson } from '../lib/serialize.js';
 import { authed, ok, type Req } from '../lib/route.js';
 import { dateRange, pageMeta, pageParams, qBool, qStr } from '../lib/pagination.js';
 import { resolveStoreId } from '../lib/tenant.js';
+import { isAllowedImageUrl, removeUpload } from '../lib/uploads.js';
 
 const REF_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
 
@@ -75,10 +76,16 @@ const unitSchema = z.object({
   warrantyDays: z.coerce.number().int().min(0).optional().nullable(),
   notes: z.string().optional().nullable(),
   accessories: z.array(z.string()).optional().nullable(),
+  imageUrl: z.string().max(500).optional().nullable(),
   supplierId: z.string().optional().nullable(),
   supplierOrderId: z.string().optional().nullable(),
 });
 type UnitInput = z.infer<typeof unitSchema>;
+
+/** A device photo must be an image uploaded by this business (see /uploads). */
+function checkImage(tenantId: string, url: string | null | undefined) {
+  if (url && !isAllowedImageUrl(tenantId, url)) throw badRequest('URL d’image invalide');
+}
 
 async function assertUniqueImei(tenantId: string, imei: string | null | undefined, exceptId?: string) {
   if (!imei) return;
@@ -115,6 +122,7 @@ export async function createUnit(
       warrantyDays: input.warrantyDays ?? null,
       notes: input.notes || null,
       accessories: toJson(input.accessories),
+      imageUrl: input.imageUrl || null,
       supplierId: input.supplierId || null,
       supplierOrderId: input.supplierOrderId || null,
       createdBy: ctx.userId,
@@ -250,6 +258,7 @@ export default async function soldUnitRoutes(app: FastifyInstance) {
 
   app.post(base, async (req: Req<UnitInput>, reply) => {
     const input = unitSchema.parse(req.body);
+    checkImage(req.auth.tenantId, input.imageUrl);
     await assertUniqueImei(req.auth.tenantId, input.imei);
     const storeId = await resolveStoreId(req.auth.tenantId, req.auth.storeId);
     const unit = await prisma.$transaction((tx) => createUnit(tx, { tenantId: req.auth.tenantId, userId: req.auth.userId, storeId }, input));
@@ -261,6 +270,7 @@ export default async function soldUnitRoutes(app: FastifyInstance) {
     const existing = await prisma.soldUnit.findFirst({ where: { id: req.params.id, tenantId: req.auth.tenantId } });
     if (!existing) throw notFound('Sold unit', req.params.id);
     const input = unitSchema.partial().parse(req.body);
+    checkImage(req.auth.tenantId, input.imageUrl);
     await assertUniqueImei(req.auth.tenantId, input.imei, existing.id);
     const purchase = input.purchasePrice ?? num(existing.purchasePrice);
     const sale = input.salePrice ?? num(existing.salePrice);
@@ -280,12 +290,15 @@ export default async function soldUnitRoutes(app: FastifyInstance) {
       ...(input.warrantyDays !== undefined && { warrantyDays: input.warrantyDays }),
       ...(input.notes !== undefined && { notes: input.notes || null }),
       ...(input.accessories !== undefined && { accessories: toJson(input.accessories) }),
+      ...(input.imageUrl !== undefined && { imageUrl: input.imageUrl || null }),
       ...(input.supplierId !== undefined && { supplierId: input.supplierId || null }),
       purchasePrice: r2(purchase),
       salePrice: r2(sale),
       profit: r2(sale - purchase - num(existing.repairCost)),
     };
     const unit = await prisma.soldUnit.update({ where: { id: existing.id }, data });
+    // A replaced or removed photo is deleted from storage.
+    if (input.imageUrl !== undefined && (input.imageUrl || null) !== existing.imageUrl) await removeUpload(req.auth.tenantId, existing.imageUrl);
     const [full] = await withUnitRelations([unit]);
     return ok({ unit: serialize(full) });
   });
@@ -295,6 +308,7 @@ export default async function soldUnitRoutes(app: FastifyInstance) {
     if (!existing) throw notFound('Sold unit', req.params.id);
     if (existing.soldAt) throw badRequest('Impossible de supprimer un appareil déjà vendu');
     await prisma.soldUnit.delete({ where: { id: existing.id } });
+    await removeUpload(req.auth.tenantId, existing.imageUrl);
     return ok({ deleted: true });
   });
 

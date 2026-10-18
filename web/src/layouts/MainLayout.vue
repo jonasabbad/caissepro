@@ -107,6 +107,7 @@ const navigation = computed(() => [
   { id: 'customers', name: t('nav.customers'), href: '/app/customers', icon: UsersIcon },
   { id: 'suppliers', name: t('nav.suppliers'), href: '/app/suppliers', icon: TruckIcon },
   { id: 'supplierOrders', name: t('nav.supplierOrders'), href: '/app/supplier-orders', icon: ClipboardDocumentListIcon },
+  { id: 'supplierInvoices', name: t('nav.supplierInvoices'), href: '/app/supplier-invoices', icon: DocumentTextIcon },
   { id: 'transactions', name: t('nav.transactions'), href: '/app/transactions', icon: CreditCardIcon },
   { id: 'invoices', name: t('nav.invoices'), href: '/app/invoices', icon: DocumentTextIcon },
   { id: 'repairs', name: t('nav.repairs'), href: '/app/repairs', icon: WrenchScrewdriverIcon },

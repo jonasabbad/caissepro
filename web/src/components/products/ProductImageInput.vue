@@ -7,7 +7,7 @@ import { compressImage } from '@/utils/image';
 
 /** Product photo picker: compresses in the browser, uploads, and emits the stored URL through v-model. */
 const model = defineModel({ type: String, default: '' });
-const props = defineProps({ name: { type: String, default: '' } });
+const props = defineProps({ name: { type: String, default: '' }, label: { type: String, default: '' } });
 const { t } = useI18n();
 
 const input = ref(null);
@@ -41,7 +41,7 @@ function onDrop(e) {
 
 <template>
   <div>
-    <label class="label">{{ t('products.image.label') }}</label>
+    <label class="label">{{ props.label || t('products.image.label') }}</label>
     <div class="flex items-start gap-4">
       <button
         type="button"

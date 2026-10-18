@@ -9,6 +9,7 @@ import {
   BanknotesIcon,
   CheckCircleIcon,
   CheckIcon,
+  DocumentTextIcon,
   ChevronDownIcon,
   ChevronUpIcon,
   ComputerDesktopIcon,
@@ -20,6 +21,7 @@ import {
   ShoppingBagIcon,
 } from '@heroicons/vue/24/outline';
 import { supplierOrdersApi } from '@/api/supplierOrders';
+import { supplierInvoicesApi } from '@/api/supplierInvoices';
 import { formatCurrency, formatDate } from '@/utils/format';
 import { apiErrorMessage } from '@/api/http';
 import { statusInfo } from '@/utils/supplierOrderStatus';
@@ -31,6 +33,18 @@ const route = useRoute();
 const router = useRouter();
 const queryClient = useQueryClient();
 const orderId = computed(() => route.params.id);
+const invoicing = ref(false);
+async function createInvoice() {
+  invoicing.value = true;
+  try {
+    const inv = await supplierInvoicesApi.fromOrder(orderId.value);
+    router.push(`/app/supplier-invoices/${inv.id}/edit`);
+  } catch (e) {
+    toast.value = { show: true, message: apiErrorMessage(e), type: 'error' };
+  } finally {
+    invoicing.value = false;
+  }
+}
 
 const { data: order, isLoading } = useQuery({
   queryKey: ['supplier-order', orderId],
@@ -242,13 +256,20 @@ const spinner = 'h-4 w-4 animate-spin rounded-full border-2 border-white border-
             <span v-if="submitMutation.isPending.value" :class="spinner" />
             <PaperAirplaneIcon v-else class="h-5 w-5" /> {{ t('supplierOrders.submitOrder') }}
           </button>
-          <button v-if="order.status === 'draft' || order.status === 'pending'" class="btn-secondary text-danger-600" @click="cancelOpen = true">
+          <RouterLink v-if="order.invoice" :to="`/app/supplier-invoices/${order.invoice.id}`" class="btn-secondary inline-flex items-center gap-2">
+            <DocumentTextIcon class="h-5 w-5" /> {{ t('supplierInvoices.invoicedAs', { number: order.invoice.number }) }}
+          </RouterLink>
+          <button v-else-if="order.status !== 'draft' && order.status !== 'cancelled'" class="btn-secondary inline-flex items-center gap-2" :disabled="invoicing" @click="createInvoice">
+            <DocumentTextIcon class="h-5 w-5" /> {{ t('supplierInvoices.createFromOrder') }}
+          </button>
+          <button v-if="(order.status === 'draft' || order.status === 'pending') && !order.invoice" class="btn-secondary text-danger-600" @click="cancelOpen = true">
             {{ t('supplierOrders.cancelOrder') }}
           </button>
         </div>
       </div>
 
-      <div v-if="order.amountRemaining > 0 && order.status !== 'cancelled' && order.status !== 'draft'" class="card border-amber-200 bg-amber-50 p-4">
+      <p v-if="order.invoice" class="card border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">{{ t('supplierInvoices.orderInvoicedHint') }}</p>
+      <div v-else-if="order.amountRemaining > 0 && order.status !== 'cancelled' && order.status !== 'draft'" class="card border-amber-200 bg-amber-50 p-4">
         <div class="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
           <div class="flex items-center gap-3">
             <div class="flex h-12 w-12 items-center justify-center rounded-full bg-amber-100"><BanknotesIcon class="h-6 w-6 text-amber-600" /></div>

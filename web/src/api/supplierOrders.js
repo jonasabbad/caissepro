@@ -37,6 +37,7 @@ function mapOrder(o) {
     expectedDate: o.expectedDate,
     receivedDate: o.receivedAt || o.receivedDate,
     createdAt: o.createdAt,
+    invoice: o.invoice || null,
   };
 }
 

@@ -91,3 +91,33 @@ repairs report. Every period selector (today, week, month, custom range) uses th
 - Duplicates: each form submission carries an idempotency key (a resent form creates one expense), and an expense with
   the same day, amount and description needs an explicit confirmation.
 - Managers only: cashiers and viewers cannot see or change expenses.
+
+## Supplier invoices and payments
+
+| Figure | Definition |
+|---|---|
+| Invoice total | Σ lines (quantity × unit purchase price) − discount + VAT (rate × (subtotal − discount)) + additional charges |
+| Amount paid | Sum of the invoice's payments that are not voided |
+| **Remaining balance** | **Invoice total − amount paid** (a payment can never exceed it) |
+| Payment status | Unpaid (nothing paid) · Partially paid · Paid (remaining 0) · Overdue (confirmed, remaining > 0, due date passed) |
+| Supplier balance (what you owe) | Remaining of confirmed invoices + remaining of submitted purchase orders that have no invoice |
+
+- **Draft** invoices owe nothing and move nothing. **Confirming** makes the invoice owed; only then can it be paid and its
+  goods received. **Cancelling** keeps the invoice in the history and removes it from the balance; it is refused while
+  goods are received or payments remain (void them first).
+- **Cash**: a cash payment takes the money out of the store's drawer once (`cash_out`, "Paiement fournisseur - FF-…").
+  Card, bank transfer and cheque do not touch the drawer. An unpaid invoice never moves cash. A payment is never deleted:
+  voiding it keeps the record and, for cash, puts the money back (`cash_in`, "Annulation paiement fournisseur - FF-…").
+- **Stock**: each line keeps its received quantity; receiving adds at most what is still open (a "purchase" movement)
+  and sets the product's cost price to the invoice price, so receiving twice or editing the invoice never adds stock
+  twice. A line without a product creates it (name, barcode, cost, selling price, category) when first received.
+  An edit cannot remove a received line or bring its quantity below what was received, nor bring the total below what
+  was paid.
+- **Profit**: stock purchases are not business expenses. Their cost is counted in the cost of goods sold when the goods
+  are sold, so supplier invoices and their payments never change Direct expenses or net profit directly.
+- **From a purchase order**: the invoice takes over the order's debt and its earlier payments (copied as "paid on the
+  order", without a new drawer movement); the order can no longer be paid directly and its goods stay received on the
+  order. Cancelling the invoice gives the debt back to the order. The same purchase is therefore counted once in the
+  supplier balance, the statement, the dashboard and the suppliers report.
+- **Account statement** (per supplier): every invoice and non-invoiced order (purchase) and every payment, oldest first,
+  with a running balance, an opening balance for the chosen period, totals and overdue invoices; printable and as PDF.

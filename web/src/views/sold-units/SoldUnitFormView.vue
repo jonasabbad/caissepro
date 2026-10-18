@@ -15,6 +15,7 @@ import {
 import DeviceCatalogSelect from '@/components/sold-units/DeviceCatalogSelect.vue';
 import SearchableSelect from '@/components/ui/SearchableSelect.vue';
 import Toast from '@/components/ui/Toast.vue';
+import ProductImageInput from '@/components/products/ProductImageInput.vue';
 import { soldUnitsApi, isValidImei } from '@/api/soldUnits';
 import { suppliersApi } from '@/api/suppliers';
 import { formatCurrency } from '@/utils/format';
@@ -54,6 +55,7 @@ const details = ref({
   warrantyDays: 365,
   notes: '',
   supplierId: '',
+  imageUrl: '',
 });
 const errors = ref({});
 const saving = ref(false);
@@ -83,6 +85,7 @@ watch(unit, (u) => {
     warrantyDays: u.warrantyDays,
     notes: u.notes || '',
     supplierId: u.supplierId || '',
+    imageUrl: u.imageUrl || '',
   };
 });
 
@@ -156,6 +159,7 @@ async function submit() {
       notes: details.value.notes || undefined,
       deviceType: deviceType.value,
       supplierId: details.value.supplierId || null,
+      imageUrl: details.value.imageUrl || null,
     });
   } finally {
     saving.value = false;
@@ -189,6 +193,7 @@ const section = 'border-b pb-2 text-lg font-semibold text-gray-900';
           <DeviceCatalogSelect v-model="device" :disabled="isEdit" :device-type="deviceType" @device-loaded="onDeviceLoaded" />
           <p v-if="errors.brand || errors.model" class="text-sm text-danger-600">{{ errors.brand || errors.model }}</p>
           <p v-if="errors.ram" class="text-sm text-danger-600">{{ t('soldUnits.ramRequired') }}</p>
+          <ProductImageInput v-model="details.imageUrl" :name="`${device.brand} ${device.model}`" :label="t('soldUnits.photo')" />
         </div>
 
         <div class="card space-y-4 p-6">

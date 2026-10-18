@@ -126,6 +126,9 @@ export default {
     barcodeContent: "محتوى الباركود",
     printStickers: "طباعة الملصقات ({n})",
     selectedCount: "{n} جهاز محدد",
+    photo: "صورة الجهاز",
+    viewGrid: "عرض شبكي",
+    viewList: "عرض قائمة",
   },
   reservation: {
     title: "الحجز",

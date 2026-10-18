@@ -111,6 +111,9 @@ export default {
     barcodeContent: "Contenu du code-barres",
     printStickers: "Imprimer les étiquettes ({n})",
     selectedCount: "{n} appareil(s) sélectionné(s)",
+    photo: "Photo de l’appareil",
+    viewGrid: "Vue en grille",
+    viewList: "Vue en liste",
   },
   reservation: {
     title: 'Réservation',

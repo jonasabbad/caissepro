@@ -7,6 +7,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
 import {
   ArrowPathIcon,
   CheckCircleIcon,
+  ListBulletIcon,
+  Squares2X2Icon,
   ComputerDesktopIcon,
   CubeIcon,
   DevicePhoneMobileIcon,
@@ -32,6 +34,7 @@ import BarcodeIcon from '@/components/ui/BarcodeIcon.vue';
 import DateRangePicker from '@/components/ui/DateRangePicker.vue';
 import Toast from '@/components/ui/Toast.vue';
 import ConfirmModal from '@/components/ui/ConfirmModal.vue';
+import DeviceImage from '@/components/sold-units/DeviceImage.vue';
 
 const { t } = useI18n();
 const route = useRoute();
@@ -215,6 +218,25 @@ function confirmDelete() {
   pendingDelete.value = null;
 }
 
+// Grid (photos) or list (details); remembered in this browser.
+const VIEW_KEY = 'devices_view';
+const view = ref((() => {
+  try {
+    return localStorage.getItem(VIEW_KEY) === 'list' ? 'list' : 'grid';
+  } catch {
+    return 'grid';
+  }
+})());
+watch(view, (v) => {
+  try {
+    localStorage.setItem(VIEW_KEY, v);
+  } catch {
+    /* private mode */
+  }
+});
+const statusBadge = (u) =>
+  u.soldAt ? ['bg-success-600 text-white', t('soldUnits.sold')] : u.reservedAt ? ['bg-purple-600 text-white', t('soldUnits.reserved')] : ['bg-white/95 text-blue-700 ring-1 ring-blue-200', t('soldUnits.inStock')];
+
 const iconTile = (u) => (u.deviceType === 'macbook' ? 'bg-gray-100' : u.deviceType === 'laptop' ? 'bg-gray-200' : 'bg-blue-50');
 const iconColor = (u) => (u.deviceType === 'macbook' ? 'text-gray-600' : u.deviceType === 'laptop' ? 'text-gray-700' : 'text-blue-600');
 const th = 'px-4 py-3 text-start text-xs font-medium uppercase text-gray-500';
@@ -297,7 +319,13 @@ const th = 'px-4 py-3 text-start text-xs font-medium uppercase text-gray-500';
 
     <div class="card overflow-hidden">
       <div class="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 px-4 py-3">
+        <div class="flex items-center gap-3">
+        <div class="flex rounded-lg border border-gray-200 p-0.5">
+          <button :class="['rounded-md p-1.5', view === 'grid' ? 'bg-black text-white' : 'text-gray-500 hover:text-gray-900']" :title="t('soldUnits.viewGrid')" :aria-label="t('soldUnits.viewGrid')" :aria-pressed="view === 'grid'" @click="view = 'grid'"><Squares2X2Icon class="h-4 w-4" /></button>
+          <button :class="['rounded-md p-1.5', view === 'list' ? 'bg-black text-white' : 'text-gray-500 hover:text-gray-900']" :title="t('soldUnits.viewList')" :aria-label="t('soldUnits.viewList')" :aria-pressed="view === 'list'" @click="view = 'list'"><ListBulletIcon class="h-4 w-4" /></button>
+        </div>
         <p class="text-sm text-gray-500">{{ selectedUnits.size ? t('soldUnits.selectedCount', { n: selectedUnits.size }) : `${total} ${t('common.units')}` }}</p>
+        </div>
         <div v-if="selectedUnits.size" class="flex items-center gap-2">
           <button class="rounded px-2 py-1 text-sm text-gray-600 hover:bg-gray-100" @click="selectedUnits.clear()">{{ t('common.cancel') }}</button>
           <button class="btn-primary btn-sm inline-flex items-center gap-1.5" :disabled="printingStickers" @click="printStickers">
@@ -305,7 +333,48 @@ const th = 'px-4 py-3 text-start text-xs font-medium uppercase text-gray-500';
           </button>
         </div>
       </div>
-      <div class="overflow-x-auto">
+      <!-- Grid: one card per device with its own photo -->
+      <div v-if="view === 'grid'" class="p-4">
+        <p v-if="isLoading" class="py-8 text-center text-gray-500">{{ t('common.loading') }}</p>
+        <p v-else-if="units.length === 0" class="py-8 text-center text-gray-500">{{ t('soldUnits.noUnits') }}</p>
+        <div v-else class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
+          <article
+            v-for="u in units"
+            :key="u.id"
+            :class="['group relative flex flex-col overflow-hidden rounded-xl border bg-white shadow-sm transition-shadow hover:shadow-md', selectedUnits.has(u.id) ? 'border-gray-900 ring-1 ring-gray-900' : 'border-gray-200']"
+          >
+            <div class="relative aspect-square w-full overflow-hidden border-b border-gray-100 bg-white">
+              <RouterLink :to="`/app/sold-units/${u.id}/edit?type=${u.deviceType}`" :class="['block h-full w-full', { 'pointer-events-none': u.soldAt }]" :tabindex="u.soldAt ? -1 : 0">
+                <DeviceImage :unit="u" />
+              </RouterLink>
+              <input type="checkbox" class="absolute start-2 top-2 h-5 w-5 rounded border-gray-300 shadow" :checked="selectedUnits.has(u.id)" :aria-label="t('products.labels.select')" @change="toggleUnit(u)" />
+              <span :class="['absolute end-2 top-2 rounded-full px-2 py-0.5 text-[11px] font-semibold shadow-sm', statusBadge(u)[0]]">{{ statusBadge(u)[1] }}</span>
+              <span v-if="repairCounts?.[u.id]" class="absolute bottom-2 start-2 inline-flex items-center gap-1 rounded-full bg-amber-500 px-1.5 py-0.5 text-[11px] font-semibold text-white shadow" :title="`${repairCounts[u.id]} ${t('nav.repairs').toLowerCase()}`">
+                <WrenchScrewdriverIcon class="h-3 w-3" /> {{ repairCounts[u.id] }}
+              </span>
+            </div>
+            <div class="flex flex-1 flex-col p-3">
+              <p class="truncate text-[11px] font-semibold uppercase tracking-wide text-gray-500">{{ u.brand }}</p>
+              <p class="line-clamp-2 min-h-[2.5rem] text-sm font-semibold leading-5 text-gray-900">{{ u.model }}</p>
+              <p class="mt-0.5 truncate text-xs text-gray-500">{{ [u.storage, isComputerUnit(u) ? u.ram : null, u.color].filter(Boolean).join(' · ') || '—' }}</p>
+              <p class="mt-1 truncate font-mono text-[11px] text-gray-400">{{ u.imei ? formatImei(u.imei) : u.serialNumber || `REF ${u.ref}` }}</p>
+              <div class="mt-auto flex items-end justify-between gap-2 pt-2">
+                <div class="min-w-0">
+                  <p class="whitespace-nowrap text-base font-bold leading-tight text-gray-900">{{ formatCurrency(u.salePrice) }}</p>
+                  <span :class="['mt-1 inline-block rounded px-1.5 py-0.5 text-[10px] font-medium', conditionBadge(u.condition)]">{{ t(`soldUnits.conditions.${u.condition}`) }}</span>
+                </div>
+              </div>
+              <div class="mt-2 flex items-center justify-end gap-0.5 border-t border-gray-100 pt-2">
+                <button class="p-1.5 text-gray-400 hover:text-black" :title="t('soldUnits.barcodeLabel')" :aria-label="t('soldUnits.barcodeLabel')" @click="openLabel(u)"><BarcodeIcon class="h-4 w-4" /></button>
+                <RouterLink v-if="!u.soldAt" :to="`/app/repairs/new?unitId=${u.id}`" class="p-1.5 text-gray-400 hover:text-amber-600" :title="t('soldUnits.sendToRepair')" :aria-label="t('soldUnits.sendToRepair')"><WrenchScrewdriverIcon class="h-4 w-4" /></RouterLink>
+                <RouterLink v-if="!u.soldAt" :to="`/app/sold-units/${u.id}/edit?type=${u.deviceType}`" class="p-1.5 text-gray-400 hover:text-primary-600" :title="t('common.edit')" :aria-label="t('common.edit')"><PencilIcon class="h-4 w-4" /></RouterLink>
+                <button v-if="!u.soldAt" class="p-1.5 text-gray-400 hover:text-danger-600" :title="t('common.delete')" :aria-label="t('common.delete')" @click="askDelete(u.id)"><TrashIcon class="h-4 w-4" /></button>
+              </div>
+            </div>
+          </article>
+        </div>
+      </div>
+      <div v-else class="overflow-x-auto">
         <table class="w-full">
           <thead class="border-b border-gray-200 bg-gray-50">
             <tr>
@@ -328,8 +397,8 @@ const th = 'px-4 py-3 text-start text-xs font-medium uppercase text-gray-500';
               <td class="px-4 py-3"><input type="checkbox" class="rounded" :checked="selectedUnits.has(u.id)" :aria-label="t('products.labels.select')" @change="toggleUnit(u)" /></td>
               <td class="px-4 py-3">
                 <div class="flex items-center gap-3">
-                  <div :class="['rounded-lg p-2', iconTile(u)]">
-                    <component :is="isComputerUnit(u) ? ComputerDesktopIcon : DevicePhoneMobileIcon" :class="['h-5 w-5', iconColor(u)]" />
+                  <div class="h-12 w-12 shrink-0 overflow-hidden rounded-lg border border-gray-100 bg-white">
+                    <DeviceImage :unit="u" size="sm" />
                   </div>
                   <div class="min-w-0">
                     <div class="flex items-center gap-2">

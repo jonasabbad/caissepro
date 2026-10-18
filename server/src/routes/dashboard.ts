@@ -88,7 +88,7 @@ export default async function dashboardRoutes(app: FastifyInstance) {
         repairs: { revenue: pnl.repairs.revenue, profit: pnl.repairs.profit, count: pnl.repairs.count, comparison: pct(pnl.repairs.profit, prevPnl.repairs.profit) },
         profitBreakdown: pnl,
         customerDebt: { total: r2(cStats.reduce((s: number, c: any) => s - c.balance, 0)), count: cStats.length, overdue: 0 },
-        supplierDebt: { total: r2(sStats.reduce((s, x) => s - x.balance, 0)), count: sStats.length },
+        supplierDebt: { total: r2(sStats.reduce((s, x) => s - x.balance, 0)), count: sStats.length, overdue: r2(sStats.reduce((s, x) => s + x.overdue, 0)) },
         debtPayments: { total: r2(num(debtPayments._sum.amount)), count: debtPayments._count },
         newCustomersToday: newCustomers,
         totalAmountCollected: r2(num(collected._sum?.amount) + num(debtPayments._sum.amount)),

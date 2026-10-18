@@ -298,3 +298,31 @@ In the app (local dev data, 40 extra "TEST POS Article" products, 56 in total, 2
 - Checks: 2,174 keys in fr/en/ar, 0 missing, 0 placeholder mismatches; 58 server tests pass; build OK.
 - In the app (Arabic): every module crawled for leftover Latin words — only user data, codes and brand names remain;
   POS, transactions table, expense form checked right-to-left (pager arrows mirrored, amounts in DH kept in order).
+
+## Supplier invoices (2026-10-18)
+
+Automated (`server/test/supplierInvoices.test.ts`, 62 tests pass in total):
+- 5,000 DH invoice: draft owes 0 and cannot be paid; confirmed → supplier owes 5,000, drawer and expenses unchanged.
+  Payments 2,000 cash → 3,000 left (partial, drawer −2,000); 1,000 transfer → 2,000 (drawer unchanged); 2,500 refused;
+  2,000 card → 0, Paid; further payment refused. Receiving 4 then the rest, third receive refused; new product created
+  once; edits cannot go below paid / received. Statement 5,000 / 2,000 / 1,000 / 2,000 → balance 0; dashboard supplier
+  debt 0; suppliers report spent 5,000; voiding the cash payment puts 2,000 back in the drawer and reopens 2,000.
+- Filters (supplier, status, payment status, overdue, dates, search), totals, overdue flags, statement period with
+  opening balance, delete draft only, cancel.
+- Invoice from a purchase order: order payment carried (no new drawer movement), no double debt, stock not received
+  twice, order payment then refused, cancelling gives the debt back to the order.
+
+In the app (local data, TEST supplier): invoice FF-2026-0002 created in the form (10 × 300 for an existing product +
+20 × 100 for a new product = 5,000 DH), confirmed, paid in the dialog 2,000 cash (remaining 3,000, drawer 5,993 →
+3,993), 1,000 transfer (remaining 2,000, drawer unchanged), 2,000 cash with "pay the balance" (remaining 0, Paid,
+drawer 1,993, payment button hidden). "Receive all": product stock 2 → 12 and cost 300; new product created with 20
+in stock, cost 100, price 199, category Audio; second reception refused. Supplier page, statement, list, dashboard
+(supplier debt 0) and suppliers report agree; print and PDF of the invoice and the statement generated.
+
+## Device images (2026-10-18)
+
+Automated: photo per device on create, in lists and on its page; replace deletes the old file; editing other fields
+keeps it; removing clears it; deleting the device deletes its file; another business's image URL refused.
+In the app: TEST devices with their own photos and one without (placeholder by device type), grid 2 / 3 / 4 per row at
+375 / 768 / 1440 px with square images, no horizontal scroll; photo shown in the edit form, removed and saved (file
+deleted, other device's photo kept); search and the list view (with thumbnails) still work.
