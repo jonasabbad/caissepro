@@ -350,3 +350,23 @@ In the app, Add a device → Phone with IMEIs built on real TACs of the file: 35
 loaded); 35603310 → Samsung Galaxy S10e (from SM-G970U); 35067889 → Samsung Galaxy A51 (from "aka"); 35753906 →
 Samsung, model left to choose; 12345678 → "Device model not found in the TAC database"; a failed request → message
 and "Try again", which then filled Apple iPhone 7.
+
+## Phone stickers and label settings (2026-10-19)
+
+Causes found:
+- Settings → Printing → Label settings (show brand, shorten brand names, abbreviations) are stored as
+  `settings.printingSettings`, but the phone sticker (modal and bulk) read `settings.printing`, which does not exist:
+  those options were never applied to stickers, nor to the Label Templates preview. One `labelContext()` now builds
+  the sticker context for the phone modal, bulk phone stickers, product labels and the settings preview.
+- The Label Templates layout panel had no unsaved-changes signal and its number fields only applied on leaving the
+  field: a size changed in the preview but not saved kept stickers on the old saved size. Now: live preview while
+  typing, an "Unsaved changes" banner with its own Save button, and a confirmation before leaving with unsaved changes.
+- Print documents only used named @page rules; a plain `@page { size }` of the template is now emitted too, so
+  browsers / drivers without named pages still print at the template size.
+
+Tested in the app (template restored afterwards to 40 × 25 mm, barcode 7 mm, price on, brand hidden):
+- Settings → Label Templates: 58 × 40 → saved; 40 × 30 + barcode 10 mm + price off → preview 40 × 30 mm, barcode
+  37.8 px (10 mm), no price, "Unsaved changes" shown; saved from the banner → server 40 × 30 / 10 mm / price off.
+- Phones → sticker of "Apple iPhone 18": preview "Template: 40 × 30 mm", frame 40 × 30 mm, barcode 10 mm, no price;
+  Print document `@page { size: 40mm 30mm }` + named page, label 151 × 113 px (40 × 30 mm), `.bars` 10 mm, no price.
+- With "Hide the brand" off, the sticker name followed Printing → Label settings ("Shorten brand names"): "IP 18".

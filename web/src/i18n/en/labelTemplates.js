@@ -97,5 +97,8 @@ export default {
     editTemplate: "Edit template",
     usingTemplate: "Template: {size} · {paper}",
     layout: {"title":"Size and layout","hint":"These settings are the ones used to preview and print the stickers (phones and products).","preset":"Format","custom":"Custom","width":"Width (mm)","height":"Height (mm)","paddingX":"Left/right margin (mm)","paddingY":"Top/bottom margin (mm)","fontSize":"Text size (pt)","priceSize":"Price size (pt)","lineSpacing":"Line spacing","barcodeHeight":"Barcode height (mm)","textPosition":"Text position","above":"Above the barcode","below":"Below the barcode","align":"Alignment","alignStart":"Line start","alignCenter":"Centered","paper":"Media","paper_roll":"Roll (thermal printer)","paper_sheet":"A4 sheet","columns":"Labels per row","rows":"Rows per sheet","gapX":"Horizontal gap (mm)","gapY":"Vertical gap (mm)","sheetMarginX":"Sheet left/right margin (mm)","sheetMarginY":"Sheet top/bottom margin (mm)","testPrint":"Print a test","unsaved":"Unsaved changes","formats":{"50x25":"50 × 25 mm","40x25":"40 × 25 mm","40x30":"40 × 30 mm","58x40":"58 × 40 mm","30x20":"30 × 20 mm","2x40x25":"2 × (40 × 25 mm) per row","a4-3x8":"A4 sheet · 24 labels (70 × 37)","a4-4x10":"A4 sheet · 40 labels (48.5 × 25.4)","a4-5x13":"A4 sheet · 65 labels (38 × 21.2)"}},
+    unsavedHint: "Unsaved changes: phone and product stickers still use the saved settings.",
+    leaveUnsaved: "Leave without saving the label changes?",
+    brandDisplayNote: "Brand display: Settings → Printing → Label settings.",
   },
 };

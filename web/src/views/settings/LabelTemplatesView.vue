@@ -3,6 +3,8 @@ import { DEVICE_CATEGORY_SLUGS } from '@/config/categories';
 import { computed, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useQuery, useQueryClient } from '@tanstack/vue-query';
+import { onBeforeRouteLeave } from 'vue-router';
+import { settingsApi } from '@/api/misc';
 import { ComputerDesktopIcon, DevicePhoneMobileIcon, DeviceTabletIcon, PlusIcon, TagIcon, TrashIcon, XMarkIcon } from '@heroicons/vue/24/outline';
 import { categoriesApi } from '@/api/products';
 import { deviceCatalogApi } from '@/api/deviceCatalog';
@@ -10,7 +12,7 @@ import { labelTemplatesApi, SOLD_UNITS_KEY } from '@/api/labelTemplates';
 import { useActivity } from '@/composables/useActivity';
 import { useAuthStore } from '@/stores/auth';
 import Toast from '@/components/ui/Toast.vue';
-import { LABEL_PRESETS, normalizeLayout, pageOf, printLabels, sampleLabel } from '@/utils/labelRenderer';
+import { LABEL_PRESETS, labelContext, normalizeLayout, pageOf, printLabels, sampleLabel } from '@/utils/labelRenderer';
 import LabelPreview from '@/components/ui/LabelPreview.vue';
 
 const { t } = useI18n();
@@ -36,6 +38,10 @@ const saving = ref(false);
 const loadingTpl = ref(false);
 
 const layout = ref(normalizeLayout({}));
+// What is saved on the server for the selected template; anything else is shown as unsaved.
+const savedConfig = ref('');
+const snapshot = () => JSON.stringify({ ...fields.value, ...layout.value });
+const dirty = computed(() => !!savedConfig.value && savedConfig.value !== snapshot());
 function applyTemplate(tpl, isDevice) {
   layout.value = normalizeLayout(tpl);
   fields.value = {
@@ -52,6 +58,7 @@ function applyTemplate(tpl, isDevice) {
     includeCompany: tpl.includeCompany ?? true,
     includeBarcode: tpl.includeBarcode ?? !isDevice,
   };
+  savedConfig.value = snapshot();
 }
 async function load(key) {
   loadingTpl.value = true;
@@ -159,6 +166,7 @@ async function saveVariant() {
     queryClient.invalidateQueries({ queryKey: ['label-template-variants'] });
     creatingVariant.value = false;
     if (saved?.id) editingVariantId.value = saved.id;
+    savedConfig.value = snapshot();
     ok(t('labelTemplates.variantSaved'));
   } catch {
     fail(t('common.error'));
@@ -185,6 +193,7 @@ async function save() {
   try {
     if (isUnits.value) await labelTemplatesApi.saveForSoldUnits(config());
     else await labelTemplatesApi.save({ categoryId: selected.value, ...config() });
+    savedConfig.value = snapshot();
     ok(t('labelTemplates.saveSuccess'));
   } catch {
     fail(t('common.error'));
@@ -233,6 +242,7 @@ async function applyAll() {
     const jobs = categories.value.map((c) => labelTemplatesApi.save({ categoryId: c.id, ...config() }));
     if (isPhoneSeller.value) jobs.push(labelTemplatesApi.saveForSoldUnits(config()));
     await Promise.all(jobs);
+    savedConfig.value = snapshot();
     ok(t('labelTemplates.savedToAll'));
     showApply.value = false;
   } catch {
@@ -260,7 +270,11 @@ const FIELDS = computed(() => [
 ]);
 // What is saved: the include/hide switches plus the layout. The preview and printing read the same values.
 const config = () => ({ ...fields.value, ...layout.value });
-const sample = computed(() => sampleLabel(isUnits.value, fields.value, storeName.value));
+// The preview uses the shop name and brand display options exactly as stickers do.
+const { data: tenantSettings } = useQuery({ queryKey: ['tenant-settings'], queryFn: () => settingsApi.getTenantSettings(), staleTime: 300_000 });
+const stickerCtx = computed(() => labelContext(tenantSettings.value));
+const sample = computed(() => sampleLabel(isUnits.value, fields.value, stickerCtx.value.storeName || storeName.value, stickerCtx.value.printing));
+onBeforeRouteLeave(() => (dirty.value ? window.confirm(t('labelTemplates.leaveUnsaved')) : true));
 const page = computed(() => pageOf(layout.value));
 const presetKey = computed(() => {
   const l = layout.value;
@@ -505,7 +519,7 @@ watch(
             <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <div v-for="[k, step] in NUMBER_FIELDS" :key="k">
                 <label class="label text-xs" :for="`lt-${k}`">{{ t(`labelTemplates.layout.${k}`) }}</label>
-                <input :id="`lt-${k}`" type="number" :step="step" min="0" class="input py-1.5 text-sm" :value="layout[k]" @change="setLayout(k, $event.target.valueAsNumber)" />
+                <input :id="`lt-${k}`" type="number" :step="step" min="0" class="input py-1.5 text-sm" :value="layout[k]" @input="setLayout(k, $event.target.valueAsNumber)" />
               </div>
             </div>
             <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -534,7 +548,7 @@ watch(
             <div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
               <div v-for="[k, step] in layout.paper === 'sheet' ? SHEET_FIELDS : ROLL_FIELDS" :key="k">
                 <label class="label text-xs" :for="`lt-${k}`">{{ t(`labelTemplates.layout.${k}`) }}</label>
-                <input :id="`lt-${k}`" type="number" :step="step" min="0" class="input py-1.5 text-sm" :value="layout[k]" @change="setLayout(k, $event.target.valueAsNumber)" />
+                <input :id="`lt-${k}`" type="number" :step="step" min="0" class="input py-1.5 text-sm" :value="layout[k]" @input="setLayout(k, $event.target.valueAsNumber)" />
               </div>
             </div>
           </div>
@@ -542,7 +556,12 @@ watch(
           <div class="card p-6">
             <h3 class="font-semibold text-gray-900 mb-1">{{ t('labelTemplates.livePreview') }}</h3>
             <p class="text-xs text-gray-500 mb-4">{{ t('labelTemplates.previewNote', { size: $ltr(`${layout.width} × ${layout.height} mm`) }) }} · {{ t(`labelTemplates.layout.paper_${layout.paper}`) }}</p>
+            <div v-if="dirty" class="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900" role="status">
+              <span>{{ t('labelTemplates.unsavedHint') }}</span>
+              <button class="btn-primary btn-sm" :disabled="saving" @click="save">{{ creatingVariant ? t('labelTemplates.createVariant') : t('common.save') }}</button>
+            </div>
             <LabelPreview :layout="layout" :labels="[sample]" :max-height="layout.paper === 'sheet' ? 420 : 220" :title="t('labelTemplates.livePreview')" />
+            <p v-if="isUnits" class="mt-2 text-xs text-gray-500">{{ t('labelTemplates.brandDisplayNote') }}</p>
             <button type="button" class="btn-secondary btn-sm mt-3" @click="testPrint">{{ t('labelTemplates.layout.testPrint') }}</button>
           </div>
         </template>

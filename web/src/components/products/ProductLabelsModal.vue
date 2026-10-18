@@ -6,7 +6,7 @@ import { ClipboardDocumentIcon, Cog6ToothIcon, MinusIcon, PlusIcon, PrinterIcon,
 import { settingsApi } from '@/api/misc';
 import { DEFAULT_PRODUCT_LABEL, labelTemplatesApi } from '@/api/labelTemplates';
 import { formatBarcodeText } from '@/utils/barcode';
-import { layoutKey, normalizeLayout, printLabels, productLabel } from '@/utils/labelRenderer';
+import { layoutKey, normalizeLayout, printLabels, productLabel, labelContext } from '@/utils/labelRenderer';
 import BarcodeView from '@/components/ui/BarcodeView.vue';
 import LabelPreview from '@/components/ui/LabelPreview.vue';
 
@@ -43,7 +43,7 @@ const setCopies = (id, n) => (copies.value[id] = Math.max(0, Math.min(500, Math.
 const totalLabels = computed(() => props.products.reduce((s, p) => s + (copies.value[p.id] || 0), 0));
 
 const { data: settings } = useQuery({ queryKey: ['tenant-settings'], queryFn: () => settingsApi.getTenantSettings(), staleTime: 300_000 });
-const ctx = computed(() => ({ storeName: settings.value?.storeName || settings.value?.tenantName || '' }));
+const ctx = computed(() => labelContext(settings.value));
 const tplOf = (p) => templates.value[keyOf(p)] || DEFAULT_PRODUCT_LABEL;
 
 const first = computed(() => props.products.find((p) => p.barcode));

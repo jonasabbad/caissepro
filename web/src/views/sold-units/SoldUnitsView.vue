@@ -29,7 +29,7 @@ import { conditionBadge, isComputerUnit } from '@/utils/soldUnitDisplay';
 import UnitLabelModal from '@/components/sold-units/UnitLabelModal.vue';
 import { labelTemplatesApi } from '@/api/labelTemplates';
 import { settingsApi } from '@/api/misc';
-import { deviceLabel, layoutKey, normalizeLayout, printLabels } from '@/utils/labelRenderer';
+import { deviceLabel, labelContext, layoutKey, normalizeLayout, printLabels } from '@/utils/labelRenderer';
 import BarcodeIcon from '@/components/ui/BarcodeIcon.vue';
 import DateRangePicker from '@/components/ui/DateRangePicker.vue';
 import Toast from '@/components/ui/Toast.vue';
@@ -184,7 +184,7 @@ async function printStickers() {
   printingStickers.value = true;
   try {
     const settings = await settingsApi.getTenantSettings().catch(() => null);
-    const ctx = { storeName: settings?.storeName || settings?.tenantName || '', printing: settings?.printing || {} };
+    const ctx = labelContext(settings);
     const cache = new Map();
     const groups = new Map();
     for (const u of selectedUnits.value.values()) {

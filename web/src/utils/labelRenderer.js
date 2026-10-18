@@ -89,6 +89,8 @@ export function renderLabelsDocument(groups, { lang = i18n.global.locale.value, 
     const l = normalizeLayout(g.layout);
     const page = pageOf(l);
     const name = `p${gi}`;
+    // The first layout also sets the default page, for browsers or drivers that ignore named pages.
+    if (gi === 0) css.push(`@page { size: ${fmt(page.width)}mm ${fmt(page.height)}mm; margin: 0; }`);
     css.push(`@page ${name} { size: ${fmt(page.width)}mm ${fmt(page.height)}mm; margin: 0; }
 .${name} { page: ${name}; width: ${fmt(page.width)}mm; height: ${fmt(page.height)}mm; }
 .${name} .grid { grid-template-columns: repeat(${l.columns}, ${fmt(l.width)}mm); grid-auto-rows: ${fmt(l.height)}mm; column-gap: ${fmt(l.gapX)}mm; row-gap: ${fmt(l.gapY)}mm;
@@ -127,6 +129,15 @@ export function renderLabelsDocument(groups, { lang = i18n.global.locale.value, 
 }
 
 export const printLabels = (groups, opts) => printHtmlDocument(renderLabelsDocument(groups, opts));
+
+/**
+ * What every sticker needs from GET /settings/tenant: the shop name and the brand display options of
+ * Settings > Printing > Label settings (stored as settings.printingSettings).
+ */
+export function labelContext(tenantSettings) {
+  const s = tenantSettings || {};
+  return { storeName: s.storeName || s.tenantName || '', printing: s.settings?.printingSettings || {} };
+}
 
 // ── Label content (what is written on a sticker), shared by previews and printing ──
 
@@ -203,8 +214,8 @@ export function productLabel(product, tpl, { storeName = '' } = {}) {
 }
 
 /** Sample sticker for the settings preview. */
-export function sampleLabel(isDevice, tpl, storeName) {
+export function sampleLabel(isDevice, tpl, storeName, printing = {}) {
   return isDevice
-    ? deviceLabel({ brand: 'Apple', model: 'iPhone 15 Pro Max', storage: '256 GB', color: 'Noir', condition: 'new', batteryHealth: 100, salePrice: 15500, imei: '353456789012345' }, tpl, { storeName })
+    ? deviceLabel({ brand: 'Apple', model: 'iPhone 15 Pro Max', storage: '256 GB', color: 'Noir', condition: 'new', batteryHealth: 100, salePrice: 15500, imei: '353456789012345' }, tpl, { storeName, printing })
     : productLabel({ name: 'Coque silicone iPhone 15', retailPrice: 49, barcode: '2001234567893' }, tpl, { storeName });
 }

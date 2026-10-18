@@ -6,7 +6,7 @@ import { ClipboardDocumentIcon, Cog6ToothIcon, PrinterIcon, XMarkIcon } from '@h
 import { settingsApi } from '@/api/misc';
 import { formatImei, soldUnitsApi } from '@/api/soldUnits';
 import { labelTemplatesApi } from '@/api/labelTemplates';
-import { deviceLabel, normalizeLayout, printLabels } from '@/utils/labelRenderer';
+import { deviceLabel, labelContext, normalizeLayout, printLabels } from '@/utils/labelRenderer';
 import { formatCurrency } from '@/utils/format';
 import LabelPreview from '@/components/ui/LabelPreview.vue';
 import { conditionBadge } from '@/utils/soldUnitDisplay';
@@ -20,7 +20,7 @@ const emit = defineEmits(['close']);
 const { t } = useI18n();
 
 const { data: settings } = useQuery({ queryKey: ['tenant-settings'], queryFn: () => settingsApi.getTenantSettings(), staleTime: 300_000 });
-const ctx = computed(() => ({ storeName: settings.value?.storeName || settings.value?.tenantName || '', printing: settings.value?.printing || {} }));
+const ctx = computed(() => labelContext(settings.value));
 
 const tpl = ref(null);
 const loadError = ref(false);
