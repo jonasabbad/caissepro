@@ -27,6 +27,8 @@ import {
   unpairCashDrawer,
 } from '@/services/cashDrawer';
 import { receiptHtml } from '@/utils/receipt';
+import { BRAND_ABBREVIATIONS, deviceDisplayName } from '@/utils/labelRenderer';
+import { useRoute } from 'vue-router';
 import Toast from '@/components/ui/Toast.vue';
 
 const { t } = useI18n();
@@ -38,7 +40,8 @@ const fail = (message) => (toast.value = { show: true, message, type: 'error' })
 const errMsg = (e, fallback) => e?.response?.data?.message || fallback;
 
 const { data: settings, isLoading } = useQuery({ queryKey: ['tenant-settings'], queryFn: () => settingsApi.getTenantSettings() });
-const tab = ref('profile');
+const route = useRoute();
+const tab = ref(typeof route.query.tab === 'string' ? route.query.tab : 'profile');
 const TABS = [
   { id: 'profile', icon: UserCircleIcon, label: 'settings.profile' },
   { id: 'store', icon: BuildingStorefrontIcon, label: 'settings.store' },
@@ -206,21 +209,7 @@ function changePassword() {
 }
 
 // ── Labels: how device names are printed ──
-const ABBREVIATIONS = {
-  'Apple iPhone': 'IP',
-  'Samsung Galaxy': 'SG',
-  'Xiaomi Redmi': 'XR',
-  'Xiaomi Poco': 'XP',
-  Huawei: 'HW',
-  Oppo: 'OP',
-  Vivo: 'VV',
-  Realme: 'RM',
-  OnePlus: '1+',
-  'Google Pixel': 'GP',
-  Honor: 'HN',
-  'Nothing Phone': 'NP',
-};
-const MAKERS = ['Apple', 'Samsung', 'Xiaomi', 'Google', 'Nothing'];
+const ABBREVIATIONS = BRAND_ABBREVIATIONS;
 const brandMode = computed({
   get: () => (!printing.value.showBrand ? 'none' : printing.value.simplifyBrand ? 'simplify' : printing.value.shortenBrandNames ? 'abbreviate' : 'full'),
   set: (m) => {
@@ -229,22 +218,8 @@ const brandMode = computed({
     printing.value.shortenBrandNames = m === 'abbreviate';
   },
 });
-function labelName(name) {
-  const m = brandMode.value;
-  if (m === 'none') {
-    for (const series of Object.keys(ABBREVIATIONS)) if (name.startsWith(`${series} `)) return name.replace(`${series} `, '');
-    const parts = name.split(' ');
-    return parts.length > 1 && MAKERS.includes(parts[0]) ? parts.slice(1).join(' ') : name;
-  }
-  if (m === 'simplify') {
-    for (const maker of MAKERS) if (name.startsWith(`${maker} `)) return name.replace(`${maker} `, '');
-    return name;
-  }
-  if (m === 'abbreviate') {
-    for (const [series, abbr] of Object.entries(ABBREVIATIONS)) if (name.startsWith(series)) return name.replace(series, abbr);
-  }
-  return name;
-}
+// Same function as the stickers, so this preview is exactly what is printed.
+const labelName = (name) => deviceDisplayName(name, { ...printing.value, brandAbbreviations: ABBREVIATIONS });
 const BRAND_MODES = [
   { id: 'full', label: 'settings.brandFull', help: 'settings.brandFullHelp' },
   { id: 'simplify', label: 'settings.brandSimplify', help: 'settings.brandSimplifyHelp' },
@@ -380,7 +355,7 @@ async function unpairDrawer() {
           <component :is="tb.icon" class="w-5 h-5" /> {{ t(tb.label) }}
         </button>
         <RouterLink to="/app/settings/label-templates" class="flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 whitespace-nowrap">
-          <TagIcon class="w-5 h-5" /> {{ t('settings.labelSettings') }}
+          <TagIcon class="w-5 h-5" /> {{ t('labelTemplates.title') }}
         </RouterLink>
       </nav>
 

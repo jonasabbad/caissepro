@@ -370,3 +370,17 @@ Tested in the app (template restored afterwards to 40 × 25 mm, barcode 7 mm, pr
 - Phones → sticker of "Apple iPhone 18": preview "Template: 40 × 30 mm", frame 40 × 30 mm, barcode 10 mm, no price;
   Print document `@page { size: 40mm 30mm }` + named page, label 151 × 113 px (40 × 30 mm), `.bars` 10 mm, no price.
 - With "Hide the brand" off, the sticker name followed Printing → Label settings ("Shorten brand names"): "IP 18".
+
+## Settings → Printing → Label settings on phone stickers (2026-10-19)
+
+Cause: device names on stickers were controlled twice — the Label settings card (Full name / Without the manufacturer
+/ Abbreviated / Model only) and a "Hide the brand" switch in Label Templates, which overrode the card whenever it was
+on (it was on: every option printed the model only). The card's preview also used its own copy of the naming rules,
+with a different brand list. Now the card is the only control: one `deviceDisplayName()` drives the card's preview,
+the phone sticker modal and bulk sticker printing; the template switch is removed (Label Templates links to the card);
+the Settings sidebar entry that opens Label Templates is named "Label templates".
+
+Tested through the card (select + Save), then the sticker of "Apple iPhone 18":
+Full name → "Apple iPhone 18" (card preview "Apple iPhone 15 Pro Max"); Abbreviated → "IP 18" ("IP 15 Pro Max");
+Model only → "18" ("15 Pro Max"); Without the manufacturer → "iPhone 18" ("iPhone 15 Pro Max"). Bulk "Print stickers"
+printed "iPhone 18" at 40 × 25 mm. The saved choice was left on "Without the manufacturer", as before.

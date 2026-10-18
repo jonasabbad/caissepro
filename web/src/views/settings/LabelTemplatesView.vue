@@ -257,7 +257,6 @@ const FIELDS = computed(() => [
   { key: 'includeName', label: isUnits.value ? t('labelTemplates.deviceName') : t('labelTemplates.productName') },
   ...(isUnits.value
     ? [
-        { key: 'hideBrand', label: t('labelTemplates.hideBrand'), hint: t('labelTemplates.hideBrandHint') },
         { key: 'includeImei', label: t('labelTemplates.imeiSerial'), hint: t('labelTemplates.imeiSerialHint') },
         { key: 'includeStorage', label: t('labelTemplates.storage') },
         { key: 'includeColor', label: t('labelTemplates.color') },
@@ -561,7 +560,10 @@ watch(
               <button class="btn-primary btn-sm" :disabled="saving" @click="save">{{ creatingVariant ? t('labelTemplates.createVariant') : t('common.save') }}</button>
             </div>
             <LabelPreview :layout="layout" :labels="[sample]" :max-height="layout.paper === 'sheet' ? 420 : 220" :title="t('labelTemplates.livePreview')" />
-            <p v-if="isUnits" class="mt-2 text-xs text-gray-500">{{ t('labelTemplates.brandDisplayNote') }}</p>
+            <p v-if="isUnits" class="mt-2 text-xs text-gray-500">
+              {{ t('labelTemplates.brandDisplayNote') }}
+              <RouterLink :to="{ name: 'settings', query: { tab: 'printing' } }" class="font-medium text-primary-600 hover:underline">{{ t('labelTemplates.brandDisplayLink') }}</RouterLink>
+            </p>
             <button type="button" class="btn-secondary btn-sm mt-3" @click="testPrint">{{ t('labelTemplates.layout.testPrint') }}</button>
           </div>
         </template>

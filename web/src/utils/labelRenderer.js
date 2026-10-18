@@ -141,8 +141,8 @@ export function labelContext(tenantSettings) {
 
 // ── Label content (what is written on a sticker), shared by previews and printing ──
 
-// Brand display options for device names (Settings > Printing).
-const ABBREVIATIONS = {
+// Brand display options for device names (Settings > Printing > Label settings).
+export const BRAND_ABBREVIATIONS = {
   'Apple iPhone': 'IP',
   'Samsung Galaxy': 'SG',
   'Xiaomi Redmi': 'XR',
@@ -157,22 +157,37 @@ const ABBREVIATIONS = {
   'Nothing Phone': 'NP',
 };
 const BRANDS = ['Apple', 'Samsung', 'Xiaomi', 'Google', 'Nothing', 'Huawei', 'Oppo', 'Vivo', 'Realme', 'OnePlus', 'Honor'];
-function deviceName(unit, tpl, printing = {}) {
-  let name = `${unit.brand} ${unit.model}`;
-  if (tpl.hideBrand) return unit.model;
-  if (printing.showBrand === false) {
-    for (const k of Object.keys(ABBREVIATIONS)) if (name.startsWith(k + ' ')) return name.replace(k + ' ', '');
+/** The option chosen in Settings > Printing > Label settings: full | simplify | abbreviate | none. */
+export function brandModeOf(printing = {}) {
+  if (printing.showBrand === false) return 'none';
+  if (printing.simplifyBrand) return 'simplify';
+  if (printing.shortenBrandNames) return 'abbreviate';
+  return 'full';
+}
+
+/**
+ * A device name as printed on stickers, following Settings > Printing > Label settings — the only setting that
+ * controls it (the settings preview uses this same function).
+ * full: "Apple iPhone 15 Pro Max" · simplify: "iPhone 15 Pro Max" · abbreviate: "IP 15 Pro Max" · none: "15 Pro Max".
+ */
+export function deviceDisplayName(name, printing = {}) {
+  const mode = brandModeOf(printing);
+  const abbreviations = printing.brandAbbreviations || BRAND_ABBREVIATIONS;
+  if (mode === 'none') {
+    for (const series of Object.keys(abbreviations)) if (name.startsWith(`${series} `)) return name.slice(series.length + 1);
     const words = name.split(' ');
-    if (words.length > 1 && BRANDS.includes(words[0])) return words.slice(1).join(' ');
+    return words.length > 1 && BRANDS.includes(words[0]) ? words.slice(1).join(' ') : name;
+  }
+  if (mode === 'simplify') {
+    for (const b of BRANDS) if (name.startsWith(`${b} `)) return name.slice(b.length + 1);
     return name;
   }
-  if (printing.simplifyBrand) {
-    for (const b of BRANDS) if (name.startsWith(b + ' ')) return name.replace(b + ' ', '');
-  } else if (printing.shortenBrandNames) {
-    for (const [full, short] of Object.entries(printing.brandAbbreviations || ABBREVIATIONS)) if (name.startsWith(full)) name = name.replace(full, short);
+  if (mode === 'abbreviate') {
+    for (const [series, short] of Object.entries(abbreviations)) if (name.startsWith(series)) return short + name.slice(series.length);
   }
   return name;
 }
+const deviceName = (unit, printing) => deviceDisplayName(`${unit.brand} ${unit.model}`.trim(), printing);
 
 const price = (v) => `${new Intl.NumberFormat(docIntlLocale(), { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(Number(v) || 0)} DH`;
 
@@ -190,7 +205,7 @@ export function deviceLabel(unit, tpl, { storeName = '', printing = {} } = {}) {
   const code = unit.imei || unit.ref || unit.serialNumber || '';
   return {
     lines: [
-      tpl.includeName !== false && { role: 'name', text: truncate(deviceName(unit, tpl, printing), 40) },
+      tpl.includeName !== false && { role: 'name', text: truncate(deviceName(unit, printing), 40) },
       details.length && { role: 'details', text: details.join(' · ') },
       tpl.includePrice !== false && { role: 'price', text: price(unit.salePrice) },
     ],

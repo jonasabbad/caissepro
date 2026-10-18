@@ -98,5 +98,6 @@ export default {
     unsavedHint: "Modifications non enregistrées : les étiquettes des téléphones et des produits utilisent encore les réglages enregistrés.",
     leaveUnsaved: "Quitter sans enregistrer les modifications de l’étiquette ?",
     brandDisplayNote: "Affichage de la marque : Paramètres → Impression → Réglages des étiquettes.",
+    brandDisplayLink: "Modifier dans Paramètres → Impression",
   }
 };

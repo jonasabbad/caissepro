@@ -100,5 +100,6 @@ export default {
     unsavedHint: "Unsaved changes: phone and product stickers still use the saved settings.",
     leaveUnsaved: "Leave without saving the label changes?",
     brandDisplayNote: "Brand display: Settings → Printing → Label settings.",
+    brandDisplayLink: "Change in Settings → Printing",
   },
 };
