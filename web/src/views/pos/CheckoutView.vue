@@ -181,7 +181,7 @@ const { data: customersData } = useQuery({
 });
 const customers = computed(() => customersData.value?.customers || []);
 // ── Catalogue: paged on the server, so search and category filters always cover every product ──
-const PAGE_SIZES = [12, 24, 48];
+const PAGE_SIZES = [20, 40, 60];
 const savedPageSize = (() => {
   try {
     return Number(localStorage.getItem('pos_page_size'));
@@ -189,7 +189,7 @@ const savedPageSize = (() => {
     return 0;
   }
 })();
-const pageSize = ref(PAGE_SIZES.includes(savedPageSize) ? savedPageSize : 24);
+const pageSize = ref(PAGE_SIZES.includes(savedPageSize) ? savedPageSize : 20);
 watch(pageSize, (n) => {
   try {
     localStorage.setItem('pos_page_size', String(n));
@@ -1004,7 +1004,7 @@ const customerLocked = computed(() => cart.isReturnMode && !cart.isEmpty);
           <!-- Sale mode: products (one page) + devices in stock -->
           <template v-else>
           <p v-if="isPhoneSeller && pagedUnits.length && filteredProducts.length" class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">{{ t('pos.productsTitle') }}</p>
-          <div v-if="filteredProducts.length" class="grid grid-cols-[repeat(auto-fill,minmax(9rem,1fr))] gap-3">
+          <div v-if="filteredProducts.length" class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-5 2xl:gap-4">
             <button
               v-for="p in filteredProducts"
               :key="p.id"
@@ -1019,41 +1019,40 @@ const customerLocked = computed(() => cart.isReturnMode && !cart.isEmpty);
               :title="p.name"
               @click="selectProduct(p)"
             >
-              <div :class="['relative aspect-square w-full overflow-hidden border-b border-gray-100 bg-white', p.stockQuantity <= 0 && 'grayscale opacity-50']">
-                <ProductImage :src="p.imageUrl" :name="p.name" />
+              <div class="relative aspect-square w-full overflow-hidden border-b border-gray-100 bg-white">
+                <div :class="['h-full w-full', p.stockQuantity <= 0 && 'opacity-50 grayscale']"><ProductImage :src="p.imageUrl" :name="p.name" /></div>
+                <span v-if="p.stockQuantity <= 0" class="absolute inset-0 m-auto h-fit w-fit rounded-md bg-gray-900/85 px-2.5 py-1 text-xs font-semibold text-white">
+                  {{ t('pos.outOfStockLong') }}
+                </span>
+                <span v-if="inCart.get(p.id)" class="absolute top-2 start-2 flex h-7 min-w-7 items-center justify-center rounded-full bg-black px-2 text-xs font-bold text-white shadow-md">
+                  ×{{ inCart.get(p.id) }}
+                </span>
+                <span
+                  v-if="p.stockQuantity > 0"
+                  class="absolute bottom-2 end-2 flex h-8 w-8 items-center justify-center rounded-full bg-white/95 text-gray-800 shadow-md ring-1 ring-black/5 transition-colors group-hover:bg-black group-hover:text-white"
+                >
+                  <PlusIcon class="h-4 w-4" />
+                </span>
               </div>
-              <span v-if="p.stockQuantity <= 0" class="absolute inset-x-0 top-[calc(50%-1.5rem)] mx-auto w-fit -translate-y-full rounded-md bg-gray-900/85 px-2.5 py-1 text-xs font-semibold text-white">
-                {{ t('pos.outOfStockLong') }}
-              </span>
-              <span v-if="inCart.get(p.id)" class="absolute top-2 start-2 flex h-7 min-w-7 items-center justify-center rounded-full bg-black px-2 text-xs font-bold text-white shadow-md">
-                ×{{ inCart.get(p.id) }}
-              </span>
-              <div class="flex flex-1 flex-col gap-1 p-3">
+              <div class="flex flex-1 flex-col p-3">
                 <p class="line-clamp-2 min-h-[2.5rem] text-sm font-semibold leading-5 text-gray-900">{{ p.name }}</p>
-                <p class="truncate text-[11px] text-gray-400">{{ p.category?.name || p.sku }}</p>
-                <div class="mt-auto flex items-end justify-between gap-2 pt-1">
-                  <div class="min-w-0">
-                    <p class="text-base font-bold leading-tight text-gray-900">{{ formatCurrency(p.retailPrice) }}</p>
-                    <p
-                      :class="[
-                        'mt-0.5 flex items-center gap-1 text-[11px] font-medium',
-                        p.stockQuantity <= 0 ? 'text-red-600' : p.stockQuantity <= (p.minStockLevel ?? 5) ? 'text-amber-600' : 'text-emerald-600',
-                      ]"
-                    >
-                      <span class="h-1.5 w-1.5 shrink-0 rounded-full bg-current" />
-                      {{ p.stockQuantity <= 0 ? t('pos.outOfStock') : p.stockQuantity <= (p.minStockLevel ?? 5) ? t('pos.lowStockShort', { n: p.stockQuantity }) : t('pos.inStockShort', { n: p.stockQuantity }) }}
-                    </p>
-                  </div>
-                  <span v-if="p.stockQuantity > 0" class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-700 transition-colors group-hover:bg-black group-hover:text-white">
-                    <PlusIcon class="h-4 w-4" />
-                  </span>
-                </div>
+                <p class="mt-0.5 truncate text-[11px] leading-4 text-gray-400">{{ p.category?.name || p.sku }}</p>
+                <p class="mt-auto truncate whitespace-nowrap pt-2 text-base font-bold leading-tight text-gray-900">{{ formatCurrency(p.retailPrice) }}</p>
+                <p
+                  :class="[
+                    'mt-1 flex items-center gap-1 truncate text-[11px] font-medium leading-4',
+                    p.stockQuantity <= 0 ? 'text-red-600' : p.stockQuantity <= (p.minStockLevel ?? 5) ? 'text-amber-600' : 'text-emerald-600',
+                  ]"
+                >
+                  <span class="h-1.5 w-1.5 shrink-0 rounded-full bg-current" />
+                  {{ p.stockQuantity <= 0 ? t('pos.outOfStock') : p.stockQuantity <= (p.minStockLevel ?? 5) ? t('pos.lowStockShort', { n: p.stockQuantity }) : t('pos.inStockShort', { n: p.stockQuantity }) }}
+                </p>
               </div>
             </button>
           </div>
           <template v-if="isPhoneSeller && pagedUnits.length">
             <p :class="['mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500', filteredProducts.length && 'mt-6']">{{ t('pos.devicesInStock') }} <span class="text-gray-400">{{ filteredUnits.length }}</span></p>
-            <div class="grid grid-cols-[repeat(auto-fill,minmax(9rem,1fr))] gap-3">
+            <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-5 2xl:gap-4">
               <button
                 v-for="u in pagedUnits"
                 :key="`unit-${u.id}`"

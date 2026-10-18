@@ -274,7 +274,7 @@ sellable first then out of stock (each by name), search by name and by barcode a
 catalogue, category counts cover the whole catalogue.
 
 In the app (local dev data, 40 extra "TEST POS Article" products, 56 in total, 24 per page → 3 pages):
-- Pager 1 / 2 / 3 with previous / next, "1–24 of 56", page size 12 / 24 / 48 (remembered per browser).
+- Pager 1 / 2 / 3 with previous / next, page size 20 / 40 / 60 (remembered per browser; full rows of 5 or 4).
 - Adding a product twice → one line ×2; switching to page 3 and back keeps the cart and the ×2 badge.
 - Out-of-stock products are listed last, greyed with "Out of stock" and cannot be clicked; catalogue devices stay
   clickable (they are sold by unit).
@@ -282,3 +282,6 @@ In the app (local dev data, 40 extra "TEST POS Article" products, 56 in total, 2
   page 3 finds it; the Audio chip shows 21 and lists all 21 products.
 - Layout: 375 px phone (2 columns, no horizontal scroll), 1024 px laptop (2 columns beside the cart — the cart used to
   be pushed off-screen at this width), 1600 px desktop (4 columns).
+- Grid (2026-10-18): exactly 5 cards per row on desktop (≥1536 px: 1536 and 1920 checked), 4 at 1366 px and on
+  tablets (768 px), 2 beside the cart at 1024 px and on phones (375 px); every card in a row the same height, prices
+  never clipped, no horizontal scroll; adding, paging and the in-cart badge still work.
