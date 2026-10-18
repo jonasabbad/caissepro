@@ -148,6 +148,9 @@ export default {
     labels: {"title":"Barcode labels","size":"Label size","sizes":{"compact":"Compact","standard":"Standard","small":"Mini"},"preview":"Preview","hint":"Name, selling price and barcode — to stick on the back of the product.","copies":"Number of labels","fewer":"Fewer","more":"More","oneEachInStock":"One label per piece in stock","stockShort":"stock ({n})","noBarcode":"No barcode","missing":"{n} product(s) without a barcode skipped.","count":"{n} label(s)","print":"Print ({n})","printSelected":"Print labels ({n})","selectAll":"Select all","select":"Select"},
     scan: {"hint":"Scan a barcode to find a product","found":"Product found: {name}","notFound":"No product with barcode {code}","create":"Create a product with this code"},
     barcodeAutoHint: "Scan the manufacturer's code, or leave empty: a unique barcode is generated automatically.",
+    sizeMonths: "{n} months",
+    sizeYears: "{n} years",
+    colorNames: {"noir":"Black","blanc":"White","ecru":"Ecru","creme":"Cream","beige":"Beige","camel":"Camel","marron":"Brown","chocolat":"Chocolate","gris":"Grey","grisClair":"Light grey","anthracite":"Charcoal","bleu":"Blue","bleuCiel":"Sky blue","bleuMarine":"Navy blue","bleuJean":"Denim blue","turquoise":"Turquoise","vert":"Green","vertOlive":"Olive green","kaki":"Khaki","vertBouteille":"Bottle green","rouge":"Red","bordeaux":"Burgundy","rose":"Pink","rosePoudre":"Powder pink","fuchsia":"Fuchsia","violet":"Purple","lilas":"Lilac","orange":"Orange","corail":"Coral","jaune":"Yellow","moutarde":"Mustard","dore":"Gold","argente":"Silver","multicolore":"Multicolor","imprime":"Printed"},
   },
   inventoryMovements: {
     title: 'Stock movements',

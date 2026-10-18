@@ -285,3 +285,16 @@ In the app (local dev data, 40 extra "TEST POS Article" products, 56 in total, 2
 - Grid (2026-10-18): exactly 5 cards per row on desktop (≥1536 px: 1536 and 1920 checked), 4 at 1366 px and on
   tablets (768 px), 2 beside the cart at 1024 px and on phones (375 px); every card in a row the same height, prices
   never clipped, no horizontal scroll; adding, paging and the in-cart badge still work.
+
+## Arabic translation review (2026-10-18)
+
+- All 2,134 Arabic strings reviewed against their English meaning in context; 341 corrected (wrong meanings such as
+  trade-in shown as "refund", cash in/out shown as "expenses", "Sales of the day" on any period, suppliers we owe
+  shown as "debtor suppliers", "identity theft" for support sign-in; Moroccan slang such as "كريدي"; and one term per
+  concept — see docs/arabic-glossary.md).
+- Hardcoded French found and translated: box/piece counts in the POS cart and box dialog, "Ajouter « … »" in
+  searchable dropdowns, clothing colour and kids' size chips (stored values unchanged), placeholder page title; POS
+  category chips now show built-in categories in the selected language.
+- Checks: 2,174 keys in fr/en/ar, 0 missing, 0 placeholder mismatches; 58 server tests pass; build OK.
+- In the app (Arabic): every module crawled for leftover Latin words — only user data, codes and brand names remain;
+  POS, transactions table, expense form checked right-to-left (pager arrows mirrored, amounts in DH kept in order).

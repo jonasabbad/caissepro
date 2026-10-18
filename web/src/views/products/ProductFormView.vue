@@ -33,6 +33,13 @@ const SIZE_GROUPS = [
   },
 ];
 const ALL_SIZES = [...new Set(SIZE_GROUPS.flatMap((g) => g.sizes))];
+// Labels shown for the stored (French) clothing values.
+const COLOR_KEYS = { "Noir": 'noir', "Blanc": 'blanc', "Écru": 'ecru', "Crème": 'creme', "Beige": 'beige', "Camel": 'camel', "Marron": 'marron', "Chocolat": 'chocolat', "Gris": 'gris', "Gris clair": 'grisClair', "Anthracite": 'anthracite', "Bleu": 'bleu', "Bleu ciel": 'bleuCiel', "Bleu marine": 'bleuMarine', "Bleu jean": 'bleuJean', "Turquoise": 'turquoise', "Vert": 'vert', "Vert olive": 'vertOlive', "Kaki": 'kaki', "Vert bouteille": 'vertBouteille', "Rouge": 'rouge', "Bordeaux": 'bordeaux', "Rose": 'rose', "Rose poudré": 'rosePoudre', "Fuchsia": 'fuchsia', "Violet": 'violet', "Lilas": 'lilas', "Orange": 'orange', "Corail": 'corail', "Jaune": 'jaune', "Moutarde": 'moutarde', "Doré": 'dore', "Argenté": 'argente', "Multicolore": 'multicolore', "Imprimé": 'imprime' };
+const colorLabel = (c) => (COLOR_KEYS[c] ? t(`products.colorNames.${COLOR_KEYS[c]}`) : c);
+function sizeLabel(s) {
+  const m = /^(\d+(?:-\d+)?) (mois|ans)$/.exec(s || '');
+  return m ? t(m[2] === 'mois' ? 'products.sizeMonths' : 'products.sizeYears', { n: m[1] }) : s;
+}
 const COLORS = [
   'Noir', 'Blanc', 'Écru', 'Crème', 'Beige', 'Camel', 'Marron', 'Chocolat', 'Gris', 'Gris clair', 'Anthracite', 'Bleu', 'Bleu ciel',
   'Bleu marine', 'Bleu jean', 'Turquoise', 'Vert', 'Vert olive', 'Kaki', 'Vert bouteille', 'Rouge', 'Bordeaux', 'Rose', 'Rose poudré',
@@ -552,7 +559,7 @@ const chip = (active) =>
                 <div v-for="g in [...SIZE_GROUPS, ...(customSizes.length ? [{ key: 'custom', sizes: customSizes }] : [])]" :key="g.key">
                   <p class="mb-1.5 text-xs text-gray-500">{{ t(`products.sizeGroups.${g.key}`) }}</p>
                   <div class="flex flex-wrap gap-2">
-                    <button v-for="s in g.sizes" :key="s" type="button" :class="chip(selectedSizes.includes(s))" @click="toggleIn(selectedSizes, s)">{{ s }}</button>
+                    <button v-for="s in g.sizes" :key="s" type="button" :class="chip(selectedSizes.includes(s))" @click="toggleIn(selectedSizes, s)">{{ sizeLabel(s) }}</button>
                   </div>
                 </div>
               </div>
@@ -564,7 +571,7 @@ const chip = (active) =>
             <div>
               <label class="label">{{ t('products.colors') }}</label>
               <div class="flex flex-wrap gap-2">
-                <button v-for="c in colorOrder" :key="c" type="button" :class="chip(selectedColors.includes(c))" @click="toggleIn(selectedColors, c)">{{ c }}</button>
+                <button v-for="c in colorOrder" :key="c" type="button" :class="chip(selectedColors.includes(c))" @click="toggleIn(selectedColors, c)">{{ colorLabel(c) }}</button>
               </div>
               <div class="mt-2 flex gap-2">
                 <input v-model="customColor" type="text" class="input" :placeholder="t('products.otherColor')" @keydown.enter.prevent="addCustomColor" />
@@ -578,12 +585,12 @@ const chip = (active) =>
                   <thead class="bg-gray-50">
                     <tr>
                       <th class="px-3 py-2" />
-                      <th v-for="s in matrixSizes" :key="s" class="px-3 py-2 text-center font-medium text-gray-600">{{ s || '—' }}</th>
+                      <th v-for="s in matrixSizes" :key="s" class="px-3 py-2 text-center font-medium text-gray-600">{{ sizeLabel(s) || '—' }}</th>
                     </tr>
                   </thead>
                   <tbody>
                     <tr v-for="c in matrixColors" :key="c" class="border-t border-gray-100">
-                      <td class="whitespace-nowrap px-3 py-2 font-medium text-gray-700">{{ c || '—' }}</td>
+                      <td class="whitespace-nowrap px-3 py-2 font-medium text-gray-700">{{ colorLabel(c) || '—' }}</td>
                       <td v-for="s in matrixSizes" :key="s" class="px-2 py-1.5">
                         <input v-model.number="matrixStock[cellKey(c, s)]" type="number" min="0" step="1" placeholder="0" class="input w-20 text-center" />
                       </td>

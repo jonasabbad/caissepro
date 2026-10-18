@@ -86,6 +86,8 @@ export default {
     lowStockShort: "Plus que {n}",
     devicesInStock: "Appareils en stock",
     productsTitle: "Produits",
+    boxesCount: "{n} boîte(s)",
+    piecesShort: "{n} pcs",
   },
   returnMode: {
     toggle: 'Mode Retour',

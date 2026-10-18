@@ -116,6 +116,7 @@ export default {
     rangeOf: "{from}–{to} of {total}",
     perPage: "Per page",
     pagination: "Pagination",
+    addValue: "Add \"{value}\"",
   },
   errors: {
     required: 'This field is required',

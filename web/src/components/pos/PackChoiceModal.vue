@@ -43,7 +43,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey, true));
             <h3 class="text-lg font-semibold text-gray-900">{{ product.name }}</h3>
             <p class="text-sm text-gray-500 mt-0.5">
               {{ $t('pos.stockPieces', { n: product.stockQuantity }) }}
-              <template v-if="boxes > 0">(≈ {{ boxes }} boîte{{ boxes > 1 ? 's' : '' }}<template v-if="loose > 0"> + {{ loose }}</template>)</template>
+              <template v-if="boxes > 0">(≈ {{ $t('pos.boxesCount', { n: boxes }) }}<template v-if="loose > 0"> + {{ loose }}</template>)</template>
             </p>
           </div>
           <button class="p-2 hover:bg-gray-100 rounded-lg" @click="emit('close')"><XMarkIcon class="w-5 h-5 text-gray-400" /></button>

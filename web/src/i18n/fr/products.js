@@ -139,6 +139,9 @@ export default {
     labels: {"title":"Étiquettes code-barres","size":"Format d'étiquette","sizes":{"compact":"Compacte","standard":"Standard","small":"Mini"},"preview":"Aperçu","hint":"Nom, prix de vente et code-barres — à coller au dos du produit.","copies":"Nombre d'étiquettes","fewer":"Moins","more":"Plus","oneEachInStock":"Une étiquette par pièce en stock","stockShort":"stock ({n})","noBarcode":"Sans code-barres","missing":"{n} produit(s) sans code-barres ignoré(s).","count":"{n} étiquette(s)","print":"Imprimer ({n})","printSelected":"Imprimer les étiquettes ({n})","selectAll":"Tout sélectionner","select":"Sélectionner"},
     scan: {"hint":"Scannez un code-barres pour trouver un produit","found":"Produit trouvé : {name}","notFound":"Aucun produit avec le code-barres {code}","create":"Créer un produit avec ce code"},
     barcodeAutoHint: "Scannez le code du fabricant, ou laissez vide : un code-barres unique est généré automatiquement.",
+    sizeMonths: "{n} mois",
+    sizeYears: "{n} ans",
+    colorNames: {"noir":"Noir","blanc":"Blanc","ecru":"Écru","creme":"Crème","beige":"Beige","camel":"Camel","marron":"Marron","chocolat":"Chocolat","gris":"Gris","grisClair":"Gris clair","anthracite":"Anthracite","bleu":"Bleu","bleuCiel":"Bleu ciel","bleuMarine":"Bleu marine","bleuJean":"Bleu jean","turquoise":"Turquoise","vert":"Vert","vertOlive":"Vert olive","kaki":"Kaki","vertBouteille":"Vert bouteille","rouge":"Rouge","bordeaux":"Bordeaux","rose":"Rose","rosePoudre":"Rose poudré","fuchsia":"Fuchsia","violet":"Violet","lilas":"Lilas","orange":"Orange","corail":"Corail","jaune":"Jaune","moutarde":"Moutarde","dore":"Doré","argente":"Argenté","multicolore":"Multicolore","imprime":"Imprimé"},
   },
   inventoryMovements: {
     title: 'Mouvements de stock',

@@ -1155,7 +1155,7 @@ const customerLocked = computed(() => cart.isReturnMode && !cart.isEmpty);
               <p class="font-medium text-gray-900 text-sm">{{ item.product.name }}</p>
               <p class="text-xs text-gray-500">{{ item.product.sku }}</p>
               <p v-if="item.saleMode === 'pack'" class="text-xs text-primary-600 font-medium mt-1">
-                Boîte ×{{ item.packSize }} · {{ item.quantity / (item.packSize || 1) }} boîte{{ item.quantity / (item.packSize || 1) > 1 ? 's' : '' }} ({{ item.quantity }} pcs)
+                {{ t('pos.boxOf', { n: item.packSize }) }} · {{ t('pos.boxesCount', { n: item.quantity / (item.packSize || 1) }) }} ({{ t('pos.piecesShort', { n: item.quantity }) }})
               </p>
               <p v-if="item.soldUnit" class="text-xs text-primary-600 font-mono mt-1">
                 {{ item.soldUnit.imei ? `IMEI: ${formatImei(item.soldUnit.imei)}` : `S/N: ${item.soldUnit.serialNumber}` }}

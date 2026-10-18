@@ -139,7 +139,7 @@ export default async function productRoutes(app: FastifyInstance) {
       prisma.product.groupBy({ by: ['categoryId'], where, _count: { _all: true } }),
     ]);
     const ids = groups.map((g) => g.categoryId).filter((id): id is string => !!id);
-    const cats = await prisma.category.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, sortOrder: true } });
+    const cats = await prisma.category.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, slug: true, activityType: true, sortOrder: true } });
     const count = new Map(groups.map((g) => [g.categoryId, g._count._all]));
     const categories = cats
       .map((c) => ({ ...c, count: count.get(c.id) ?? 0 }))

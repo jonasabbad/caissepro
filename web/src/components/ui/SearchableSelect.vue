@@ -168,7 +168,7 @@ onUnmounted(() => document.removeEventListener('click', onOutside, true));
             <CheckIcon v-if="modelValue === o.value" class="h-4 w-4 text-gray-900" />
           </li>
           <li v-if="canCreate" class="cursor-pointer px-3 py-2 font-medium text-primary-700 hover:bg-gray-100" @mousedown.prevent="create">
-            Ajouter « {{ search.trim() }} »
+            {{ $t('common.addValue', { value: search.trim() }) }}
           </li>
           <li v-if="filtered.length === 0 && !canCreate" class="px-3 py-2 text-gray-400">{{ $t('common.noResults') }}</li>
         </ul>
