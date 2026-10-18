@@ -1,7 +1,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
 import {
   ArrowsRightLeftIcon,
   ArrowUturnLeftIcon,
@@ -43,6 +43,7 @@ import UnitSelectionModal from '@/components/pos/UnitSelectionModal.vue';
 import ReturnModal from '@/components/pos/ReturnModal.vue';
 import TradeInModal from '@/components/pos/TradeInModal.vue';
 import Toast from '@/components/ui/Toast.vue';
+import Pagination from '@/components/ui/Pagination.vue';
 
 /** Keystrokes closer than this (ms) are treated as a barcode scanner, not a person typing. */
 const SCAN_KEY_INTERVAL = 60;
@@ -179,8 +180,55 @@ const { data: customersData } = useQuery({
   queryFn: () => customersApi.getAll({ query: customerSearch.value, limit: 10 }),
 });
 const customers = computed(() => customersData.value?.customers || []);
-const { data: productsData, isLoading: productsLoading } = useQuery({ queryKey: ['pos-products'], queryFn: () => productsApi.getAll({ limit: 200 }) });
+// ── Catalogue: paged on the server, so search and category filters always cover every product ──
+const PAGE_SIZES = [12, 24, 48];
+const savedPageSize = (() => {
+  try {
+    return Number(localStorage.getItem('pos_page_size'));
+  } catch {
+    return 0;
+  }
+})();
+const pageSize = ref(PAGE_SIZES.includes(savedPageSize) ? savedPageSize : 24);
+watch(pageSize, (n) => {
+  try {
+    localStorage.setItem('pos_page_size', String(n));
+  } catch {
+    /* private mode: the default is used next time */
+  }
+});
+const page = ref(1);
+const categoryFilter = ref('');
+// The search box also drives device and return searches; the product query follows it after a short pause.
+const productQuery = ref('');
+let productQueryTimer = null;
+watch(search, (v) => {
+  clearTimeout(productQueryTimer);
+  const q = v.trim().length >= 2 ? v.trim() : '';
+  productQueryTimer = setTimeout(() => (productQuery.value = q), q ? 250 : 0);
+});
+watch([productQuery, categoryFilter, pageSize], () => (page.value = 1));
+const productParams = computed(() => ({
+  sort: 'pos',
+  page: page.value,
+  limit: pageSize.value,
+  query: productQuery.value || undefined,
+  categoryId: categoryFilter.value || undefined,
+}));
+const {
+  data: productsData,
+  isLoading: productsLoading,
+  isFetching: productsFetching,
+} = useQuery({ queryKey: ['pos-products', productParams], queryFn: () => productsApi.getAll(productParams.value), placeholderData: keepPreviousData });
 const products = computed(() => productsData.value?.products || []);
+const productMeta = computed(() => productsData.value?.meta || { total: 0, totalPages: 0 });
+// Stock sold elsewhere can shrink the list: never stay on a page that no longer exists.
+watch(productMeta, (m) => {
+  if (m.totalPages && page.value > m.totalPages) page.value = m.totalPages;
+});
+const { data: categoryCounts } = useQuery({ queryKey: ['pos-products', 'category-counts'], queryFn: () => productsApi.getCategoryCounts(), staleTime: 60_000 });
+const productGrid = ref(null);
+watch(page, () => productGrid.value?.scrollTo({ top: 0 }));
 const { data: inventoryUnits, isLoading: unitsLoading } = useQuery({
   queryKey: ['pos-inventory-units'],
   queryFn: () => soldUnitsApi.getInventory(),
@@ -205,24 +253,9 @@ const repairsByUnit = computed(() => {
   return m;
 });
 
-// Category chips: only categories that have sellable products, in catalogue order.
-const categoryFilter = ref('');
-const posCategories = computed(() => {
-  const m = new Map();
-  for (const p of products.value) {
-    if (!p.category) continue;
-    const c = m.get(p.category.id) || { ...p.category, count: 0 };
-    c.count++;
-    m.set(p.category.id, c);
-  }
-  return [...m.values()].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.name.localeCompare(b.name));
-});
-const filteredProducts = computed(() => {
-  const list = categoryFilter.value ? products.value.filter((p) => p.categoryId === categoryFilter.value) : products.value;
-  if (!search.value || search.value.length < 2) return list;
-  const q = search.value.toLowerCase();
-  return list.filter((p) => p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q) || p.barcode?.toLowerCase().includes(q));
-});
+// Category chips: categories that have products (whole catalogue), in catalogue order.
+const posCategories = computed(() => categoryCounts.value?.categories ?? []);
+const filteredProducts = products;
 /** Pieces of each catalogue product already in the cart (pack lines included), for the badge on its card. */
 const inCart = computed(() => {
   const m = new Map();
@@ -242,6 +275,12 @@ const filteredUnits = computed(() => {
       u.ref?.toLowerCase().includes(q),
   );
 });
+// Devices in stock are listed under the products, with their own pages.
+const unitPage = ref(1);
+const unitPages = computed(() => Math.max(1, Math.ceil(filteredUnits.value.length / pageSize.value)));
+watch([search, pageSize], () => (unitPage.value = 1));
+watch(unitPages, (n) => unitPage.value > n && (unitPage.value = n));
+const pagedUnits = computed(() => filteredUnits.value.slice((unitPage.value - 1) * pageSize.value, unitPage.value * pageSize.value));
 const cartOnlyDevices = computed(() => cart.items.length > 0 && cart.items.every((i) => i.soldUnit !== undefined));
 const gridLoading = computed(
   () => productsLoading.value || (isPhoneSeller.value && (unitsLoading.value || soldUnitsLoading.value)) || (cart.isReturnMode && soldItemsLoading.value),
@@ -386,6 +425,10 @@ const productSnapshot = (p) => ({
   imageUrl: p.imageUrl,
 });
 function selectProduct(p) {
+  if (!(isPhoneSeller.value && isCatalogDevice(p)) && !cart.isReturnMode && Number(p.stockQuantity) - (inCart.value.get(p.id) || 0) <= 0) {
+    scanError.value = Number(p.stockQuantity) <= 0 ? `${p.name} — ${t('pos.outOfStockLong')}` : t('pos.noStockLeft', { name: p.name });
+    return;
+  }
   if (isPhoneSeller.value && isCatalogDevice(p)) {
     unitPickerProduct.value = p;
     showUnitPicker.value = true;
@@ -824,7 +867,7 @@ const customerLocked = computed(() => cart.isReturnMode && !cart.isEmpty);
 <template>
   <div class="flex flex-col lg:flex-row gap-4 lg:gap-6 lg:h-[calc(100vh-8rem)] relative">
     <!-- Catalogue -->
-    <div class="flex-1 flex flex-col min-h-0">
+    <div class="flex-1 flex flex-col min-h-0 min-w-0">
       <div class="flex items-center justify-between mb-4">
         <div v-if="!cart.isReturnMode" class="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5">
           <button
@@ -880,7 +923,7 @@ const customerLocked = computed(() => cart.isReturnMode && !cart.isEmpty);
           :class="['shrink-0 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors', !categoryFilter ? 'border-black bg-black text-white' : 'border-gray-200 bg-white text-gray-600 hover:border-gray-400']"
           @click="categoryFilter = ''"
         >
-          {{ t('pos.allCategories') }} <span class="opacity-60">{{ products.length }}</span>
+          {{ t('pos.allCategories') }} <span class="opacity-60">{{ categoryCounts?.total ?? '' }}</span>
         </button>
         <button
           v-for="c in posCategories"
@@ -893,7 +936,7 @@ const customerLocked = computed(() => cart.isReturnMode && !cart.isEmpty);
       </div>
 
       <div :class="['flex-1 flex flex-col rounded-xl shadow-sm border overflow-hidden min-h-[16rem]', cart.isReturnMode ? 'bg-red-50 border-red-200' : 'bg-white border-gray-200']">
-        <div class="flex-1 overflow-y-auto p-4">
+        <div ref="productGrid" :class="['flex-1 overflow-y-auto p-3 sm:p-4 transition-opacity', productsFetching && !productsLoading && !cart.isReturnMode && 'opacity-60']">
           <div v-if="cart.isReturnMode" class="mb-4 p-3 bg-red-100 border border-red-200 rounded-lg">
             <p class="text-sm text-red-700 font-medium">{{ t('returnMode.soldItems') }}</p>
             <p class="text-xs text-red-600">{{ t('returnMode.addItemsToReturn') }}</p>
@@ -958,47 +1001,61 @@ const customerLocked = computed(() => cart.isReturnMode && !cart.isEmpty);
             </button>
           </div>
 
-          <!-- Sale mode: products + devices in stock -->
-          <div v-else class="grid grid-cols-[repeat(auto-fill,minmax(9.5rem,1fr))] gap-3">
+          <!-- Sale mode: products (one page) + devices in stock -->
+          <template v-else>
+          <p v-if="isPhoneSeller && pagedUnits.length && filteredProducts.length" class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">{{ t('pos.productsTitle') }}</p>
+          <div v-if="filteredProducts.length" class="grid grid-cols-[repeat(auto-fill,minmax(9rem,1fr))] gap-3">
             <button
               v-for="p in filteredProducts"
               :key="p.id"
+              type="button"
+              :disabled="p.stockQuantity <= 0 && !(isPhoneSeller && isCatalogDevice(p))"
+              :aria-label="`${p.name} — ${formatCurrency(p.retailPrice)}`"
               :class="[
-                'group flex flex-col overflow-hidden rounded-xl border bg-white text-start transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-black',
-                p.stockQuantity > 0 ? 'border-gray-200 hover:-translate-y-0.5 hover:border-black hover:shadow-md' : 'border-gray-200 opacity-60',
-                inCart.get(p.id) && 'ring-2 ring-black',
+                'group relative flex flex-col overflow-hidden rounded-xl border bg-white text-start shadow-sm transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2',
+                p.stockQuantity > 0 ? 'border-gray-200 hover:border-gray-900 hover:shadow-md active:scale-[0.98]' : 'cursor-not-allowed border-gray-200',
+                inCart.get(p.id) && 'border-gray-900 ring-1 ring-gray-900',
               ]"
               :title="p.name"
               @click="selectProduct(p)"
             >
-              <div class="relative aspect-[4/3] w-full overflow-hidden bg-gray-50">
+              <div :class="['relative aspect-square w-full overflow-hidden border-b border-gray-100 bg-white', p.stockQuantity <= 0 && 'grayscale opacity-50']">
                 <ProductImage :src="p.imageUrl" :name="p.name" />
-                <span
-                  :class="[
-                    'absolute top-2 end-2 rounded-full px-2 py-0.5 text-[11px] font-semibold shadow-sm',
-                    p.stockQuantity <= 0 ? 'bg-red-600 text-white' : p.stockQuantity <= (p.minStockLevel ?? 5) ? 'bg-amber-100 text-amber-800' : 'bg-white/90 text-gray-700',
-                  ]"
-                >
-                  {{ p.stockQuantity <= 0 ? t('pos.outOfStock') : t('pos.inStockShort', { n: p.stockQuantity }) }}
-                </span>
-                <span v-if="inCart.get(p.id)" class="absolute top-2 start-2 flex h-6 min-w-6 items-center justify-center rounded-full bg-black px-1.5 text-xs font-bold text-white shadow">
-                  {{ inCart.get(p.id) }}
-                </span>
               </div>
-              <div class="flex flex-1 flex-col p-2.5">
-                <p class="line-clamp-2 min-h-[2.5rem] text-sm font-medium leading-5 text-gray-900">{{ p.name }}</p>
-                <p v-if="p.category" class="mt-0.5 truncate text-[11px] text-gray-400">{{ p.category.name }}</p>
-                <div class="mt-auto flex items-center justify-between pt-2">
-                  <p class="font-bold text-black">{{ formatCurrency(p.retailPrice) }}</p>
-                  <span class="flex h-7 w-7 items-center justify-center rounded-full bg-gray-100 text-gray-700 transition-colors group-hover:bg-black group-hover:text-white">
+              <span v-if="p.stockQuantity <= 0" class="absolute inset-x-0 top-[calc(50%-1.5rem)] mx-auto w-fit -translate-y-full rounded-md bg-gray-900/85 px-2.5 py-1 text-xs font-semibold text-white">
+                {{ t('pos.outOfStockLong') }}
+              </span>
+              <span v-if="inCart.get(p.id)" class="absolute top-2 start-2 flex h-7 min-w-7 items-center justify-center rounded-full bg-black px-2 text-xs font-bold text-white shadow-md">
+                ×{{ inCart.get(p.id) }}
+              </span>
+              <div class="flex flex-1 flex-col gap-1 p-3">
+                <p class="line-clamp-2 min-h-[2.5rem] text-sm font-semibold leading-5 text-gray-900">{{ p.name }}</p>
+                <p class="truncate text-[11px] text-gray-400">{{ p.category?.name || p.sku }}</p>
+                <div class="mt-auto flex items-end justify-between gap-2 pt-1">
+                  <div class="min-w-0">
+                    <p class="text-base font-bold leading-tight text-gray-900">{{ formatCurrency(p.retailPrice) }}</p>
+                    <p
+                      :class="[
+                        'mt-0.5 flex items-center gap-1 text-[11px] font-medium',
+                        p.stockQuantity <= 0 ? 'text-red-600' : p.stockQuantity <= (p.minStockLevel ?? 5) ? 'text-amber-600' : 'text-emerald-600',
+                      ]"
+                    >
+                      <span class="h-1.5 w-1.5 shrink-0 rounded-full bg-current" />
+                      {{ p.stockQuantity <= 0 ? t('pos.outOfStock') : p.stockQuantity <= (p.minStockLevel ?? 5) ? t('pos.lowStockShort', { n: p.stockQuantity }) : t('pos.inStockShort', { n: p.stockQuantity }) }}
+                    </p>
+                  </div>
+                  <span v-if="p.stockQuantity > 0" class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-700 transition-colors group-hover:bg-black group-hover:text-white">
                     <PlusIcon class="h-4 w-4" />
                   </span>
                 </div>
               </div>
             </button>
-            <template v-if="isPhoneSeller">
+          </div>
+          <template v-if="isPhoneSeller && pagedUnits.length">
+            <p :class="['mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500', filteredProducts.length && 'mt-6']">{{ t('pos.devicesInStock') }} <span class="text-gray-400">{{ filteredUnits.length }}</span></p>
+            <div class="grid grid-cols-[repeat(auto-fill,minmax(9rem,1fr))] gap-3">
               <button
-                v-for="u in filteredUnits"
+                v-for="u in pagedUnits"
                 :key="`unit-${u.id}`"
                 :class="[
                   'rounded-lg p-3 text-start border transition-all relative',
@@ -1025,14 +1082,21 @@ const customerLocked = computed(() => cart.isReturnMode && !cart.isEmpty);
                   <p v-if="u.reservationDeposit">{{ t('reservation.deposit') }}: {{ formatCurrency(Number(u.reservationDeposit)) }}</p>
                 </div>
               </button>
-            </template>
-          </div>
+            </div>
+            <div v-if="unitPages > 1" class="mt-4">
+              <Pagination v-model:page="unitPage" :total-pages="unitPages" :total="filteredUnits.length" :page-size="pageSize" />
+            </div>
+          </template>
+          </template>
+        </div>
+        <div v-if="!cart.isReturnMode && productMeta.total" class="border-t border-gray-100 px-3 py-2.5 sm:px-4">
+          <Pagination v-model:page="page" v-model:page-size="pageSize" :total-pages="productMeta.totalPages" :total="productMeta.total" :page-sizes="PAGE_SIZES" />
         </div>
       </div>
     </div>
 
     <!-- Cart -->
-    <div :class="['w-full lg:w-96 flex flex-col rounded-xl shadow-lg lg:max-h-none', cart.isReturnMode ? 'bg-red-50' : 'bg-white']">
+    <div :class="['w-full lg:w-80 xl:w-96 lg:shrink-0 flex flex-col rounded-xl shadow-lg lg:max-h-none', cart.isReturnMode ? 'bg-red-50' : 'bg-white']">
       <div :class="['p-4 border-b flex items-center justify-between', cart.isReturnMode ? 'border-red-200' : 'border-gray-100']">
         <div class="flex items-center gap-2">
           <ArrowUturnLeftIcon v-if="cart.isReturnMode" class="w-5 h-5 text-red-600" />

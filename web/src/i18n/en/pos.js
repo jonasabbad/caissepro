@@ -81,6 +81,11 @@ export default {
     splitPrimary: "The rest ({amount}) is paid by {method}",
     splitTooHigh: "The other payments exceed the amount received",
     referenceMissing: "Enter the number for this payment method",
+    noStockLeft: "No more stock available for {name}",
+    outOfStockLong: "Out of stock",
+    lowStockShort: "Only {n} left",
+    devicesInStock: "Devices in stock",
+    productsTitle: "Products",
   },
   returnMode: {
     toggle: 'Return Mode',

@@ -81,6 +81,11 @@ export default {
     splitPrimary: "الباقي ({amount}) يُدفع بـ {method}",
     splitTooHigh: "الدفعات الأخرى تتجاوز المبلغ المستلم",
     referenceMissing: "أدخل الرقم لطريقة الدفع هذه",
+    noStockLeft: "لم يعد هناك مخزون متاح لـ {name}",
+    outOfStockLong: "نفد من المخزون",
+    lowStockShort: "متبقٍ {n} فقط",
+    devicesInStock: "الأجهزة في المخزون",
+    productsTitle: "المنتجات",
   },
   returnMode: {
     toggle: 'وضع الإرجاع',

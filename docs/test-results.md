@@ -266,3 +266,19 @@ profit 350 (70%). Before → after completion and 500 cash payment: direct expen
 drawer 5,493 → 5,993 (one movement "Paiement réparation", +500), repair profit 724 → 1,074 (+350), revenue
 5,613 → 6,113, repair costs 326 → 476, net profit 1,869 → 2,219. The existing repair on a stock device kept its 120 DH
 in the device cost after the migration.
+
+## POS pagination and product cards (2026-10-18)
+
+Automated: `POS catalogue paging` (server, 58 tests pass) — 30 products paged 12 per page: every product exactly once,
+sellable first then out of stock (each by name), search by name and by barcode and category filter run on the whole
+catalogue, category counts cover the whole catalogue.
+
+In the app (local dev data, 40 extra "TEST POS Article" products, 56 in total, 24 per page → 3 pages):
+- Pager 1 / 2 / 3 with previous / next, "1–24 of 56", page size 12 / 24 / 48 (remembered per browser).
+- Adding a product twice → one line ×2; switching to page 3 and back keeps the cart and the ×2 badge.
+- Out-of-stock products are listed last, greyed with "Out of stock" and cannot be clicked; catalogue devices stay
+  clickable (they are sold by unit).
+- Scanning the barcode of a product on page 2 while on page 1 adds it to the cart; searching "Article 39" while on
+  page 3 finds it; the Audio chip shows 21 and lists all 21 products.
+- Layout: 375 px phone (2 columns, no horizontal scroll), 1024 px laptop (2 columns beside the cart — the cart used to
+  be pushed off-screen at this width), 1600 px desktop (4 columns).

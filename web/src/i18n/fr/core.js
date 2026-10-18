@@ -113,6 +113,9 @@ export default {
     myStore: "Mon Magasin",
     storeRequired: "Le magasin est obligatoire",
     storeNotAssigned: "Erreur : magasin non assigné",
+    rangeOf: "{from}–{to} sur {total}",
+    perPage: "Par page",
+    pagination: "Pagination",
   },
   errors: {
     required: 'Ce champ est obligatoire',

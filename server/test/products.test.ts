@@ -116,3 +116,29 @@ describe('products & stock', () => {
     expect(r.body.data.product.status).toBe('low_stock');
   });
 });
+
+describe('POS catalogue paging', () => {
+  it('pages the whole catalogue (sellable first, by name), filters across pages and counts per category', async () => {
+    const { api } = await newTenant();
+    const cables = await categoryId('chargeurs-cables');
+    const cases = await categoryId('coques-protections');
+    for (let i = 1; i <= 30; i++) {
+      await api.post('/products', { name: `Item ${String(i).padStart(2, '0')}`, categoryId: i % 3 ? cables : cases, costPrice: 1, retailPrice: 2, stockQuantity: i <= 4 ? 0 : 5, barcode: `99${String(i).padStart(4, '0')}` });
+    }
+    const page = async (qs: string) => (await api.get(`/products?sort=pos&${qs}`)).body.data;
+    const p1 = await page('page=1&limit=12');
+    expect(p1.meta).toMatchObject({ total: 30, totalPages: 3 });
+    expect(p1.products[0].name).toBe('Item 05');
+    const all = [...p1.products, ...(await page('page=2&limit=12')).products, ...(await page('page=3&limit=12')).products];
+    // Every product exactly once; out-of-stock ones last.
+    expect(new Set(all.map((p: any) => p.id)).size).toBe(30);
+    expect(all.slice(-4).map((p: any) => p.name)).toEqual(['Item 01', 'Item 02', 'Item 03', 'Item 04']);
+    // Search and category filters run on the whole catalogue, not the current page.
+    expect((await page('query=Item 29&limit=12')).products.map((p: any) => p.name)).toEqual(['Item 29']);
+    expect((await page('query=990030&limit=12')).products.map((p: any) => p.name)).toEqual(['Item 30']);
+    expect((await page(`categoryId=${cases}&limit=12`)).meta.total).toBe(10);
+    const counts = (await api.get('/products/category-counts')).body.data;
+    expect(counts.total).toBe(30);
+    expect(Object.fromEntries(counts.categories.map((c: any) => [c.id, c.count]))).toEqual({ [cables]: 20, [cases]: 10 });
+  });
+});

@@ -109,6 +109,19 @@ export default async function productRoutes(app: FastifyInstance) {
         : {}),
     };
     if (qBool(q.lowStock)) where.status = { in: ['low_stock', 'out_of_stock'] };
+    // POS grid: products that can be sold first, then out of stock, each by name — paged across both groups.
+    if (q.sort === 'pos') {
+      const available = { ...where, stockQuantity: { gt: 0 } };
+      const soldOut = { ...where, stockQuantity: { lte: 0 } };
+      const [total, nAvailable] = await Promise.all([prisma.product.count({ where }), prisma.product.count({ where: available })]);
+      const byName = { name: 'asc' } as const;
+      const first = p.skip < nAvailable ? await prisma.product.findMany({ where: available, include, orderBy: byName, skip: p.skip, take: p.limit }) : [];
+      const rest =
+        first.length < p.limit
+          ? await prisma.product.findMany({ where: soldOut, include, orderBy: byName, skip: Math.max(0, p.skip - nAvailable), take: p.limit - first.length })
+          : [];
+      return ok({ products: serialize([...first, ...rest]), meta: pageMeta(total, p) });
+    }
     const orderBy: Prisma.ProductOrderByWithRelationInput =
       q.sort === 'name' ? { name: 'asc' } : q.sort === 'stock' ? { stockQuantity: 'asc' } : { createdAt: 'desc' };
     const [total, products] = await Promise.all([
@@ -116,6 +129,22 @@ export default async function productRoutes(app: FastifyInstance) {
       prisma.product.findMany({ where, include, orderBy, skip: p.skip, take: p.limit }),
     ]);
     return ok({ products: serialize(products), meta: pageMeta(total, p) });
+  });
+
+  /** Sellable products per category (whole catalogue, archived excluded) for the POS category chips. */
+  app.get('/products/category-counts', async (req) => {
+    const where = { tenantId: req.auth.tenantId, status: { not: 'archived' } };
+    const [total, groups] = await Promise.all([
+      prisma.product.count({ where }),
+      prisma.product.groupBy({ by: ['categoryId'], where, _count: { _all: true } }),
+    ]);
+    const ids = groups.map((g) => g.categoryId).filter((id): id is string => !!id);
+    const cats = await prisma.category.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, sortOrder: true } });
+    const count = new Map(groups.map((g) => [g.categoryId, g._count._all]));
+    const categories = cats
+      .map((c) => ({ ...c, count: count.get(c.id) ?? 0 }))
+      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.name.localeCompare(b.name));
+    return ok({ total, categories });
   });
 
   app.get('/products/low-stock', async (req: Req<unknown, { limit?: string }>) => {

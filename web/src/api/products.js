@@ -18,6 +18,11 @@ export const productsApi = {
       meta: data.data.meta || { total: 0, page: p.page || 1, limit: p.limit || 50, totalPages: 1 },
     };
   },
+  /** Sellable products per category over the whole catalogue (POS category chips). */
+  async getCategoryCounts() {
+    const { data } = await http.get('/products/category-counts');
+    return data.data;
+  },
   async getById(id) {
     const { data } = await http.get(`/products/${id}`);
     return data.data.product;
@@ -70,6 +75,11 @@ export const categoriesApi = {
       if (e.response?.status === 404) return [];
       throw e;
     }
+  },
+  /** Sellable products per category over the whole catalogue (POS category chips). */
+  async getCategoryCounts() {
+    const { data } = await http.get('/products/category-counts');
+    return data.data;
   },
   async getById(id) {
     const { data } = await http.get(`/categories/${id}`);

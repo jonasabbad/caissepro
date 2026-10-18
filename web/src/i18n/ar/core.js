@@ -113,6 +113,9 @@ export default {
     myStore: "متجري",
     storeRequired: "المتجر مطلوب",
     storeNotAssigned: "خطأ: لم يتم تعيين متجر",
+    rangeOf: "{from}–{to} من {total}",
+    perPage: "لكل صفحة",
+    pagination: "ترقيم الصفحات",
   },
   errors: {
     required: 'هذا الحقل إلزامي',

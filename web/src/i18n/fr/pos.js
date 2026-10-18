@@ -81,6 +81,11 @@ export default {
     splitPrimary: "Le reste ({amount}) est payé en {method}",
     splitTooHigh: "Les autres paiements dépassent le montant reçu",
     referenceMissing: "Saisissez le numéro pour ce mode de paiement",
+    noStockLeft: "Plus de stock disponible pour {name}",
+    outOfStockLong: "Rupture de stock",
+    lowStockShort: "Plus que {n}",
+    devicesInStock: "Appareils en stock",
+    productsTitle: "Produits",
   },
   returnMode: {
     toggle: 'Mode Retour',

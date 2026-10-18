@@ -113,6 +113,9 @@ export default {
     myStore: "My Store",
     storeRequired: "The store is required",
     storeNotAssigned: "Error: no store assigned",
+    rangeOf: "{from}–{to} of {total}",
+    perPage: "Per page",
+    pagination: "Pagination",
   },
   errors: {
     required: 'This field is required',
