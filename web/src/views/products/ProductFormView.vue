@@ -11,6 +11,7 @@ import Toast from '@/components/ui/Toast.vue';
 import { useAuthStore } from '@/stores/auth';
 import { formatCurrency, hasManagerRole } from '@/utils/format';
 import ProductImageInput from '@/components/products/ProductImageInput.vue';
+import ScanButton from '@/components/scan/ScanButton.vue';
 
 const { t } = useI18n();
 const route = useRoute();
@@ -65,6 +66,31 @@ const form = ref({
   variants: emptyVariants(),
 });
 if (!isEdit.value && typeof route.query.barcode === 'string' && route.query.barcode) form.value.barcode = route.query.barcode;
+
+// A scanned or typed barcode that already belongs to another product: shown with a link instead of creating a duplicate
+// (the server refuses duplicates as well).
+const barcodeOwner = ref(null);
+async function checkBarcode() {
+  const code = (form.value.barcode || '').trim();
+  barcodeOwner.value = null;
+  if (!code) return;
+  const p = await productsApi.getByBarcode(code).catch(() => null);
+  if (p && p.id !== productId.value) barcodeOwner.value = p;
+}
+function onBarcodeScan(code) {
+  form.value.barcode = code;
+  checkBarcode();
+}
+if (!isEdit.value && form.value.barcode) checkBarcode();
+// Opened again with another scanned barcode while already on this form.
+watch(
+  () => route.query.barcode,
+  (code) => {
+    if (isEdit.value || typeof code !== 'string' || !code || code === form.value.barcode) return;
+    form.value.barcode = code;
+    checkBarcode();
+  },
+);
 
 const packEnabled = ref(false);
 const pack = ref({ packSize: 10, packCostPrice: 0, packRetailPrice: 0 });
@@ -348,7 +374,14 @@ const chip = (active) =>
             <p v-if="hasMatrix" class="text-sm text-gray-500">{{ t('products.variantBarcodeHint') }}</p>
             <div v-else>
               <label class="label">{{ t('products.barcode') }}</label>
-              <input v-model="form.barcode" type="text" class="input font-mono" @keydown.enter.prevent />
+              <div class="flex gap-2">
+                <input v-model="form.barcode" type="text" class="input font-mono" dir="ltr" @keydown.enter.prevent @change="checkBarcode" />
+                <ScanButton :title="t('scan.button')" @scan="onBarcodeScan" />
+              </div>
+              <p v-if="barcodeOwner" class="mt-1 rounded-lg bg-warning-50 p-2 text-sm text-warning-900" role="alert">
+                {{ t('scan.barcodeTaken', { name: barcodeOwner.name }) }}
+                <RouterLink :to="`/app/products/${barcodeOwner.id}/edit`" class="font-medium underline">{{ t('scan.openExisting') }}</RouterLink>
+              </p>
               <p class="mt-1 text-xs text-gray-500">{{ t('products.barcodeAutoHint') }}</p>
             </div>
           </div>

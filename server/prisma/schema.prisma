@@ -770,3 +770,21 @@ model TacModel {
   @@unique([tenantId, tac])
   @@index([tac])
 }
+
+/// A retail box barcode (EAN / UPC) of a phone model, learned from devices this business added with it.
+/// Private to the business. A box barcode identifies a model (often with storage / colour), never an individual phone.
+model ModelBarcode {
+  id         String   @id @default(uuid())
+  tenantId   String
+  code       String
+  deviceType String   @default("phone")
+  brand      String
+  model      String
+  storage    String?
+  color      String?
+  seenCount  Int      @default(1)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([tenantId, code])
+}

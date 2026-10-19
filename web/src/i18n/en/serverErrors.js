@@ -129,5 +129,6 @@ export default {
     orderInvoicedPayThere: "This order is invoiced: record the payment on invoice {number}",
     cancelOrderInvoiceFirst: "Cancel this order’s invoice first",
     invalidTac: "Invalid TAC",
+    invalidCode: "Invalid code",
   },
 };

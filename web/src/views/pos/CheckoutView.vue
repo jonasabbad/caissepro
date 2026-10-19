@@ -44,6 +44,8 @@ import ReturnModal from '@/components/pos/ReturnModal.vue';
 import TradeInModal from '@/components/pos/TradeInModal.vue';
 import Toast from '@/components/ui/Toast.vue';
 import Pagination from '@/components/ui/Pagination.vue';
+import ScanButton from '@/components/scan/ScanButton.vue';
+import { useRoute, useRouter } from 'vue-router';
 
 /** Keystrokes closer than this (ms) are treated as a barcode scanner, not a person typing. */
 const SCAN_KEY_INTERVAL = 60;
@@ -529,6 +531,23 @@ async function lookup() {
     searching.value = false;
   }
 }
+// Camera scan, or a code handed over by "Scan to identify" (?scan=…): the same lookup as a hand-held scanner.
+function onCameraScan(code) {
+  if (cart.isReturnMode) return;
+  search.value = code;
+  lookup();
+}
+const route = useRoute();
+const router = useRouter();
+watch(
+  () => [route.query.scan, gridLoading.value],
+  ([code, loading]) => {
+    if (typeof code !== 'string' || !code || loading) return;
+    router.replace({ query: { ...route.query, scan: undefined } });
+    onCameraScan(code);
+  },
+  { immediate: true },
+);
 // A scan while the search box is not focused (e.g. after clicking in the cart) still adds the product.
 useBarcodeScanner((code) => {
   if (showPayment.value || showReceipt.value || cart.isReturnMode) return;
@@ -901,7 +920,8 @@ const customerLocked = computed(() => cart.isReturnMode && !cart.isEmpty);
         <button class="text-danger-500 hover:text-danger-700" @click="scanError = ''"><XMarkIcon class="w-4 h-4" /></button>
       </div>
 
-      <div class="relative mb-4">
+      <div class="mb-4 flex gap-2">
+      <div class="relative flex-1">
         <MagnifyingGlassIcon class="absolute start-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
         <input
           ref="searchInput"
@@ -916,6 +936,8 @@ const customerLocked = computed(() => cart.isReturnMode && !cart.isEmpty);
         <button v-if="search" class="absolute end-4 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-100 rounded" @click="search = ''">
           <XMarkIcon class="w-5 h-5 text-gray-400" />
         </button>
+      </div>
+      <ScanButton v-if="!cart.isReturnMode" :title="t('scan.button')" @scan="onCameraScan" />
       </div>
 
       <div v-if="!cart.isReturnMode && posCategories.length > 1" class="mb-3 -mx-1 flex gap-2 overflow-x-auto px-1 pb-1">

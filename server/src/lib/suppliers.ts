@@ -135,8 +135,8 @@ export async function supplierStatement(tenantId: string, supplierId: string, fr
       lines.push({ date: p.createdAt, kind: 'order_payment', reference: o.orderNumber, documentId: o.id, method: 'cash', paymentReference: p.note ?? null, debit: 0, credit: num(p.amount) });
     }
   }
-  // Purchases before payments on the same instant.
-  lines.sort((a, b) => a.date.localeCompare(b.date) || b.debit - a.debit);
+  // By day; on the same day purchases come before payments, then by time.
+  lines.sort((a, b) => a.date.slice(0, 10).localeCompare(b.date.slice(0, 10)) || b.debit - a.debit || a.date.localeCompare(b.date));
   let balance = 0;
   let opening = 0;
   const entries: StatementEntry[] = [];

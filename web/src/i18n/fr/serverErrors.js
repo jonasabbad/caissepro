@@ -131,5 +131,6 @@ export default {
     orderInvoicedPayThere: "Cette commande est facturée : enregistrez le paiement sur la facture {number}",
     cancelOrderInvoiceFirst: "Annulez d’abord la facture de cette commande",
     invalidTac: "TAC invalide",
+    invalidCode: "Code invalide",
   },
 };

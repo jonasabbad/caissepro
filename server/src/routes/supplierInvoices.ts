@@ -61,10 +61,12 @@ const paymentSchema = z.object({
   notes: z.string().optional().nullable(),
 });
 
-const include = { items: { orderBy: { position: 'asc' } }, payments: { orderBy: { paidAt: 'asc' } }, supplier: true } as const;
+const include = { items: { orderBy: { position: 'asc' } }, payments: { orderBy: [{ paidAt: 'asc' }, { createdAt: 'asc' }] as Prisma.SupplierPaymentOrderByWithRelationInput[] }, supplier: true } satisfies Prisma.SupplierInvoiceInclude;
 type Loaded = Prisma.SupplierInvoiceGetPayload<{ include: typeof include }>;
 
 const asDate = (s: string) => new Date(`${s.slice(0, 10)}T12:00:00.000Z`);
+/** A payment dated today keeps the time it was recorded (history stays in order); another day is set to midday. */
+const paymentDate = (s?: string) => (!s || s.slice(0, 10) === new Date().toISOString().slice(0, 10) ? new Date() : asDate(s));
 
 function totals(items: { quantity: number; unitCost: number }[], discount: number, taxRate: number, extra: number) {
   const subtotal = r2(items.reduce((s, i) => s + r2(i.quantity * i.unitCost), 0));
@@ -413,7 +415,7 @@ export default async function supplierInvoiceRoutes(app: FastifyInstance) {
           invoiceId: inv.id,
           amount,
           method: body.method,
-          paidAt: body.paidAt ? asDate(body.paidAt) : new Date(),
+          paidAt: paymentDate(body.paidAt),
           reference: body.reference || null,
           notes: body.notes || null,
           storeId,

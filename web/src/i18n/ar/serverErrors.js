@@ -129,5 +129,6 @@ export default {
     orderInvoicedPayThere: "هذه الطلبية مفوترة: سجّل الدفعة على الفاتورة {number}",
     cancelOrderInvoiceFirst: "ألغِ فاتورة هذه الطلبية أولاً",
     invalidTac: "رمز TAC غير صالح",
+    invalidCode: "رمز غير صالح",
   },
 };

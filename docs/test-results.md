@@ -415,3 +415,18 @@ Apple iPhone 18):
 | Model only | Reno 15 Pro | Reno 15 Pro | Reno 15 Pro · 18 |
 Other lines unchanged (256 GB - Aurora White · Grade A+ · 100%, 3,400 DH, IMEI digits, 40 × 25 mm). Setting left on
 Abbreviated.
+
+## Barcode scanning (2026-10-19)
+
+Tested on the local app in the built-in browser and through the API. The test records were removed afterwards, except the `TESTBOX0001` box-barcode link.
+
+| Check | Result |
+|---|---|
+| Known product `2002987930002` (TEST Chargeur 20W, 129.00 DH, 10 in stock) | Scan to identify shows the price and stock. "Add to cart" gives a cart line with qty 1. Scanning again gives one line with qty 2 at 258.00 DH (no duplicate line). Server stock stays 10 until checkout. |
+| Phone IMEI `990003047946245` | Identified as OPPO Reno 15 Pro, 3,400 DH, in stock, without opening Devices. "Sell" adds the unique item. |
+| Unknown code `4006381333931` | "Code not known" with Create a product / Add a device. The product form is prefilled and warns if the barcode belongs to another product. |
+| Box barcode `TESTBOX0001` | First scan: "new". The device saved with it was a Samsung Galaxy S24 Ultra 256 GB, identified by TAC. Next scan: "Known box barcode". "Add a device of this model" prefills brand, model and storage, with no price. |
+| Camera decoding | ZXing decoded a rendered EAN-13 image of `2002987930002` (format EAN_13). The pane itself has no camera. |
+| Camera refused | Message + Retry; the manual field still works. |
+| Server tests | `scan.test.ts`: lookups by barcode, SKU, IMEI, ref and box barcode; TAC; unknown code; tenant isolation; manual link; checkout stock 5 → 3 exact. Full suite: 70/70. |
+| Supplier invoices (fixed during this run) | A payment dated today kept noon UTC, so it sorted after later payments in the morning. It now keeps the time it was recorded, and the statement orders by day, with purchases before payments. |

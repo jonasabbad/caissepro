@@ -9,6 +9,7 @@ import { dateRange, pageMeta, pageParams, qBool, qStr } from '../lib/pagination.
 import { resolveStoreId } from '../lib/tenant.js';
 import { isAllowedImageUrl, removeUpload } from '../lib/uploads.js';
 import { learnTac, lookupTac } from '../lib/tac.js';
+import { learnModelBarcode } from './scan.js';
 
 const REF_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
 
@@ -78,6 +79,7 @@ const unitSchema = z.object({
   notes: z.string().optional().nullable(),
   accessories: z.array(z.string()).optional().nullable(),
   imageUrl: z.string().max(500).optional().nullable(),
+  boxBarcode: z.string().trim().max(64).optional().nullable(), // retail box EAN / UPC: remembered for the model, not stored on the device
   supplierId: z.string().optional().nullable(),
   supplierOrderId: z.string().optional().nullable(),
 });
@@ -275,7 +277,12 @@ export default async function soldUnitRoutes(app: FastifyInstance) {
     checkImage(req.auth.tenantId, input.imageUrl);
     await assertUniqueImei(req.auth.tenantId, input.imei);
     const storeId = await resolveStoreId(req.auth.tenantId, req.auth.storeId);
-    const unit = await prisma.$transaction((tx) => createUnit(tx, { tenantId: req.auth.tenantId, userId: req.auth.userId, storeId }, input));
+    const unit = await prisma.$transaction(async (tx) => {
+      const { boxBarcode, ...unitInput } = input;
+      const created = await createUnit(tx, { tenantId: req.auth.tenantId, userId: req.auth.userId, storeId }, unitInput);
+      await learnModelBarcode(tx, req.auth.tenantId, boxBarcode, created);
+      return created;
+    });
     reply.status(201);
     return ok({ unit: serialize(unit) });
   });

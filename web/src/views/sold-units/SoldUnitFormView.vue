@@ -17,6 +17,8 @@ import DeviceCatalogSelect from '@/components/sold-units/DeviceCatalogSelect.vue
 import SearchableSelect from '@/components/ui/SearchableSelect.vue';
 import Toast from '@/components/ui/Toast.vue';
 import ProductImageInput from '@/components/products/ProductImageInput.vue';
+import ScanButton from '@/components/scan/ScanButton.vue';
+import { scanApi } from '@/api/scan';
 import { soldUnitsApi, isValidImei } from '@/api/soldUnits';
 import { apiErrorMessage } from '@/api/http';
 import { suppliersApi } from '@/api/suppliers';
@@ -58,6 +60,7 @@ const details = ref({
   notes: '',
   supplierId: '',
   imageUrl: '',
+  boxBarcode: '',
 });
 const errors = ref({});
 const saving = ref(false);
@@ -151,8 +154,45 @@ watch(
   },
 );
 const imeiInput = ref(null);
+
+// Box barcode: a model this business already linked to it fills empty fields; a different model already entered is
+// only replaced on confirmation; a new code is remembered for this model when the device is saved.
+const box = ref({ status: 'idle', model: null }); // idle | loading | known | new | error
+const boxSuggestion = ref(null);
+const boxName = (m) => [m.brand, m.model, m.storage, m.color].filter(Boolean).join(' ');
+function applyBox(m) {
+  device.value = { ...device.value, brand: m.brand, model: m.model, ...(m.storage ? { storage: m.storage } : {}), ...(m.color ? { color: m.color } : {}) };
+  boxSuggestion.value = null;
+}
+async function lookupBox(code) {
+  const c = (code || '').trim();
+  details.value.boxBarcode = c;
+  boxSuggestion.value = null;
+  if (!c) return (box.value = { status: 'idle', model: null });
+  box.value = { status: 'loading', model: null };
+  try {
+    const r = await scanApi.lookup(c);
+    const m = r.modelBarcode;
+    if (!m) return (box.value = { status: 'new', model: null });
+    box.value = { status: 'known', model: m };
+    const conflict = (device.value.brand && device.value.brand !== m.brand) || (device.value.model && device.value.model !== m.model);
+    if (conflict) boxSuggestion.value = m;
+    else applyBox(m);
+  } catch {
+    box.value = { status: 'error', model: null };
+  }
+}
+// A camera scan in the IMEI card: an IMEI goes to the IMEI field, anything else is treated as the box barcode.
+function onDeviceScan(code) {
+  const c = code.replace(/\s+/g, '');
+  if (/^\d{15}$/.test(c)) details.value.imei = c;
+  else lookupBox(c);
+}
 onMounted(() => {
   if (isPhone.value && !isEdit.value) setTimeout(() => imeiInput.value?.focus(), 50);
+  // Handed over by "Scan to identify".
+  if (!isEdit.value && typeof route.query.imei === 'string' && /^\d{15}$/.test(route.query.imei)) details.value.imei = route.query.imei;
+  if (!isEdit.value && typeof route.query.box === 'string' && route.query.box) lookupBox(route.query.box);
 });
 
 const imeiCheck = computed(() => {
@@ -216,6 +256,7 @@ async function submit() {
       deviceType: deviceType.value,
       supplierId: details.value.supplierId || null,
       imageUrl: details.value.imageUrl || null,
+      boxBarcode: !isEdit.value ? details.value.boxBarcode || null : undefined,
     });
   } finally {
     saving.value = false;
@@ -247,7 +288,8 @@ const section = 'border-b pb-2 text-lg font-semibold text-gray-900';
         <div v-if="isPhone" class="card space-y-3 border-2 border-gray-900 p-6">
           <h2 :class="section">{{ t('soldUnits.tac.title') }}</h2>
           <p class="text-sm text-gray-500">{{ t('soldUnits.tac.hint') }}</p>
-          <div class="relative">
+          <div class="flex gap-2">
+          <div class="relative flex-1">
             <input
               ref="imeiInput"
               v-model.trim="details.imei"
@@ -265,6 +307,8 @@ const section = 'border-b pb-2 text-lg font-semibold text-gray-900';
               <CheckCircleIcon v-else-if="imeiCheck?.valid" class="h-5 w-5 text-green-500" />
               <XCircleIcon v-else-if="details.imei" class="h-5 w-5 text-danger-500" />
             </div>
+          </div>
+          <ScanButton v-if="!isEdit" :title="t('scan.button')" @scan="onDeviceScan" />
           </div>
           <p v-if="imeiCheck" :class="['text-sm', imeiCheck.valid ? 'text-green-600' : 'text-danger-600']">{{ imeiCheck.message }}</p>
           <p v-if="errors.imei && !imeiCheck" class="text-sm text-danger-600">{{ errors.imei }}</p>
@@ -300,6 +344,25 @@ const section = 'border-b pb-2 text-lg font-semibold text-gray-900';
             <button type="button" class="btn-secondary btn-sm mt-2" @click="identify(tac.code)">{{ t('soldUnits.tac.retry') }}</button>
           </div>
           <p class="text-xs text-gray-400">{{ t('soldUnits.tac.privacy') }}</p>
+          <div v-if="!isEdit" class="border-t border-gray-100 pt-3">
+            <label class="label" for="box-barcode">{{ t('scan.boxBarcode') }}</label>
+            <div class="flex gap-2">
+              <input id="box-barcode" :value="details.boxBarcode" class="input font-mono" dir="ltr" autocomplete="off" @change="lookupBox($event.target.value)" @keydown.enter.prevent="lookupBox($event.target.value)" />
+              <ScanButton :title="t('scan.boxBarcode')" @scan="lookupBox" />
+            </div>
+            <p v-if="box.status === 'loading'" class="mt-1 text-xs text-gray-500">{{ t('common.loading') }}</p>
+            <div v-else-if="boxSuggestion" class="mt-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm">
+              <p class="text-amber-900">{{ t('scan.boxConflict', { found: boxName(boxSuggestion), current: deviceName(device) }) }}</p>
+              <div class="mt-2 flex flex-wrap gap-2">
+                <button type="button" class="btn-primary btn-sm" @click="applyBox(boxSuggestion)">{{ t('soldUnits.tac.useFound', { found: boxName(boxSuggestion) }) }}</button>
+                <button type="button" class="btn-secondary btn-sm" @click="boxSuggestion = null">{{ t('soldUnits.tac.keepMine') }}</button>
+              </div>
+            </div>
+            <p v-else-if="box.status === 'known'" class="mt-1 text-sm text-green-700">{{ t('scan.boxFilled', { device: boxName(box.model) }) }}</p>
+            <p v-else-if="box.status === 'new'" class="mt-1 text-xs text-gray-500">{{ t('scan.boxNew') }}</p>
+            <p v-else-if="box.status === 'error'" class="mt-1 text-xs text-danger-600">{{ t('common.genericError') }}</p>
+            <p v-else class="mt-1 text-xs text-gray-500">{{ t('scan.boxBarcodeHint') }}</p>
+          </div>
         </div>
 
         <div class="card space-y-4 p-6">

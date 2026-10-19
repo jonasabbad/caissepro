@@ -37,6 +37,7 @@ import {
   ExclamationTriangleIcon,
 } from '@heroicons/vue/24/outline';
 import GlobalSearch from '@/components/layout/GlobalSearch.vue';
+import ScanIdentify from '@/components/scan/ScanIdentify.vue';
 import KeyboardShortcuts from '@/components/layout/KeyboardShortcuts.vue';
 import SubscriptionBanner from '@/components/layout/SubscriptionBanner.vue';
 import AnnouncementBanner from '@/components/layout/AnnouncementBanner.vue';
@@ -238,6 +239,7 @@ const supportLink = `https://wa.me/${APP_CONFIG.support.whatsapp}?text=${encodeU
           </button>
           <div class="flex flex-1 justify-center"><GlobalSearch /></div>
           <div class="flex items-center gap-3">
+            <ScanIdentify />
             <LanguageSwitcher compact />
             <template v-if="auth.hasModule(Modules.SELLER_MODE)">
               <button

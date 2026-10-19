@@ -22,6 +22,8 @@ import { useBarcodeScanner } from '@/composables/useBarcodeScanner';
 import Toast from '@/components/ui/Toast.vue';
 import ProductImage from '@/components/products/ProductImage.vue';
 import ConfirmModal from '@/components/ui/ConfirmModal.vue';
+import ScanButton from '@/components/scan/ScanButton.vue';
+import { useRouter } from 'vue-router';
 
 const { t } = useI18n();
 const queryClient = useQueryClient();
@@ -128,6 +130,15 @@ async function findByCode(code) {
   setTimeout(() => highlightId.value === p.id && (highlightId.value = null), 4000);
 }
 useBarcodeScanner(findByCode);
+const router = useRouter();
+/** Camera scan: open the product's record when it exists; otherwise the "create it" banner shows. */
+async function onCameraScan(code) {
+  const p = await productsApi.getByBarcode(code).catch(() => null);
+  if (p) {
+    notify(t('scan.productOpened', { name: p.name }));
+    router.push(`/app/products/${p.id}/edit`);
+  } else findByCode(code);
+}
 
 const adjustMutation = useMutation({
   mutationFn: (payload) => {
@@ -163,6 +174,7 @@ const adjustMutation = useMutation({
           <MagnifyingGlassIcon class="absolute start-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
           <input v-model="search" type="text" :placeholder="t('products.search')" :title="t('products.scan.hint')" class="input ps-10" @keydown.enter.prevent="findByCode(search)" />
         </div>
+        <ScanButton :title="t('scan.button')" @scan="onCameraScan" />
         <select v-model="categoryId" class="input w-full md:w-48">
           <option :value="null">{{ t('products.allCategories') }}</option>
           <option v-for="c in visibleCategories" :key="c.id" :value="c.id">{{ c.name }}</option>
