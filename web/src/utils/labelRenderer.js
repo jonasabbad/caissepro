@@ -172,24 +172,32 @@ export function brandModeOf(printing = {}) {
  * controls it (the settings preview uses this same function).
  * full: "Apple iPhone 15 Pro Max" · simplify: "iPhone 15 Pro Max" · abbreviate: "IP 15 Pro Max" · none: "15 Pro Max".
  */
-export function deviceDisplayName(name, printing = {}) {
+export function deviceDisplayName(name, printing = {}, brand = '') {
   const mode = brandModeOf(printing);
   const abbreviations = printing.brandAbbreviations || BRAND_ABBREVIATIONS;
+  // Brands and series are matched as whole leading words, whatever their case ("OPPO Reno" matches the "Oppo" rule),
+  // longest first ("Xiaomi Redmi" before "Xiaomi").
+  const lead = (prefixes) =>
+    [...prefixes].sort((a, b) => b.length - a.length).find((p) => name.length > p.length && name.slice(0, p.length).toLowerCase() === p.toLowerCase() && name[p.length] === ' ');
+  const rest = (p) => name.slice(p.length + 1).trim();
   if (mode === 'none') {
-    for (const series of Object.keys(abbreviations)) if (name.startsWith(`${series} `)) return name.slice(series.length + 1);
-    const words = name.split(' ');
-    return words.length > 1 && BRANDS.includes(words[0]) ? words.slice(1).join(' ') : name;
+    const series = lead(Object.keys(abbreviations));
+    if (series) return rest(series);
+    const maker = lead(brand ? [brand, ...BRANDS] : BRANDS);
+    return maker ? rest(maker) : name;
   }
   if (mode === 'simplify') {
-    for (const b of BRANDS) if (name.startsWith(`${b} `)) return name.slice(b.length + 1);
-    return name;
+    // The device's own brand (any manufacturer), or a known brand for names alone (settings preview).
+    const maker = lead(brand ? [brand, ...BRANDS] : BRANDS);
+    return maker ? rest(maker) : name;
   }
   if (mode === 'abbreviate') {
-    for (const [series, short] of Object.entries(abbreviations)) if (name.startsWith(series)) return short + name.slice(series.length);
+    const series = lead(Object.keys(abbreviations));
+    if (series) return `${abbreviations[series]} ${rest(series)}`;
   }
   return name;
 }
-const deviceName = (unit, printing) => deviceDisplayName(`${unit.brand} ${unit.model}`.trim(), printing);
+const deviceName = (unit, printing) => deviceDisplayName(`${unit.brand} ${unit.model}`.trim(), printing, unit.brand);
 
 const price = (v) => `${new Intl.NumberFormat(docIntlLocale(), { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(Number(v) || 0)} DH`;
 

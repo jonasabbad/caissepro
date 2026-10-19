@@ -396,3 +396,22 @@ monospace and isolated; specs and codes are isolated.
 Tested (TEST Pixel 9, template 40 × 25 mm): Arabic — frame inside the preview box, all lines visible ("Samsung TEST
 Pixel 9", "128GB - Black · درجة A", "2.600 DH", barcode, code, store name), "الرقم التسلسلي" joined; printed document
 `@page 40mm 25mm`, label 151 × 94 px, same lines; French and English — preview inside its box, texts unchanged.
+
+## Abbreviated device names on stickers (2026-10-19)
+
+Data flow checked: the saved preference (tenant `printing`: shortenBrandNames = Abbreviated) reached the sticker.
+Cause: the naming rules matched names case-sensitively — the catalogue spells the brand "OPPO", the rule is "Oppo" —
+so no rule applied and the full name was printed; "Without the manufacturer" / "Model only" also removed only a fixed
+list of brands. Fix (one function for the Settings preview, sticker preview, print and bulk print): brands and series
+match as whole leading words regardless of case, longest rule first; manufacturer removal uses the device's own brand.
+
+Tested through Settings → Printing (select + Save), then Phones → sticker of OPPO Reno 15 Pro (and bulk print with
+Apple iPhone 18):
+| Option | Preview | Printed | Bulk print |
+|---|---|---|---|
+| Abbreviated | OP Reno 15 Pro | OP Reno 15 Pro | OP Reno 15 Pro · IP 18 |
+| Full name | OPPO Reno 15 Pro | OPPO Reno 15 Pro | OPPO Reno 15 Pro · Apple iPhone 18 |
+| Without the manufacturer | Reno 15 Pro | Reno 15 Pro | Reno 15 Pro · iPhone 18 |
+| Model only | Reno 15 Pro | Reno 15 Pro | Reno 15 Pro · 18 |
+Other lines unchanged (256 GB - Aurora White · Grade A+ · 100%, 3,400 DH, IMEI digits, 40 × 25 mm). Setting left on
+Abbreviated.
