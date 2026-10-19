@@ -384,3 +384,15 @@ Tested through the card (select + Save), then the sticker of "Apple iPhone 18":
 Full name → "Apple iPhone 18" (card preview "Apple iPhone 15 Pro Max"); Abbreviated → "IP 18" ("IP 15 Pro Max");
 Model only → "18" ("15 Pro Max"); Without the manufacturer → "iPhone 18" ("iPhone 15 Pro Max"). Bulk "Print stickers"
 printed "iPhone 18" at 40 × 25 mm. The saved choice was left on "Without the manufacturer", as before.
+
+## Barcode label preview in Arabic (2026-10-19)
+
+Causes: in right-to-left pages the scaled preview frame (transform-origin top left) was anchored on the right and grew
+out of its box, so only the left part of the sticker was visible; the "Serial number" label was in the monospace font
+(no Arabic glyphs: letters shown disconnected); Latin specs on cards and in the modal were reordered ("GB · Pink 512").
+Fix: the preview area is laid out left to right (a physical rendering); the sticker document is left to right with
+per-line automatic direction and Arabic-capable fonts; the serial label uses the UI font and only the number is
+monospace and isolated; specs and codes are isolated.
+Tested (TEST Pixel 9, template 40 × 25 mm): Arabic — frame inside the preview box, all lines visible ("Samsung TEST
+Pixel 9", "128GB - Black · درجة A", "2.600 DH", barcode, code, store name), "الرقم التسلسلي" joined; printed document
+`@page 40mm 25mm`, label 151 × 94 px, same lines; French and English — preview inside its box, texts unchanged.

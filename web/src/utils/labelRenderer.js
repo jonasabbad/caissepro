@@ -68,7 +68,7 @@ function labelHtml(label, l) {
   const sizeOf = (role) => (role === 'price' ? l.priceSize : role === 'details' || role === 'footer' ? Math.max(5, l.fontSize - 1.5) : l.fontSize);
   const lines = (label.lines || [])
     .filter((x) => x && x.text)
-    .map((x) => `<div class="ln ${x.role || ''}" style="font-size:${fmt(sizeOf(x.role))}pt">${escapeHtml(x.text)}</div>`)
+    .map((x) => `<div class="ln ${x.role || ''}" dir="auto" style="font-size:${fmt(sizeOf(x.role))}pt">${escapeHtml(x.text)}</div>`)
     .join('');
   const text = `<div class="txt">${lines}</div>`;
   const code = label.barcodeSvg
@@ -95,7 +95,8 @@ export function renderLabelsDocument(groups, { lang = i18n.global.locale.value, 
 .${name} { page: ${name}; width: ${fmt(page.width)}mm; height: ${fmt(page.height)}mm; }
 .${name} .grid { grid-template-columns: repeat(${l.columns}, ${fmt(l.width)}mm); grid-auto-rows: ${fmt(l.height)}mm; column-gap: ${fmt(l.gapX)}mm; row-gap: ${fmt(l.gapY)}mm;
   padding: ${l.paper === 'sheet' ? `${fmt(l.sheetMarginY)}mm ${fmt(l.sheetMarginX)}mm` : '0'}; }
-.${name} .lbl { padding: ${fmt(l.paddingY)}mm ${fmt(l.paddingX)}mm; text-align: ${l.align === 'center' ? 'center' : 'start'}; }
+.${name} .lbl { padding: ${fmt(l.paddingY)}mm ${fmt(l.paddingX)}mm; }
+.${name} .ln { text-align: ${l.align === 'center' ? 'center' : 'left'}; }
 .${name} .ln { line-height: ${fmt(l.lineSpacing)}; }
 .${name} .bars { height: ${fmt(l.barcodeHeight)}mm; }
 .${name} .digits { font-size: ${fmt(Math.max(5, l.fontSize - 1.5))}pt; }`);
@@ -106,11 +107,12 @@ export function renderLabelsDocument(groups, { lang = i18n.global.locale.value, 
     }
   });
   return `<!DOCTYPE html>
-<html lang="${escapeHtml(lang)}"><head><meta charset="UTF-8"><title>${escapeHtml(title)}</title>
+<html lang="${escapeHtml(lang)}" dir="ltr"><head><meta charset="UTF-8"><title>${escapeHtml(title)}</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { background: ${preview ? '#e5e7eb; overflow: hidden' : '#fff'}; }
-  body { font-family: Arial, Helvetica, sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { font-family: Arial, Helvetica, 'Segoe UI', Tahoma, 'Noto Sans Arabic', 'IBM Plex Sans Arabic', sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .ft, .digits { unicode-bidi: plaintext; }
   .pg { overflow: hidden; background: #fff; break-after: page; page-break-after: always; }
   .pg:last-child { break-after: auto; page-break-after: auto; }
   .grid { display: grid; }

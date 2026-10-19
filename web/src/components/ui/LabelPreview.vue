@@ -46,7 +46,8 @@ const holderStyle = computed(() => ({ width: `${page.value.width * MM * scale.va
 </script>
 
 <template>
-  <div ref="box" class="flex w-full justify-center rounded-lg bg-gray-100 p-2">
+  <!-- dir="ltr": a physical preview of the sticker; in right-to-left pages the scaled frame would leave its box. -->
+  <div ref="box" dir="ltr" class="flex w-full justify-center rounded-lg bg-gray-100 p-2">
     <div :style="holderStyle" class="overflow-hidden shadow-sm">
       <iframe v-if="html" :srcdoc="html" :style="frameStyle" class="box-content border-0 bg-white" :title="title" />
     </div>

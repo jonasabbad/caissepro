@@ -78,8 +78,8 @@ async function copy() {
           <div class="flex items-start justify-between gap-3">
             <div>
               <h4 class="text-lg font-bold text-gray-900">{{ unit.brand }} {{ unit.model }}</h4>
-              <p class="text-sm text-gray-500">{{ [unit.storage, unit.color].filter(Boolean).join(' - ') }}</p>
-              <p class="mt-1 font-mono text-sm text-gray-600">{{ unit.imei ? 'IMEI' : t('soldUnits.serialNumber') }} {{ identifier }}</p>
+              <p class="text-sm text-gray-500">{{ $ltr([unit.storage, unit.color].filter(Boolean).join(' - ')) }}</p>
+              <p class="mt-1 text-sm text-gray-600">{{ unit.imei ? 'IMEI' : t('soldUnits.serialNumber') }} <span class="font-mono" dir="ltr">{{ identifier }}</span></p>
             </div>
             <div class="text-end">
               <span :class="['rounded-full px-3 py-1 text-xs font-medium', conditionBadge(unit.condition)]">{{ t(`soldUnits.conditions.${unit.condition}`) }}</span>
