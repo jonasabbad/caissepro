@@ -1,4 +1,5 @@
 <script setup>
+import { tokenColor } from '@/utils/theme';
 import { docIntlLocale, intlLocale } from '@/i18n';
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -510,13 +511,13 @@ async function exportPdf() {
           <div class="flex items-center gap-6">
             <div class="relative w-24 h-24">
               <svg viewBox="0 0 36 36" class="w-24 h-24 -rotate-90">
-                <circle cx="18" cy="18" r="15.9" fill="none" stroke="#334155" stroke-width="3" />
+                <circle cx="18" cy="18" r="15.9" fill="none" :stroke="tokenColor('neutral-700')" stroke-width="3" />
                 <circle
                   cx="18"
                   cy="18"
                   r="15.9"
                   fill="none"
-                  :stroke="inventory.summary.stockHealthScore >= 70 ? '#10b981' : inventory.summary.stockHealthScore >= 40 ? '#f59e0b' : '#ef4444'"
+                  :stroke="tokenColor(inventory.summary.stockHealthScore >= 70 ? 'success-500' : inventory.summary.stockHealthScore >= 40 ? 'warning-500' : 'danger-500')"
                   stroke-width="3"
                   :stroke-dasharray="`${inventory.summary.stockHealthScore} 100`"
                 />
