@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue';
+import { onBeforeUnmount, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { ArrowPathIcon, CubeIcon, DevicePhoneMobileIcon, PlusIcon, ShoppingCartIcon, ViewfinderCircleIcon, XMarkIcon } from '@heroicons/vue/24/outline';
@@ -9,6 +9,7 @@ import { apiErrorMessage } from '@/api/http';
 import { formatCurrency } from '@/utils/format';
 import { useBarcodeScanner } from '@/composables/useBarcodeScanner';
 import CameraScanner from './CameraScanner.vue';
+import { setPhoneScanFallback } from '@/composables/usePhoneScanner';
 import ProductImage from '@/components/products/ProductImage.vue';
 import DeviceImage from '@/components/sold-units/DeviceImage.vue';
 
@@ -39,6 +40,9 @@ async function identify(code) {
 }
 // Optional: a hardware scanner used on a page without its own scan handling.
 if (props.listenToScanner) useBarcodeScanner(identify);
+// A paired phone's scan on a page that does not handle scans itself.
+onMounted(() => setPhoneScanFallback(identify));
+onBeforeUnmount(() => setPhoneScanFallback(null));
 
 function go(to) {
   result.value = null;

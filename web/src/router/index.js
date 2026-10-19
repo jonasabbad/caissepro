@@ -12,6 +12,8 @@ const routes = [
   // ── Public site ──
   { path: '/', name: 'home', component: page('public/LandingView'), meta: { public: true } },
   { path: '/ar', name: 'home-ar', component: page('public/LandingView'), meta: { public: true, locale: 'ar' } },
+  // Phone paired as a barcode scanner (QR code from a signed-in screen; no sign-in on the phone).
+  { path: '/scanner', name: 'phone-scanner', component: page('scan/ScannerView'), meta: { public: true } },
   // Public repair status page, opened by scanning the QR code on a repair ticket.
   { path: '/track/:token', name: 'repair-tracking', component: page('public/RepairTrackingView'), meta: { public: true } },
   { path: '/privacy', name: 'privacy', component: page('public/PrivacyPolicyView'), meta: { public: true } },
@@ -37,6 +39,7 @@ const routes = [
       { path: '', redirect: { name: 'dashboard' } },
       { path: 'dashboard', name: 'dashboard', component: page('dashboard/DashboardView') },
       { path: 'pos', name: 'pos', component: page('pos/CheckoutView') },
+      { path: 'scan', name: 'scan', component: page('scan/ScannerView') },
       { path: 'cash-drawer', name: 'cash-drawer', component: page('cash-drawer/CashDrawerView') },
       { path: 'products', name: 'products', component: page('products/ProductsView') },
       { path: 'products/new', name: 'product-new', component: page('products/ProductFormView') },

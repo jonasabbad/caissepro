@@ -15,7 +15,7 @@ import { isValidImei, lookupTac, tacOf } from '../lib/tac.js';
  * 4. a valid IMEI that is not in stock — the separate IMEI identification (TAC → brand / model, no price).
  */
 
-const CODE = /^[\x21-\x7e]{3,64}$/;
+export const CODE = /^[\x21-\x7e]{3,64}$/;
 
 /** Remembers box barcode → model from a device added with it (this business's own data). */
 export async function learnModelBarcode(
@@ -32,57 +32,61 @@ export async function learnModelBarcode(
   else await tx.modelBarcode.create({ data: { ...data, tenantId, code: c } });
 }
 
+/** What CaissePro knows about one code (see the order above). */
+export async function lookupCode(tenantId: string, code: string) {
+  const upper = code.toUpperCase();
+  const [products, units, modelBarcode] = await Promise.all([
+    prisma.product.findMany({
+      where: { tenantId, status: { not: 'archived' }, OR: [{ barcode: code }, { sku: code }, { sku: upper }] },
+      include: { category: true },
+      take: 5,
+    }),
+    prisma.soldUnit.findMany({
+      where: { tenantId, OR: [{ imei: code }, { serialNumber: code }, { serialNumber: upper }, { ref: upper }] },
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+    }),
+    prisma.modelBarcode.findUnique({ where: { tenantId_code: { tenantId, code } } }),
+  ]);
+  const validImei = /^\d{15}$/.test(code) && isValidImei(code);
+  // IMEI identification only for a valid IMEI that is not a stored device: a model, never a price.
+  const imei = validImei && !units.length ? { tac: tacOf(code), device: await lookupTac(tenantId, tacOf(code)) } : null;
+  const found = products.length > 0 || units.length > 0 || !!modelBarcode;
+  return {
+    code,
+    found,
+    looksLikeImei: validImei,
+    products: serialize(products),
+    units: serialize(
+      units.map((u) => ({
+        id: u.id,
+        ref: u.ref,
+        deviceType: u.deviceType,
+        brand: u.brand,
+        model: u.model,
+        storage: u.storage,
+        color: u.color,
+        condition: u.condition,
+        imei: u.imei,
+        serialNumber: u.serialNumber,
+        salePrice: u.salePrice,
+        imageUrl: u.imageUrl,
+        soldAt: u.soldAt,
+        reservedAt: u.reservedAt,
+      })),
+    ),
+    modelBarcode: modelBarcode ? serialize(modelBarcode) : null,
+    imei,
+  };
+}
+
 export default async function scanRoutes(app: FastifyInstance) {
   authed(app);
 
   app.get('/scan/:code', async (req: Req<unknown, unknown, { code: string }>) => {
     const code = decodeURIComponent(req.params.code ?? '').trim();
     if (!CODE.test(code)) throw badRequest('Code invalide');
-    const tenantId = req.auth.tenantId;
-    const upper = code.toUpperCase();
-    const [products, units, modelBarcode] = await Promise.all([
-      prisma.product.findMany({
-        where: { tenantId, status: { not: 'archived' }, OR: [{ barcode: code }, { sku: code }, { sku: upper }] },
-        include: { category: true },
-        take: 5,
-      }),
-      prisma.soldUnit.findMany({
-        where: { tenantId, OR: [{ imei: code }, { serialNumber: code }, { serialNumber: upper }, { ref: upper }] },
-        orderBy: { createdAt: 'desc' },
-        take: 5,
-      }),
-      prisma.modelBarcode.findUnique({ where: { tenantId_code: { tenantId, code } } }),
-    ]);
-    const validImei = /^\d{15}$/.test(code) && isValidImei(code);
-    // IMEI identification only for a valid IMEI that is not a stored device: a model, never a price.
-    const imei = validImei && !units.length ? { tac: tacOf(code), device: await lookupTac(tenantId, tacOf(code)) } : null;
-    const found = products.length > 0 || units.length > 0 || !!modelBarcode;
-    return ok({
-      code,
-      found,
-      looksLikeImei: validImei,
-      products: serialize(products),
-      units: serialize(
-        units.map((u) => ({
-          id: u.id,
-          ref: u.ref,
-          deviceType: u.deviceType,
-          brand: u.brand,
-          model: u.model,
-          storage: u.storage,
-          color: u.color,
-          condition: u.condition,
-          imei: u.imei,
-          serialNumber: u.serialNumber,
-          salePrice: u.salePrice,
-          imageUrl: u.imageUrl,
-          soldAt: u.soldAt,
-          reservedAt: u.reservedAt,
-        })),
-      ),
-      modelBarcode: modelBarcode ? serialize(modelBarcode) : null,
-      imei,
-    });
+    return ok(await lookupCode(req.auth.tenantId, code));
   });
 
   /** Links a box barcode to a model by hand (e.g. after identifying an unknown box). */

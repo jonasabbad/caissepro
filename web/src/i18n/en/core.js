@@ -4,6 +4,7 @@ export default {
   nav: {
     dashboard: 'Dashboard',
     pos: 'Point of Sale',
+    scan: "Scan Product",
     cashDrawer: 'Cash Drawer',
     products: 'Accessories',
     productsGeneric: 'Products',

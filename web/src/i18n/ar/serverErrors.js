@@ -130,5 +130,7 @@ export default {
     cancelOrderInvoiceFirst: "ألغِ فاتورة هذه الطلبية أولاً",
     invalidTac: "رمز TAC غير صالح",
     invalidCode: "رمز غير صالح",
+    scannerLinkInvalid: "رابط الماسح غير صالح أو منتهي الصلاحية",
+    tooManyScans: "عدد كبير من عمليات المسح، انتظر قليلاً",
   },
 };

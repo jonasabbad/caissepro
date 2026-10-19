@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:phone": "vite --mode phone",
     "build": "vite build",
     "preview": "vite preview",
     "i18n:check": "node scripts/i18n-check.mjs && node scripts/server-messages-check.mjs",
@@ -33,6 +34,7 @@
     "vue3-apexcharts": "~1.11.3"
   },
   "devDependencies": {
+    "@vitejs/plugin-basic-ssl": "^1.2.0",
     "@vitejs/plugin-vue": "^5.2.4",
     "autoprefixer": "^10.4.21",
     "postcss": "^8.5.3",

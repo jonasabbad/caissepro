@@ -10,8 +10,8 @@ import { routes } from './routes/index.js';
 import { UPLOAD_DIR } from './lib/uploads.js';
 import { mkdirSync } from 'node:fs';
 
-export async function buildApp(opts: { logger?: boolean } = {}): Promise<FastifyInstance> {
-  const app = Fastify({ logger: opts.logger ?? false, bodyLimit: 10 * 1024 * 1024 });
+export async function buildApp(opts: { logger?: boolean; https?: { key: Buffer; cert: Buffer } } = {}): Promise<FastifyInstance> {
+  const app = Fastify({ logger: opts.logger ?? false, bodyLimit: 10 * 1024 * 1024, ...(opts.https ? { https: opts.https } : {}) }) as unknown as FastifyInstance;
 
   // Clients may POST action endpoints (submit, lock…) with a JSON content type and no body; treat that as {}.
   app.removeContentTypeParser('application/json');

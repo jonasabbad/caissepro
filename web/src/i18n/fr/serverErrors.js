@@ -132,5 +132,7 @@ export default {
     cancelOrderInvoiceFirst: "Annulez d’abord la facture de cette commande",
     invalidTac: "TAC invalide",
     invalidCode: "Code invalide",
+    scannerLinkInvalid: "Lien de scanner invalide ou expiré",
+    tooManyScans: "Trop de scans, patientez un instant",
   },
 };

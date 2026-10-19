@@ -18,6 +18,7 @@ import SearchableSelect from '@/components/ui/SearchableSelect.vue';
 import Toast from '@/components/ui/Toast.vue';
 import ProductImageInput from '@/components/products/ProductImageInput.vue';
 import ScanButton from '@/components/scan/ScanButton.vue';
+import { usePhoneScanHandler } from '@/composables/usePhoneScanner';
 import { scanApi } from '@/api/scan';
 import { soldUnitsApi, isValidImei } from '@/api/soldUnits';
 import { apiErrorMessage } from '@/api/http';
@@ -183,6 +184,8 @@ async function lookupBox(code) {
   }
 }
 // A camera scan in the IMEI card: an IMEI goes to the IMEI field, anything else is treated as the box barcode.
+// A paired phone's scans go through the same handler.
+usePhoneScanHandler((code) => onDeviceScan(code));
 function onDeviceScan(code) {
   const c = code.replace(/\s+/g, '');
   if (/^\d{15}$/.test(c)) details.value.imei = c;

@@ -12,6 +12,7 @@ import { useAuthStore } from '@/stores/auth';
 import { formatCurrency, hasManagerRole } from '@/utils/format';
 import ProductImageInput from '@/components/products/ProductImageInput.vue';
 import ScanButton from '@/components/scan/ScanButton.vue';
+import { usePhoneScanHandler } from '@/composables/usePhoneScanner';
 
 const { t } = useI18n();
 const route = useRoute();
@@ -77,6 +78,8 @@ async function checkBarcode() {
   const p = await productsApi.getByBarcode(code).catch(() => null);
   if (p && p.id !== productId.value) barcodeOwner.value = p;
 }
+// A paired phone's scans go through the same handler.
+usePhoneScanHandler((code) => onBarcodeScan(code));
 function onBarcodeScan(code) {
   form.value.barcode = code;
   checkBarcode();

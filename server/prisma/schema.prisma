@@ -788,3 +788,19 @@ model ModelBarcode {
 
   @@unique([tenantId, code])
 }
+
+/// A phone paired as a barcode scanner for one signed-in user's screen (QR code). The phone only holds a random
+/// token whose hash is stored here: it can look codes up and send them to that screen, nothing else.
+model ScannerPairing {
+  id         String    @id @default(uuid())
+  tenantId   String
+  userId     String
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  lastSeenAt DateTime?
+  scanCount  Int       @default(0)
+  createdAt  DateTime  @default(now())
+
+  @@index([tenantId])
+}

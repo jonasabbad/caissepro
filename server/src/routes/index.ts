@@ -14,6 +14,7 @@ import supplierRoutes from './suppliers.js';
 import supplierOrderRoutes from './supplierOrders.js';
 import supplierInvoiceRoutes from './supplierInvoices.js';
 import scanRoutes from './scan.js';
+import scannerRoutes from './scanner.js';
 import checkoutRoutes from './checkout.js';
 import transactionRoutes from './transactions.js';
 import reservationRoutes from './reservations.js';
@@ -47,6 +48,7 @@ export async function routes(app: FastifyInstance) {
   await app.register(supplierOrderRoutes);
   await app.register(supplierInvoiceRoutes);
   await app.register(scanRoutes);
+  await app.register(scannerRoutes);
   await app.register(checkoutRoutes);
   await app.register(transactionRoutes);
   await app.register(reservationRoutes);

@@ -4,6 +4,7 @@ export default {
   nav: {
     dashboard: 'Tableau de bord',
     pos: 'Caisse',
+    scan: "Scanner un produit",
     cashDrawer: 'Fond de Caisse',
     products: 'Accessoires',
     productsGeneric: 'Produits',

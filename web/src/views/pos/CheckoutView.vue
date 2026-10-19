@@ -45,6 +45,7 @@ import TradeInModal from '@/components/pos/TradeInModal.vue';
 import Toast from '@/components/ui/Toast.vue';
 import Pagination from '@/components/ui/Pagination.vue';
 import ScanButton from '@/components/scan/ScanButton.vue';
+import { usePhoneScanHandler } from '@/composables/usePhoneScanner';
 import { useRoute, useRouter } from 'vue-router';
 
 /** Keystrokes closer than this (ms) are treated as a barcode scanner, not a person typing. */
@@ -130,6 +131,7 @@ const showPack = ref(false);
 const packProduct = ref(null);
 const detailsItem = ref(null);
 const scanError = ref('');
+const unknownCode = ref('');
 const searching = ref(false);
 let lastKeyAt = 0;
 let fastKeys = 0;
@@ -494,6 +496,7 @@ async function lookup() {
   if (!q) return;
   searching.value = true;
   scanError.value = '';
+  unknownCode.value = '';
   if (scanTimer) {
     clearTimeout(scanTimer);
     scanTimer = null;
@@ -512,6 +515,7 @@ async function lookup() {
     const found = (await productsApi.getAll({ query: q, limit: 10 })).products;
     if (!found?.length) {
       scanError.value = t('pos.noProductFor', { q });
+      unknownCode.value = q;
       return;
     }
     const exact = found.find((x) => x.barcode === q || x.sku === q);
@@ -532,6 +536,8 @@ async function lookup() {
   }
 }
 // Camera scan, or a code handed over by "Scan to identify" (?scan=…): the same lookup as a hand-held scanner.
+// A paired phone's scans go through the same handler.
+usePhoneScanHandler((code) => onCameraScan(code));
 function onCameraScan(code) {
   if (cart.isReturnMode) return;
   search.value = code;
@@ -916,7 +922,10 @@ const customerLocked = computed(() => cart.isReturnMode && !cart.isEmpty);
       </div>
 
       <div v-if="scanError" class="mb-4 p-3 bg-danger-50 border border-danger-200 rounded-lg flex items-center justify-between">
-        <span class="text-sm text-danger-700">{{ scanError }}</span>
+        <span class="text-sm text-danger-700">
+          {{ scanError }}
+          <RouterLink v-if="unknownCode" :to="{ path: '/app/products/new', query: { barcode: unknownCode } }" target="_blank" class="ms-2 font-medium underline">{{ t('scan.createProduct') }}</RouterLink>
+        </span>
         <button class="text-danger-500 hover:text-danger-700" @click="scanError = ''"><XMarkIcon class="w-4 h-4" /></button>
       </div>
 

@@ -35,9 +35,11 @@ import {
   LockOpenIcon,
   TicketIcon,
   ExclamationTriangleIcon,
+  ViewfinderCircleIcon,
 } from '@heroicons/vue/24/outline';
 import GlobalSearch from '@/components/layout/GlobalSearch.vue';
 import ScanIdentify from '@/components/scan/ScanIdentify.vue';
+import PhoneScannerPair from '@/components/scan/PhoneScannerPair.vue';
 import KeyboardShortcuts from '@/components/layout/KeyboardShortcuts.vue';
 import SubscriptionBanner from '@/components/layout/SubscriptionBanner.vue';
 import AnnouncementBanner from '@/components/layout/AnnouncementBanner.vue';
@@ -100,6 +102,7 @@ async function lockAccount() {
 const navigation = computed(() => [
   { id: 'dashboard', name: t('nav.dashboard'), href: '/app/dashboard', icon: HomeIcon },
   { id: 'pos', name: t('nav.pos'), href: '/app/pos', icon: ShoppingCartIcon },
+  { id: 'scan', name: t('nav.scan'), href: '/app/scan', icon: ViewfinderCircleIcon },
   { id: 'cashDrawer', name: t('nav.cashDrawer'), href: '/app/cash-drawer', icon: BanknotesIcon },
   { id: 'products', name: t(productsLabelKey.value), href: '/app/products', icon: CubeIcon },
   { id: 'soldUnits', name: t('nav.soldUnits'), href: '/app/sold-units', icon: DevicePhoneMobileIcon },
@@ -127,6 +130,7 @@ const navigation = computed(() => [
 const visibleNavigation = computed(() =>
   navigation.value.filter((item) => {
     if (auth.sellerMode && !SELLER_MODE_ROUTES.has(router.resolve(item.href).name)) return false;
+    if (item.id === 'scan') return true; // every activity
     if (!hasNavItem(item.id)) return false;
     if (item.id === 'users') {
       // Multi-user management is part of the paid plans.
@@ -240,6 +244,7 @@ const supportLink = `https://wa.me/${APP_CONFIG.support.whatsapp}?text=${encodeU
           <div class="flex flex-1 justify-center"><GlobalSearch /></div>
           <div class="flex items-center gap-3">
             <ScanIdentify />
+            <PhoneScannerPair />
             <LanguageSwitcher compact />
             <template v-if="auth.hasModule(Modules.SELLER_MODE)">
               <button

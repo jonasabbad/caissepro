@@ -430,3 +430,23 @@ Tested on the local app in the built-in browser and through the API. The test re
 | Camera refused | Message + Retry; the manual field still works. |
 | Server tests | `scan.test.ts`: lookups by barcode, SKU, IMEI, ref and box barcode; TAC; unknown code; tenant isolation; manual link; checkout stock 5 → 3 exact. Full suite: 70/70. |
 | Supplier invoices (fixed during this run) | A payment dated today kept noon UTC, so it sorted after later payments in the morning. It now keeps the time it was recorded, and the statement orders by day, with purchases before payments. |
+
+## Phone scanner (2026-10-19)
+
+Tested on the local app. The phone was the built-in browser at 375 × 812, next to the POS in another tab, because no real smartphone was available to the session. The camera is blocked in that browser, so codes were entered in the phone page's field. That goes through the same path as a camera read.
+
+| Check | Result |
+|---|---|
+| Pairing | Phone button → QR code + link `http://192.168.1.13:5173/scanner#t=…` (LAN address, not localhost), with the HTTPS warning on http. Phone page: "Connected to Demo · Electro36"; the token was removed from the address bar; the link survives a reload. |
+| POS | Phone scan of `2002987930002` (TEST Chargeur 20W) shows 129.00 DH and stock 10; the POS cart gets 1 line. A second scan gives the same line with qty 2 (258.00 DH). "Look up only" adds nothing. Phone IMEI `990003047946245` → OPPO / Reno 15 Pro, 256 GB · Aurora White, 3,400.00 DH, stock 1 → added as its unique item. |
+| Unknown code `4006381333931` | Phone: "Code not known…". POS: "No product found" + *Create a product* link (`/app/products/new?barcode=…`, new tab). |
+| Products / product form / dashboard | Opens the product's edit page / fills the barcode field / opens "Scan to identify". |
+| `/app/scan` signed in on the phone | Result with *Add to cart* → POS with the item (qty 1, 129.00 DH). |
+| Reload of the computer | Pairing kept, no scan replayed. |
+| Server restart | Found and fixed: a restarted server numbered scans from 1 again, so the first scan after a restart was skipped. A boot id now resets the screen's cursor. |
+| Two screens, same user | Found and fixed: a second screen's pairing revoked the first. Each screen now keeps its own pairing. |
+| Disconnect | On the computer → the phone shows "This scanner link is no longer valid". |
+| Arabic | Phone page in RTL, labels from the glossary, prices / IMEI kept LTR, no horizontal scroll. The header's Phone button is hidden on phone screens (it was pushing the header past 375 px). |
+| HTTPS mode | `vite --mode phone` on a spare port: HTTPS, network URL `https://192.168.1.13:…`, `/scanner` 200, API proxied (401 without token). |
+| Server tests | `scanner.test.ts`: token hashed; scans reach the screen by long poll; selling price only (no cost); token refused everywhere else; other users get 404; per-screen replacement, disconnect from both sides, expiry; restart replay. Full suite 71/71. |
+| Not verified | A real phone camera (Chrome Android / Safari iOS) on `npm run dev:phone`: it needs the user's phone on the shop Wi-Fi. |

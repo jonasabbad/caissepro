@@ -10,6 +10,7 @@ export default {
   nav: {
     dashboard: "لوحة التحكم",
     pos: "نقطة البيع",
+    scan: "مسح منتج",
     cashDrawer: "الصندوق",
     products: "الإكسسوارات",
     productsGeneric: "المنتجات",

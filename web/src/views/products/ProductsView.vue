@@ -23,6 +23,7 @@ import Toast from '@/components/ui/Toast.vue';
 import ProductImage from '@/components/products/ProductImage.vue';
 import ConfirmModal from '@/components/ui/ConfirmModal.vue';
 import ScanButton from '@/components/scan/ScanButton.vue';
+import { usePhoneScanHandler } from '@/composables/usePhoneScanner';
 import { useRouter } from 'vue-router';
 
 const { t } = useI18n();
@@ -132,6 +133,8 @@ async function findByCode(code) {
 useBarcodeScanner(findByCode);
 const router = useRouter();
 /** Camera scan: open the product's record when it exists; otherwise the "create it" banner shows. */
+// A paired phone's scans go through the same handler.
+usePhoneScanHandler((code) => onCameraScan(code));
 async function onCameraScan(code) {
   const p = await productsApi.getByBarcode(code).catch(() => null);
   if (p) {
