@@ -789,18 +789,48 @@ model ModelBarcode {
   @@unique([tenantId, code])
 }
 
-/// A phone paired as a barcode scanner for one signed-in user's screen (QR code). The phone only holds a random
-/// token whose hash is stored here: it can look codes up and send them to that screen, nothing else.
-model ScannerPairing {
+/// Phone scanners. A computer (browser) that receives scans registers as a ScannerScreen; a phone is authorized once
+/// with a one-time QR code (ScannerPairing) and becomes a ScannerDevice holding a long-lived random secret, of which
+/// only the hash is stored. The device sends its scans to the screen it chose (screenId).
+model ScannerScreen {
+  id         String   @id @default(uuid())
+  tenantId   String
+  userId     String // last user signed in on it
+  name       String
+  lastSeenAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  @@index([tenantId])
+}
+
+model ScannerDevice {
   id         String    @id @default(uuid())
   tenantId   String
-  userId     String
+  userId     String // who authorized it; the device stops working if that user is deactivated
+  name       String
   tokenHash  String    @unique
-  expiresAt  DateTime
-  revokedAt  DateTime?
-  lastSeenAt DateTime?
+  screenId   String? // where its scans go
+  userAgent  String?
   scanCount  Int       @default(0)
+  lastSeenAt DateTime?
+  expiresAt  DateTime // moves forward each time the phone is used
+  revokedAt  DateTime?
   createdAt  DateTime  @default(now())
+
+  @@index([tenantId])
+}
+
+/// One-time QR code to authorize a phone (10 minutes, used once).
+model ScannerPairing {
+  id        String    @id @default(uuid())
+  tenantId  String
+  userId    String
+  screenId  String?
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  deviceId  String?
+  createdAt DateTime  @default(now())
 
   @@index([tenantId])
 }

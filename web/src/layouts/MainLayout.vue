@@ -40,6 +40,7 @@ import {
 import GlobalSearch from '@/components/layout/GlobalSearch.vue';
 import ScanIdentify from '@/components/scan/ScanIdentify.vue';
 import PhoneScannerPair from '@/components/scan/PhoneScannerPair.vue';
+import { useScreenReceiver } from '@/composables/usePhoneScanner';
 import KeyboardShortcuts from '@/components/layout/KeyboardShortcuts.vue';
 import SubscriptionBanner from '@/components/layout/SubscriptionBanner.vue';
 import AnnouncementBanner from '@/components/layout/AnnouncementBanner.vue';
@@ -59,6 +60,8 @@ const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
+// On a computer, receive the scans of the phones that send to it (Phone button).
+useScreenReceiver(auth.currentUser?.firstName);
 const sub = useSubscriptionStore();
 const { hasNavItem, productsLabelKey } = useActivity();
 

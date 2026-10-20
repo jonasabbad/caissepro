@@ -53,26 +53,53 @@ Prices always come from CaissePro. A scan never creates or changes a price, and 
 
 ## Phone as a scanner
 
-Both ways run in **CaissePro Scanner** (`/scanner`), a page that can be installed on the phone's home screen (see below). No app store is needed.
+Both ways run in **CaissePro Scanner** (`/scanner`), which can be installed on the phone's home screen (see below). No app store is needed.
 
 | | How | What a scan does |
 |---|---|---|
-| **Paired with a computer** | On the computer, use the header button **Phone** (phone icon) → *Show the QR code* → scan the QR code with the phone. The phone does not sign in. | The phone shows the code, name, brand / model (devices), selling price and stock. The code is also sent to the computer's open page, as if it had been scanned there: POS adds it to the cart, Products opens it, the product form fills the barcode, Add a device fills IMEI / box code, other pages open "Scan to identify". An unknown code shows "Code not known" on the phone and a *Create a product* link on the POS (it opens in a new tab, so the sale in progress stays). *Send to the computer* can be turned off to look up only. |
-| **Signed in on the phone** | Open `/scanner` (or, on a phone, menu → **Scan Product**) and sign in once with the CaissePro account. The sign-in is kept (30-day refresh). | Same result card, with *Add to cart* (opens the POS with the item), *Open*, *Sell* (devices) and *Create a product* (unknown code). |
+| **Authorized phone** (several phones, no sign-in) | **Once per phone:** on a computer, use **Phone** (header) → *Add a phone*, then scan the QR code with the phone. After that, the phone opens straight into scanning every time. | The phone shows the code, name, brand / model (devices), selling price and stock. The code also goes to the computer the phone sends to, which handles it on its open page: POS adds it to the cart, Products opens it, the product form fills the barcode, Add a device fills the IMEI / box code, other pages open "Scan to identify". The phone says *Sent to "Caisse 1"*, or *Not sent: "Caisse 1" is not connected*. |
+| **Signed in on the phone** | Open `/scanner` (on a phone, menu → **Scan Product**) and sign in once. | Same result card, with *Add to cart* (opens the POS with the item), *Open*, *Sell* and *Create a product*. |
 
-Scanning is tap-to-scan: tap **Scan**, read one code, the camera stops, and the result shows. Then tap **Scan next**. This avoids adding the same item twice while it is still in front of the camera. A Bluetooth scanner or typing works in the field under the result.
+### Several phones, several computers
+
+- **Computers.** Every computer with CaissePro open (1024 px or wider) registers as a receiving computer.
+  - The browser keeps its id, so all tabs and restarts count as the same computer.
+  - Its default name is like "Windows · Sara" (duplicates get " 2"). You can rename it under Phone → *This computer*.
+  - With several CaissePro tabs open, only the tab used last handles a scan, so an item is never added twice.
+- **Phones.** Each phone is authorized once and keeps its own key. On the phone, *Send scans to* picks one of the business's computers, or *No computer (look up only)*.
+  - By default a phone sends to the computer whose QR code authorized it.
+  - Two phones work independently, each with its own computer (tested).
+- **Managing phones.** Phone → *Phone scanners*, or **Settings → Phone scanners**, lists the authorized phones with:
+  - last seen time, scan count and who authorized each one;
+  - **Rename**;
+  - **Sends to**: change which computer it uses;
+  - **Revoke**: access ends at once.
+  - Managers see every phone of the business. Other users see the phones they authorized.
 
 ### Security
 
-- **What the phone holds.** The QR code carries a random 256-bit token in the link's `#fragment`, which browsers never send to servers or put in logs. The phone keeps it in the tab's sessionStorage, and the address bar is cleaned. The server stores only its SHA-256 hash.
-- **What the token allows:** `GET /scanner/phone/session`, `POST /scanner/phone/scan` (max 60/min) and `POST /scanner/phone/disconnect`, nothing else. It is not a sign-in: every other API refuses it (tested).
-- **What the phone sees.** Product name, category, barcode/SKU, selling price, stock, and device brand/model/storage/colour/IMEI. It never sees cost prices, customers, sales, or settings.
-- **When the link ends.**
-  - It expires after 12 hours.
-  - **Disconnect** on either side revokes it.
-  - **New QR code** revokes the previous link of that screen. Other screens keep their own pairing.
-  - The link also stops if the user who created it is deactivated.
-- **No credentials in the page.** No database access, credentials or admin pages are reachable from the scanner page.
+- **Pairing.** A QR code holds a one-time code: 256 random bits, valid **10 minutes**, usable **once** (enforced atomically, so even two phones scanning the same QR code at once get only one key). It sits in the link's `#fragment`, which browsers never send to the server, and the scanner removes it from the address bar.
+- **Device key.** Using the QR code gives the phone its own random 256-bit key, which it keeps in localStorage. The server stores only its SHA-256.
+- **What the key allows:**
+  - looking codes up (name, category, barcode/SKU, selling price, stock; device brand/model/storage/colour/IMEI);
+  - choosing one of this business's computers;
+  - sending codes there;
+  - forgetting itself.
+- **What it doesn't allow.** It is not a sign-in: every other API refuses it (tested). It never sees cost prices, customers, sales or settings. A phone cannot target another business's computer (tested).
+- **When the key stops working.** The phone shows why, and what to do:
+
+| Reason | Shown on the phone |
+|---|---|
+| Revoked on a computer, or *Forget this phone* | "This phone's access was revoked" + how to authorize it again |
+| Not used for 180 days (the expiry moves forward with each use) | "Authorization expired…" |
+| The user who authorized it was deactivated | "The account that authorized this phone is deactivated" + ask a manager |
+| Key unknown (e.g. database reset) | "CaissePro no longer recognizes this phone" |
+| QR code already used / older than 10 minutes / invalid | the matching message + show a new QR code |
+
+  If CaissePro is also signed in on that phone, the scanner carries on with that account and says so.
+- **No connection.** The phone keeps its key, shows "CaissePro cannot be reached" with **Retry**, and reconnects by itself when the network comes back or the app comes back to the screen.
+- **No late surprises.** A scan reaches a computer only if that computer is connected at that moment; nothing is queued. Delivered events expire after a minute.
+- **Limits.** 60 scans per minute per phone.
 
 ### HTTPS on the shop network
 
@@ -95,7 +122,7 @@ The phone and the computer must be on the same Wi-Fi. When the computer has seve
 
 - **Permanent address:** `https://<CaissePro address>/scanner`, e.g. `https://192.168.1.13:5173/scanner` with `npm run dev:phone`. To keep the address fixed, reserve the computer's IP in the Wi-Fi router (DHCP reservation), or use a domain name in production.
 - **What opens it:** the app opens on that page from its home-screen icon. The manifest's `start_url` is `/scanner?source=home-screen` and its scope is `/scanner`, so the rest of CaissePro is not taken over by the app.
-- **What it uses:** with a valid QR pairing it sends scans to that computer. Otherwise it uses the phone's own CaissePro sign-in, and without either it shows *Sign in* (and comes back to the scanner afterwards).
+- **What it uses:** an authorized phone reconnects with its own key and sends to its computer. Otherwise it uses the phone's own CaissePro sign-in, and without either it shows *Sign in* or how to authorize the phone.
 - **Camera on launch:** once the phone has allowed the camera, the app opens the camera as soon as it starts.
 
 | File | Role |

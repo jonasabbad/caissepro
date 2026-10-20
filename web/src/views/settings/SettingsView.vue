@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
 import {
   BuildingStorefrontIcon,
+  DevicePhoneMobileIcon,
   DocumentTextIcon,
   GlobeAltIcon,
   LockClosedIcon,
@@ -30,6 +31,7 @@ import { receiptHtml } from '@/utils/receipt';
 import { BRAND_ABBREVIATIONS, deviceDisplayName } from '@/utils/labelRenderer';
 import { useRoute } from 'vue-router';
 import Toast from '@/components/ui/Toast.vue';
+import ScannerDevicesManager from '@/components/scan/ScannerDevicesManager.vue';
 
 const { t } = useI18n();
 const auth = useAuthStore();
@@ -48,6 +50,7 @@ const TABS = [
   { id: 'invoices', icon: DocumentTextIcon, label: 'settings.invoices' },
   { id: 'localization', icon: GlobeAltIcon, label: 'settings.localization' },
   { id: 'printing', icon: PrinterIcon, label: 'settings.printing' },
+  { id: 'scanners', icon: DevicePhoneMobileIcon, label: 'scan.devices.settingsTab' },
   { id: 'security', icon: LockClosedIcon, label: 'settings.security' },
 ];
 
@@ -587,6 +590,15 @@ async function unpairDrawer() {
               </details>
             </template>
           </div>
+        </div>
+
+        <!-- Phone scanners -->
+        <div v-else-if="tab === 'scanners'" class="card p-6 space-y-4 max-w-2xl">
+          <div>
+            <h2 class="text-lg font-semibold text-gray-900">{{ t('scan.devices.settingsTab') }}</h2>
+            <p class="mt-1 text-sm text-gray-500">{{ t('scan.devices.settingsIntro') }}</p>
+          </div>
+          <ScannerDevicesManager />
         </div>
 
         <!-- Security -->

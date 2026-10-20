@@ -467,3 +467,27 @@ The user's dev server was running `npm run dev:phone` (self-signed HTTPS), which
 | Production serving | `/scanner` 200 html, `.webmanifest` `application/manifest+json`, `scanner-sw.js` JavaScript, icons PNG. |
 | Not verified here | Service worker registration (the built-in browser refuses it; the script is served and parses) and install / home-screen launch on a real Android or iPhone. |
 | Server tests | 71/71 |
+
+## Several phones, paired once (2026-10-20)
+
+Tested on a temporary http Vite (port 5180, same API; stopped afterwards, `.claude/launch.json` restored). Your dev server runs `dev:phone` (self-signed HTTPS), which the built-in browser refuses.
+
+- **Computer:** `localhost:5180` at desktop size.
+- **Phone A:** `[::1]:5180` at 375 px. It is a different origin, so it has its own storage, like a separate phone.
+- **Phone B:** a third tab.
+- **Second computer "TEST Réserve":** listened to by a script.
+
+| Check | Result |
+|---|---|
+| Computer | Registers by itself ("Windows · youness", renamed to "TEST Caisse PC"); green dot. |
+| Phone A authorized | QR link `/scanner#p=…`; the phone shows "Téléphone autorisé…"; its key is kept; the code is removed from the address. Default target: the computer that showed the QR code. |
+| Phone A scans | 2 × `2002987930002` → "Envoyé à « TEST Caisse PC »", POS cart: TEST Chargeur 20W × 2 (258.00 DH). |
+| Reopen without QR | `/scanner?source=home-screen` → reconnected, same name and target, ready to scan. |
+| Phone B → TEST Réserve | IMEI `990003047946245` → "Sent to "TEST Réserve"". Only TEST Réserve received it; the POS cart stayed at charger × 2. |
+| Manage | Rename on the computer ("TEST iPhone caisse") is shown on the phone. Look-up-only target adds nothing to the cart; switching back works. |
+| Revoke phone B (CaissePro also signed in on that browser) | It disappears from the list; the phone says "This phone's access was revoked" and carries on with the account. |
+| Revoke phone A (not signed in) | Sign-in screen with "L'accès de ce téléphone a été retiré" + how to authorize it again. |
+| Found and fixed | Two computers had the same default name (this test browser and your own on 5173): duplicates now get " 2". The computer's dot stayed orange until its first 25 s wait: it now turns green on registration. |
+| Server tests | `scanner.test.ts`: one-time QR codes (reuse, 10-minute expiry, invalid); key hashed; two phones → two computers independently; computer not connected → not sent, nothing queued; switch computer, but never to another business's; rename / revoke; expiry; deactivated user; key refused elsewhere; costs never sent; cashier vs manager. Full suite 72/72. |
+| Cleanup | TEST computers deleted; both TEST phones revoked; test cart emptied. |
+| Not verified | Real phones (camera, home-screen app) on the shop Wi-Fi. |

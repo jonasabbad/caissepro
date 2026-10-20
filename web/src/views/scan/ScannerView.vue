@@ -17,7 +17,7 @@ import {
 } from '@heroicons/vue/24/outline';
 import { useBarcodeCamera } from '@/composables/useBarcodeCamera';
 import { useScannerApp } from '@/composables/useScannerApp';
-import { phoneScannerApi } from '@/api/scanner';
+import { claimPhone, phoneScannerApi } from '@/api/scanner';
 import { scanApi } from '@/api/scan';
 import { apiErrorMessage } from '@/api/http';
 import { useAuthStore } from '@/stores/auth';
@@ -28,51 +28,73 @@ import LanguageSwitcher from '@/components/layout/LanguageSwitcher.vue';
 /**
  * CaissePro Scanner (/scanner): the phone app, installable on the home screen. Camera preview, a big Scan button in
  * thumb reach, the scanned code and what CaissePro knows about it (stored name, selling price and stock only).
+ * - device: this phone was authorized once with a computer's QR code (Phone → Add a phone). It keeps its own secret
+ *   and reconnects by itself every time; its scans go to the computer it chose (changeable here).
  * - account: CaissePro is signed in on this phone; results link to the POS and product pages.
- * - paired: opened from a computer's QR code (Phone button), no sign-in; each scan is also sent to that computer,
- *   whose open page handles it (POS: added to the cart). A valid pairing link wins over the account.
- * - signin: neither; sign in, or scan the computer's QR code.
+ * - signin: neither; sign in, or authorize the phone from a computer.
  */
 const { t } = useI18n();
 const router = useRouter();
 const auth = useAuthStore();
-const TOKEN_KEY = 'caissepro_scanner_token';
-const mode = ref('loading'); // loading | account | paired | signin
-const paired = computed(() => mode.value === 'paired');
-const ready = computed(() => mode.value === 'account' || mode.value === 'paired');
+const DEVICE_KEY = 'caissepro_scanner_device';
+const OLD_KEYS = ['caissepro_scanner_token', 'phone_scanner_token']; // 12-hour links of the first version
+const mode = ref('loading'); // loading | account | device | signin
+const paired = computed(() => mode.value === 'device');
+const ready = computed(() => mode.value === 'account' || mode.value === 'device');
 
 const video = ref(null);
 const manual = ref('');
 const busy = ref(false);
 const result = ref(null);
 const sent = ref(false);
+const target = ref(null); // computer of the last scan { name, online }
 const error = ref('');
 const recent = ref([]);
-const sendToScreen = ref(true);
 const session = ref(null);
-const linkExpired = ref(false);
+const notice = ref(''); // why the phone is no longer authorized (or the QR code failed): i18n key
 const offline = ref(false);
+const retrying = ref(false);
 let api = null;
 
 const { status, error: cameraError, cameras, cameraId, start, stop, submit } = useBarcodeCamera(video, handle);
 const app = useScannerApp();
 const { canInstall, iosHint } = app;
 
+const screens = computed(() => session.value?.screens || []);
+const currentScreen = computed(() => screens.value.find((s) => s.id === session.value?.device?.screenId) || null);
+
+// Server reasons → explanations shown on the phone.
+const REASONS = {
+  DEVICE_REVOKED: 'revoked',
+  DEVICE_EXPIRED: 'expired',
+  DEVICE_UNKNOWN: 'unknown',
+  USER_DISABLED: 'userDisabled',
+  PAIRING_USED: 'qrUsed',
+  PAIRING_EXPIRED: 'qrExpired',
+  PAIRING_INVALID: 'qrInvalid',
+};
+const reasonOf = (e) => REASONS[e?.response?.data?.error] || null;
+const isNetwork = (e) => !e?.response;
+
 async function handle(code) {
   busy.value = true;
   error.value = '';
   result.value = { code };
   sent.value = false;
+  target.value = null;
   try {
     if (paired.value) {
-      const r = await api.scan(code, sendToScreen.value);
+      const r = await api.scan(code, true);
       result.value = r.result;
       sent.value = r.sent;
+      target.value = r.target;
+      offline.value = false;
     } else result.value = await scanApi.lookup(code);
     recent.value = [{ code, name: label(result.value) }, ...recent.value.filter((h) => h.code !== code)].slice(0, 8);
   } catch (e) {
-    if (e?.response?.status === 401 && paired.value) return dropPairing(true);
-    error.value = apiErrorMessage(e);
+    if (paired.value && e?.response?.status === 401) return forgetDevice(reasonOf(e) || 'unknown');
+    if (isNetwork(e)) offline.value = true;
+    error.value = isNetwork(e) ? t('scan.phone.offline') : apiErrorMessage(e);
   } finally {
     busy.value = false;
   }
@@ -104,40 +126,86 @@ function submitManual() {
 const deviceState = (u) => (u.soldAt ? 'sold' : u.reservedAt ? 'reserved' : 'inStock');
 const stockClass = (n) => (n <= 0 ? 'text-danger-700' : n <= 3 ? 'text-warning-700' : 'text-success-700');
 
-// The pairing token is kept on the phone (localStorage): the home screen app reopens still paired, until it expires.
-function savedToken() {
+// The device secret stays on this phone (localStorage), so the home screen app reconnects by itself.
+function savedSecret() {
   try {
-    return localStorage.getItem(TOKEN_KEY) || '';
+    OLD_KEYS.forEach((k) => localStorage.removeItem(k));
+    return localStorage.getItem(DEVICE_KEY) || '';
   } catch {
     return '';
   }
 }
-function saveToken(v) {
+function saveSecret(v) {
   try {
-    if (v) localStorage.setItem(TOKEN_KEY, v);
-    else localStorage.removeItem(TOKEN_KEY);
+    if (v) localStorage.setItem(DEVICE_KEY, v);
+    else localStorage.removeItem(DEVICE_KEY);
   } catch {
-    /* private mode: kept in memory only */
+    /* private mode: kept in memory only (until the app is closed) */
   }
 }
 
-/** Without (or after) a pairing: this phone's own CaissePro sign-in, or the sign-in screen. */
+/** "iPhone", "Android · Pixel 7": a default name for this phone (renamable on the computer). */
+function phoneName() {
+  const ua = navigator.userAgent;
+  if (/iPhone/.test(ua)) return 'iPhone';
+  if (/iPad/.test(ua)) return 'iPad';
+  const m = ua.match(/Android [\d.]+; ([^;)]+?)(?: Build|\))/);
+  if (m && !/^K$/.test(m[1])) return `Android · ${m[1].trim()}`.slice(0, 40);
+  return /Android/.test(ua) ? 'Android' : '';
+}
+
+/** Without (or after) an authorized device: this phone's own CaissePro sign-in, or the sign-in screen. */
 async function useAccount() {
   await auth.initializeAuth().catch(() => undefined);
   mode.value = auth.isAuthenticated ? 'account' : 'signin';
 }
-async function dropPairing(expired) {
+async function forgetDevice(reason) {
   stop();
-  saveToken('');
+  saveSecret('');
   api = null;
   session.value = null;
   result.value = null;
-  linkExpired.value = expired;
+  notice.value = reason || '';
   await useAccount();
 }
 async function disconnect() {
   await api?.disconnect().catch(() => undefined);
-  await dropPairing(false);
+  await forgetDevice('');
+}
+
+/** Connects with the saved secret; a network failure keeps the secret and retries. */
+async function connect(token) {
+  api = phoneScannerApi(token);
+  try {
+    session.value = await api.session();
+    offline.value = false;
+    mode.value = 'device';
+    return true;
+  } catch (e) {
+    if (e?.response?.status === 401) {
+      await forgetDevice(reasonOf(e) || 'unknown');
+      return false;
+    }
+    offline.value = true;
+    mode.value = 'device';
+    return false;
+  }
+}
+async function retry() {
+  retrying.value = true;
+  const token = savedSecret();
+  if (token) await connect(token);
+  retrying.value = false;
+}
+
+async function chooseTarget(screenId) {
+  try {
+    const d = await api.setTarget(screenId || null);
+    session.value = { ...session.value, device: d };
+  } catch (e) {
+    if (e?.response?.status === 401) return forgetDevice(reasonOf(e) || 'unknown');
+    error.value = apiErrorMessage(e);
+  }
 }
 
 /** Opens the camera straight away when the phone already allowed it (e.g. launched from the home screen). */
@@ -151,40 +219,48 @@ async function autoStart() {
 }
 
 async function init() {
-  // A pairing link brings its token in the #fragment (never sent to a server); it is removed from the address bar.
-  const fromLink = new URLSearchParams(window.location.hash.slice(1)).get('t') || '';
-  if (fromLink) {
-    saveToken(fromLink);
+  // A QR code brings a one-time code in the #fragment (never sent to a server as part of the address); it is
+  // exchanged for this phone's own secret, then removed from the address bar.
+  const params = new URLSearchParams(window.location.hash.slice(1));
+  const code = params.get('p') || params.get('t') || '';
+  if (code) {
     router.replace({ path: '/scanner', hash: '' });
-  }
-  const token = fromLink || savedToken();
-  if (token) {
-    api = phoneScannerApi(token);
     try {
-      session.value = await api.session();
-      mode.value = 'paired';
+      const r = await claimPhone(code, phoneName());
+      saveSecret(r.token);
+      notice.value = 'paired';
     } catch (e) {
-      if (e?.response?.status === 401) await dropPairing(true);
-      else {
-        offline.value = true;
-        mode.value = 'paired';
-      }
+      notice.value = isNetwork(e) ? 'qrOffline' : reasonOf(e) || 'qrInvalid';
     }
-  } else await useAccount();
+  }
+  const token = savedSecret();
+  if (token) await connect(token);
+  else await useAccount();
   autoStart();
 }
-// A pairing link opened while the scanner is already showing only changes the #fragment.
-const onHash = () => window.location.hash.includes('t=') && (stop(), (linkExpired.value = false), init());
+
+// Coming back to the app: refresh the computers' status and notice a revoked phone.
+function onVisible() {
+  if (document.visibilityState === 'visible' && api && mode.value === 'device') connect(savedSecret());
+}
+// A QR code opened while the scanner is already showing only changes the #fragment.
+const onHash = () => /(^|[#&])(p|t)=/.test(window.location.hash) && (stop(), (notice.value = ''), init());
+const onOnline = () => offline.value && retry();
 onMounted(() => {
   app.attach();
   window.addEventListener('hashchange', onHash);
+  window.addEventListener('online', onOnline);
+  document.addEventListener('visibilitychange', onVisible);
   init();
 });
 onBeforeUnmount(() => {
   app.detach();
   window.removeEventListener('hashchange', onHash);
+  window.removeEventListener('online', onOnline);
+  document.removeEventListener('visibilitychange', onVisible);
 });
 </script>
+
 
 <template>
   <div class="mx-auto flex min-h-[100dvh] w-full max-w-lg flex-col bg-gray-50">
@@ -192,9 +268,7 @@ onBeforeUnmount(() => {
     <header class="flex items-center justify-between gap-2 border-b border-gray-200 bg-white px-4 py-3" style="padding-top: max(0.75rem, env(safe-area-inset-top))">
       <div class="min-w-0">
         <p class="font-bold text-gray-900">{{ t('scan.app.name') }}</p>
-        <p v-if="paired && session" class="flex items-center gap-1 truncate text-xs text-success-700">
-          <ComputerDesktopIcon class="h-3.5 w-3.5 shrink-0" /> {{ t('scan.phone.connectedTo', { name: [session.business, session.store].filter(Boolean).join(' · ') }) }}
-        </p>
+        <p v-if="paired && session" class="truncate text-xs text-gray-500">{{ session.device.name }} · {{ [session.business, session.store].filter(Boolean).join(' · ') }}</p>
         <p v-else-if="mode === 'account'" class="truncate text-xs text-gray-500">{{ t('scan.app.signedInAs', { name: auth.currentUser?.firstName || auth.currentUser?.email }) }}</p>
       </div>
       <div class="flex shrink-0 items-center gap-2">
@@ -222,9 +296,9 @@ onBeforeUnmount(() => {
 
     <!-- Not signed in and not paired -->
     <div v-else-if="mode === 'signin'" class="flex flex-1 flex-col gap-3 p-4">
-      <div v-if="linkExpired" class="rounded-xl border border-warning-200 bg-warning-50 p-4 text-sm text-warning-900" role="alert">
-        <p class="font-semibold">{{ t('scan.phone.linkInvalid') }}</p>
-        <p class="mt-1">{{ t('scan.phone.linkInvalidHint') }}</p>
+      <div v-if="notice && notice !== 'paired'" class="rounded-xl border border-warning-200 bg-warning-50 p-4 text-sm text-warning-900" role="alert">
+        <p class="font-semibold">{{ t(`scan.phoneApp.reasons.${notice}.title`) }}</p>
+        <p class="mt-1">{{ t(`scan.phoneApp.reasons.${notice}.hint`) }}</p>
       </div>
       <div class="rounded-xl border border-gray-200 bg-white p-5 text-center">
         <ViewfinderCircleIcon class="mx-auto h-12 w-12 text-primary-600" />
@@ -238,10 +312,31 @@ onBeforeUnmount(() => {
     </div>
 
     <main v-else class="flex flex-1 flex-col gap-3 p-4">
-      <p v-if="linkExpired" class="rounded-xl border border-warning-200 bg-warning-50 p-3 text-sm text-warning-900" role="status">{{ t('scan.app.linkEndedAccount') }}</p>
+      <p v-if="notice === 'paired'" class="flex items-center gap-1.5 rounded-xl border border-success-200 bg-success-50 p-3 text-sm text-success-800" role="status">
+        <CheckCircleIcon class="h-5 w-5 shrink-0" /> {{ t('scan.phoneApp.paired') }}
+      </p>
+      <div v-else-if="notice" class="rounded-xl border border-warning-200 bg-warning-50 p-3 text-sm text-warning-900" role="status">
+        <p class="font-semibold">{{ t(`scan.phoneApp.reasons.${notice}.title`) }}</p>
+        <p class="mt-1">{{ mode === 'account' ? t('scan.phoneApp.usingAccount') : t(`scan.phoneApp.reasons.${notice}.hint`) }}</p>
+      </div>
       <div v-if="offline" class="rounded-xl border border-warning-200 bg-warning-50 p-3 text-sm text-warning-900" role="alert">
         <p class="font-semibold">{{ t('scan.phone.offline') }}</p>
-        <p class="mt-1">{{ t('scan.phone.offlineHint') }}</p>
+        <p class="mt-1">{{ t('scan.phoneApp.offlineHint') }}</p>
+        <button type="button" class="btn-secondary btn-sm mt-2" :disabled="retrying" @click="retry"><ArrowPathIcon class="h-4 w-4" :class="retrying && 'animate-spin'" /> {{ t('common.retry') }}</button>
+      </div>
+
+      <!-- Where this phone's scans go -->
+      <div v-if="paired && session" class="rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm">
+        <label class="flex items-center gap-2" for="scan-target">
+          <ComputerDesktopIcon class="h-5 w-5 shrink-0 text-gray-500" />
+          <span class="font-medium text-gray-900">{{ t('scan.phoneApp.sendTo') }}</span>
+        </label>
+        <select id="scan-target" class="input mt-2 py-2" :value="session.device.screenId || ''" @change="chooseTarget($event.target.value)">
+          <option value="">{{ t('scan.phoneApp.lookupOnly') }}</option>
+          <option v-for="s in screens" :key="s.id" :value="s.id">{{ s.name }}{{ s.userName ? ` (${s.userName})` : '' }} — {{ s.online ? t('scan.phoneApp.online') : t('scan.phoneApp.offline') }}</option>
+        </select>
+        <p v-if="currentScreen && !currentScreen.online" class="mt-1 text-xs text-warning-700">{{ t('scan.phoneApp.targetOffline', { name: currentScreen.name }) }}</p>
+        <p v-else-if="!session.device.screenId" class="mt-1 text-xs text-gray-500">{{ t('scan.phoneApp.noTargetHint') }}</p>
       </div>
 
       <!-- Camera -->
@@ -267,13 +362,6 @@ onBeforeUnmount(() => {
         <option v-for="(c, i) in cameras" :key="c.deviceId" :value="c.deviceId">{{ c.label || `${t('scan.camera')} ${i + 1}` }}</option>
       </select>
 
-      <label v-if="paired" class="flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm">
-        <span>
-          <span class="font-medium text-gray-900">{{ t('scan.phone.sendToScreen') }}</span>
-          <span class="block text-xs text-gray-500">{{ t('scan.phone.sendToScreenHint') }}</span>
-        </span>
-        <input v-model="sendToScreen" type="checkbox" class="h-5 w-5 rounded border-gray-300 text-primary-600" />
-      </label>
 
       <!-- Result -->
       <section v-if="result" class="rounded-xl border border-gray-200 bg-white p-4" aria-live="polite">
@@ -283,7 +371,10 @@ onBeforeUnmount(() => {
         <p v-else-if="error" class="mt-2 rounded-lg bg-danger-50 p-3 text-sm text-danger-700" role="alert">{{ error }}</p>
         <template v-else>
           <p v-if="sent" class="mt-2 flex items-center gap-1.5 rounded-lg bg-success-50 px-3 py-2 text-sm text-success-800">
-            <CheckCircleIcon class="h-5 w-5 shrink-0" /> {{ t('scan.phone.sent') }}
+            <CheckCircleIcon class="h-5 w-5 shrink-0" /> {{ t('scan.phoneApp.sentTo', { name: target?.name }) }}
+          </p>
+          <p v-else-if="paired && target && !target.online" class="mt-2 flex items-center gap-1.5 rounded-lg bg-warning-50 px-3 py-2 text-sm text-warning-800">
+            <ExclamationTriangleIcon class="h-5 w-5 shrink-0" /> {{ t('scan.phoneApp.notSent', { name: target.name }) }}
           </p>
 
           <div v-for="p in result.products || []" :key="p.id" class="mt-3 border-t border-gray-100 pt-3">
@@ -364,7 +455,7 @@ onBeforeUnmount(() => {
         </ul>
       </section>
 
-      <button v-if="paired" type="button" class="text-center text-sm text-gray-500 underline" @click="disconnect">{{ t('scan.phone.disconnect') }}</button>
+      <button v-if="paired" type="button" class="text-center text-sm text-gray-500 underline" @click="disconnect">{{ t('scan.phoneApp.forget') }}</button>
     </main>
 
     <!-- Scan button in thumb reach -->
