@@ -450,3 +450,20 @@ Tested on the local app. The phone was the built-in browser at 375 × 812, next 
 | HTTPS mode | `vite --mode phone` on a spare port: HTTPS, network URL `https://192.168.1.13:…`, `/scanner` 200, API proxied (401 without token). |
 | Server tests | `scanner.test.ts`: token hashed; scans reach the screen by long poll; selling price only (no cost); token refused everywhere else; other users get 404; per-screen replacement, disconnect from both sides, expiry; restart replay. Full suite 71/71. |
 | Not verified | A real phone camera (Chrome Android / Safari iOS) on `npm run dev:phone`: it needs the user's phone on the shop Wi-Fi. |
+
+## CaissePro Scanner app and desktop clean-up (2026-10-20)
+
+The user's dev server was running `npm run dev:phone` (self-signed HTTPS), which the built-in browser refuses. Tests ran on a temporary http Vite on port 5180 with the same API; it was stopped afterwards and `.claude/launch.json` was restored.
+
+| Check | Result |
+|---|---|
+| Desktop (1024 px, lg) | Sidebar: Dashboard, Point of Sale, Accessories… (no *Scan Product*). Header: Search, Phone, language, printer (no *Scan*). POS camera button still there. |
+| Phone (375 px) | Sidebar shows *Scan Product* → `/scanner`; header keeps the scan button; no horizontal scroll. |
+| `/scanner?source=home-screen` | Title "CaissePro Scanner"; manifest linked (name, `start_url`, scope `/scanner`, standalone); icons 200 `image/png`; apple-touch-icon and `apple-mobile-web-app-*` tags. Leaving the page removes the manifest. |
+| Signed in | "Signed in: youness". `2002987930002` → TEST Chargeur 20W, 129.00 DH, stock 10. *Add to cart* → POS cart 1 × 129.00 DH (cart cleared afterwards). |
+| Signed out | Sign-in screen → *Sign in* → `/login?redirect=/scanner` → local test account → back on the scanner, signed in. |
+| QR pairing | Token kept in localStorage: reopening `/scanner?source=home-screen` is still paired. Pairing link opened on an already open scanner → new pairing used (fixed: it was ignored). *Disconnect* → back to the account. |
+| Arabic | RTL header and texts, no horizontal scroll. |
+| Production serving | `/scanner` 200 html, `.webmanifest` `application/manifest+json`, `scanner-sw.js` JavaScript, icons PNG. |
+| Not verified here | Service worker registration (the built-in browser refuses it; the script is served and parses) and install / home-screen launch on a real Android or iPhone. |
+| Server tests | 71/71 |

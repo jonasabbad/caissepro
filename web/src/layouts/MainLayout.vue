@@ -102,7 +102,8 @@ async function lockAccount() {
 const navigation = computed(() => [
   { id: 'dashboard', name: t('nav.dashboard'), href: '/app/dashboard', icon: HomeIcon },
   { id: 'pos', name: t('nav.pos'), href: '/app/pos', icon: ShoppingCartIcon },
-  { id: 'scan', name: t('nav.scan'), href: '/app/scan', icon: ViewfinderCircleIcon },
+  // Phones only: opens CaissePro Scanner (on a computer, POS and Products have their own scan buttons).
+  { id: 'scan', name: t('nav.scan'), href: '/scanner', icon: ViewfinderCircleIcon, mobileOnly: true },
   { id: 'cashDrawer', name: t('nav.cashDrawer'), href: '/app/cash-drawer', icon: BanknotesIcon },
   { id: 'products', name: t(productsLabelKey.value), href: '/app/products', icon: CubeIcon },
   { id: 'soldUnits', name: t('nav.soldUnits'), href: '/app/sold-units', icon: DevicePhoneMobileIcon },
@@ -180,7 +181,7 @@ const supportLink = `https://wa.me/${APP_CONFIG.support.whatsapp}?text=${encodeU
           v-for="item in visibleNavigation"
           :key="item.href"
           :to="item.href"
-          :class="['sidebar-link', isActive(item.href) && 'sidebar-link-active']"
+          :class="['sidebar-link', isActive(item.href) && 'sidebar-link-active', item.mobileOnly && 'lg:hidden']"
           @click="sidebarOpen = false"
         >
           <component :is="item.icon" class="h-5 w-5" />

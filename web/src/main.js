@@ -11,7 +11,10 @@ import App from './App.vue';
 import { router } from './router';
 import { i18n, ltr } from './i18n';
 import { queryClient } from './queryClient';
+import { captureInstallPrompt } from './composables/useScannerApp';
 
+// CaissePro Scanner: keep the browser's install prompt for the scanner page (it can fire before that page loads).
+captureInstallPrompt();
 
 const app = createApp(App);
 app.use(createPinia());

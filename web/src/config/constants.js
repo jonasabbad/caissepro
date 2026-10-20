@@ -24,7 +24,6 @@ export const Modules = Object.freeze({ SELLER_MODE: 'seller_mode' });
 /** Routes a locked ("seller mode") account may visit. */
 export const SELLER_MODE_ROUTES = new Set([
   'pos',
-  'scan',
   'cash-drawer',
   'products',
   'product-new',

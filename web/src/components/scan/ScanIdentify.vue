@@ -52,8 +52,9 @@ const deviceState = (u) => (u.soldAt ? 'sold' : u.reservedAt ? 'reserved' : 'inS
 </script>
 
 <template>
-  <button type="button" class="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50" :title="t('scan.identify')" :aria-label="t('scan.identify')" @click="cameraOpen = true">
-    <ViewfinderCircleIcon class="h-5 w-5" /> <span class="hidden xl:inline">{{ t('scan.identifyShort') }}</span>
+  <!-- Phones and tablets only; the result window below also shows a paired phone's scans on any screen. -->
+  <button type="button" class="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 lg:hidden" :title="t('scan.identify')" :aria-label="t('scan.identify')" @click="cameraOpen = true">
+    <ViewfinderCircleIcon class="h-5 w-5" />
   </button>
   <CameraScanner :open="cameraOpen" :title="t('scan.identify')" @scan="identify" @close="cameraOpen = false" />
 

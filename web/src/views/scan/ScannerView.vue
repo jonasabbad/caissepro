@@ -1,9 +1,11 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import {
+  ArrowDownTrayIcon,
   ArrowPathIcon,
+  ArrowTopRightOnSquareIcon,
   CheckCircleIcon,
   ComputerDesktopIcon,
   ExclamationTriangleIcon,
@@ -11,27 +13,33 @@ import {
   ShoppingCartIcon,
   VideoCameraSlashIcon,
   ViewfinderCircleIcon,
+  XMarkIcon,
 } from '@heroicons/vue/24/outline';
 import { useBarcodeCamera } from '@/composables/useBarcodeCamera';
+import { useScannerApp } from '@/composables/useScannerApp';
 import { phoneScannerApi } from '@/api/scanner';
 import { scanApi } from '@/api/scan';
 import { apiErrorMessage } from '@/api/http';
+import { useAuthStore } from '@/stores/auth';
 import { formatCurrency } from '@/utils/format';
 import { formatImei } from '@/api/soldUnits';
 import LanguageSwitcher from '@/components/layout/LanguageSwitcher.vue';
 
 /**
- * "Scan Product" for a phone, one-handed: camera preview, a big Scan button in thumb reach, the scanned code and
- * what CaissePro knows about it (stored name, price and stock only).
- * - /scanner: a phone paired from a computer by QR code (no sign-in). Each scan is also sent to that computer,
- *   whose open page handles it (POS: added to the cart).
- * - /app/scan: CaissePro signed in on the phone itself; the result links to the POS and product pages.
+ * CaissePro Scanner (/scanner): the phone app, installable on the home screen. Camera preview, a big Scan button in
+ * thumb reach, the scanned code and what CaissePro knows about it (stored name, selling price and stock only).
+ * - account: CaissePro is signed in on this phone; results link to the POS and product pages.
+ * - paired: opened from a computer's QR code (Phone button), no sign-in; each scan is also sent to that computer,
+ *   whose open page handles it (POS: added to the cart). A valid pairing link wins over the account.
+ * - signin: neither; sign in, or scan the computer's QR code.
  */
 const { t } = useI18n();
-const route = useRoute();
 const router = useRouter();
-const paired = computed(() => route.name === 'phone-scanner');
-const TOKEN_KEY = 'phone_scanner_token';
+const auth = useAuthStore();
+const TOKEN_KEY = 'caissepro_scanner_token';
+const mode = ref('loading'); // loading | account | paired | signin
+const paired = computed(() => mode.value === 'paired');
+const ready = computed(() => mode.value === 'account' || mode.value === 'paired');
 
 const video = ref(null);
 const manual = ref('');
@@ -42,10 +50,13 @@ const error = ref('');
 const recent = ref([]);
 const sendToScreen = ref(true);
 const session = ref(null);
-const sessionError = ref(''); // invalid | offline
+const linkExpired = ref(false);
+const offline = ref(false);
 let api = null;
 
-const { status, error: cameraError, cameras, cameraId, start, submit } = useBarcodeCamera(video, handle);
+const { status, error: cameraError, cameras, cameraId, start, stop, submit } = useBarcodeCamera(video, handle);
+const app = useScannerApp();
+const { canInstall, iosHint } = app;
 
 async function handle(code) {
   busy.value = true;
@@ -60,7 +71,7 @@ async function handle(code) {
     } else result.value = await scanApi.lookup(code);
     recent.value = [{ code, name: label(result.value) }, ...recent.value.filter((h) => h.code !== code)].slice(0, 8);
   } catch (e) {
-    if (e?.response?.status === 401 && paired.value) sessionError.value = 'invalid';
+    if (e?.response?.status === 401 && paired.value) return dropPairing(true);
     error.value = apiErrorMessage(e);
   } finally {
     busy.value = false;
@@ -93,58 +104,146 @@ function submitManual() {
 const deviceState = (u) => (u.soldAt ? 'sold' : u.reservedAt ? 'reserved' : 'inStock');
 const stockClass = (n) => (n <= 0 ? 'text-danger-700' : n <= 3 ? 'text-warning-700' : 'text-success-700');
 
-async function disconnect() {
-  await api?.disconnect().catch(() => undefined);
+// The pairing token is kept on the phone (localStorage): the home screen app reopens still paired, until it expires.
+function savedToken() {
   try {
-    sessionStorage.removeItem(TOKEN_KEY);
+    return localStorage.getItem(TOKEN_KEY) || '';
   } catch {
-    /* nothing stored */
+    return '';
   }
-  sessionError.value = 'invalid';
+}
+function saveToken(v) {
+  try {
+    if (v) localStorage.setItem(TOKEN_KEY, v);
+    else localStorage.removeItem(TOKEN_KEY);
+  } catch {
+    /* private mode: kept in memory only */
+  }
 }
 
-onMounted(async () => {
-  if (!paired.value) return;
-  // The token comes in the link's #fragment (never sent to a server); keep it for this tab and clean the address bar.
-  let token = new URLSearchParams(window.location.hash.slice(1)).get('t') || '';
+/** Without (or after) a pairing: this phone's own CaissePro sign-in, or the sign-in screen. */
+async function useAccount() {
+  await auth.initializeAuth().catch(() => undefined);
+  mode.value = auth.isAuthenticated ? 'account' : 'signin';
+}
+async function dropPairing(expired) {
+  stop();
+  saveToken('');
+  api = null;
+  session.value = null;
+  result.value = null;
+  linkExpired.value = expired;
+  await useAccount();
+}
+async function disconnect() {
+  await api?.disconnect().catch(() => undefined);
+  await dropPairing(false);
+}
+
+/** Opens the camera straight away when the phone already allowed it (e.g. launched from the home screen). */
+async function autoStart() {
   try {
-    if (token) sessionStorage.setItem(TOKEN_KEY, token);
-    else token = sessionStorage.getItem(TOKEN_KEY) || '';
+    const p = await navigator.permissions?.query({ name: 'camera' });
+    if (p?.state === 'granted' && ready.value && status.value === 'idle') start();
   } catch {
-    /* private mode: the token stays in memory */
+    /* the browser cannot tell: wait for the Scan button */
   }
-  if (route.hash) router.replace({ path: route.path, hash: '' });
-  if (!token) return (sessionError.value = 'invalid');
-  api = phoneScannerApi(token);
-  try {
-    session.value = await api.session();
-  } catch (e) {
-    sessionError.value = e?.response?.status === 401 ? 'invalid' : 'offline';
+}
+
+async function init() {
+  // A pairing link brings its token in the #fragment (never sent to a server); it is removed from the address bar.
+  const fromLink = new URLSearchParams(window.location.hash.slice(1)).get('t') || '';
+  if (fromLink) {
+    saveToken(fromLink);
+    router.replace({ path: '/scanner', hash: '' });
   }
+  const token = fromLink || savedToken();
+  if (token) {
+    api = phoneScannerApi(token);
+    try {
+      session.value = await api.session();
+      mode.value = 'paired';
+    } catch (e) {
+      if (e?.response?.status === 401) await dropPairing(true);
+      else {
+        offline.value = true;
+        mode.value = 'paired';
+      }
+    }
+  } else await useAccount();
+  autoStart();
+}
+// A pairing link opened while the scanner is already showing only changes the #fragment.
+const onHash = () => window.location.hash.includes('t=') && (stop(), (linkExpired.value = false), init());
+onMounted(() => {
+  app.attach();
+  window.addEventListener('hashchange', onHash);
+  init();
+});
+onBeforeUnmount(() => {
+  app.detach();
+  window.removeEventListener('hashchange', onHash);
 });
 </script>
 
 <template>
-  <div class="mx-auto flex w-full max-w-lg flex-col bg-gray-50" :class="paired ? 'min-h-[100dvh]' : 'min-h-[calc(100dvh-8rem)] rounded-xl'">
+  <div class="mx-auto flex min-h-[100dvh] w-full max-w-lg flex-col bg-gray-50">
     <!-- Top bar -->
-    <header class="flex items-center justify-between gap-2 border-b border-gray-200 bg-white px-4 py-3">
+    <header class="flex items-center justify-between gap-2 border-b border-gray-200 bg-white px-4 py-3" style="padding-top: max(0.75rem, env(safe-area-inset-top))">
       <div class="min-w-0">
-        <p class="font-bold text-gray-900">{{ t('scan.phone.title') }}</p>
+        <p class="font-bold text-gray-900">{{ t('scan.app.name') }}</p>
         <p v-if="paired && session" class="flex items-center gap-1 truncate text-xs text-success-700">
           <ComputerDesktopIcon class="h-3.5 w-3.5 shrink-0" /> {{ t('scan.phone.connectedTo', { name: [session.business, session.store].filter(Boolean).join(' · ') }) }}
         </p>
-        <p v-else-if="!paired" class="text-xs text-gray-500">{{ t('scan.phone.appHint') }}</p>
+        <p v-else-if="mode === 'account'" class="truncate text-xs text-gray-500">{{ t('scan.app.signedInAs', { name: auth.currentUser?.firstName || auth.currentUser?.email }) }}</p>
       </div>
-      <LanguageSwitcher v-if="paired" compact />
+      <div class="flex shrink-0 items-center gap-2">
+        <RouterLink v-if="mode === 'account'" to="/app/dashboard" class="rounded-lg border border-gray-200 p-2 text-gray-600" :title="t('scan.app.openApp')" :aria-label="t('scan.app.openApp')">
+          <ArrowTopRightOnSquareIcon class="h-5 w-5" />
+        </RouterLink>
+        <LanguageSwitcher compact />
+      </div>
     </header>
 
-    <!-- Link no longer valid -->
-    <div v-if="paired && sessionError" class="m-4 rounded-xl border border-warning-200 bg-warning-50 p-4 text-sm text-warning-900" role="alert">
-      <p class="font-semibold">{{ sessionError === 'invalid' ? t('scan.phone.linkInvalid') : t('scan.phone.offline') }}</p>
-      <p class="mt-1">{{ sessionError === 'invalid' ? t('scan.phone.linkInvalidHint') : t('scan.phone.offlineHint') }}</p>
+    <!-- Add to the home screen (hidden once installed or dismissed) -->
+    <div v-if="canInstall || iosHint" class="mx-4 mt-3 flex items-start gap-3 rounded-xl border border-primary-200 bg-primary-50 p-3 text-sm text-primary-900">
+      <ArrowDownTrayIcon class="mt-0.5 h-5 w-5 shrink-0" />
+      <div class="min-w-0 flex-1">
+        <p class="font-semibold">{{ t('scan.app.installTitle') }}</p>
+        <p v-if="iosHint" class="text-xs">{{ t('scan.app.iosHint') }}</p>
+        <button v-else type="button" class="btn-primary btn-sm mt-2" @click="app.install()">{{ t('scan.app.install') }}</button>
+      </div>
+      <button type="button" class="rounded p-1" :aria-label="t('common.close')" @click="app.dismiss()"><XMarkIcon class="h-4 w-4" /></button>
+    </div>
+
+    <div v-if="mode === 'loading'" class="flex flex-1 items-center justify-center text-sm text-gray-500">
+      <ArrowPathIcon class="me-2 h-5 w-5 animate-spin" /> {{ t('common.loading') }}
+    </div>
+
+    <!-- Not signed in and not paired -->
+    <div v-else-if="mode === 'signin'" class="flex flex-1 flex-col gap-3 p-4">
+      <div v-if="linkExpired" class="rounded-xl border border-warning-200 bg-warning-50 p-4 text-sm text-warning-900" role="alert">
+        <p class="font-semibold">{{ t('scan.phone.linkInvalid') }}</p>
+        <p class="mt-1">{{ t('scan.phone.linkInvalidHint') }}</p>
+      </div>
+      <div class="rounded-xl border border-gray-200 bg-white p-5 text-center">
+        <ViewfinderCircleIcon class="mx-auto h-12 w-12 text-primary-600" />
+        <p class="mt-2 text-lg font-semibold text-gray-900">{{ t('scan.app.welcome') }}</p>
+        <p class="mt-1 text-sm text-gray-600">{{ t('scan.app.signinHint') }}</p>
+        <RouterLink :to="{ path: '/login', query: { redirect: '/scanner' } }" class="btn-primary mt-4 h-12 w-full justify-center text-base">{{ t('scan.app.signin') }}</RouterLink>
+        <p class="mt-4 flex items-start gap-2 text-start text-xs text-gray-500">
+          <ComputerDesktopIcon class="h-4 w-4 shrink-0" /> {{ t('scan.app.pairHint') }}
+        </p>
+      </div>
     </div>
 
     <main v-else class="flex flex-1 flex-col gap-3 p-4">
+      <p v-if="linkExpired" class="rounded-xl border border-warning-200 bg-warning-50 p-3 text-sm text-warning-900" role="status">{{ t('scan.app.linkEndedAccount') }}</p>
+      <div v-if="offline" class="rounded-xl border border-warning-200 bg-warning-50 p-3 text-sm text-warning-900" role="alert">
+        <p class="font-semibold">{{ t('scan.phone.offline') }}</p>
+        <p class="mt-1">{{ t('scan.phone.offlineHint') }}</p>
+      </div>
+
       <!-- Camera -->
       <div dir="ltr" class="relative aspect-[4/3] w-full overflow-hidden rounded-xl bg-black">
         <video ref="video" class="h-full w-full object-cover" muted playsinline />
@@ -269,7 +368,7 @@ onMounted(async () => {
     </main>
 
     <!-- Scan button in thumb reach -->
-    <div v-if="!(paired && sessionError)" class="sticky bottom-0 z-20 border-t border-gray-200 bg-white/95 p-3 backdrop-blur" style="padding-bottom: max(0.75rem, env(safe-area-inset-bottom))">
+    <div v-if="ready" class="sticky bottom-0 z-20 border-t border-gray-200 bg-white/95 p-3 backdrop-blur" style="padding-bottom: max(0.75rem, env(safe-area-inset-bottom))">
       <button
         type="button"
         class="btn-primary h-14 w-full justify-center text-lg"

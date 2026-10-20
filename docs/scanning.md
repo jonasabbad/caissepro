@@ -53,12 +53,12 @@ Prices always come from CaissePro. A scan never creates or changes a price, and 
 
 ## Phone as a scanner
 
-There are two ways to use a phone. Neither needs an app; both run in the phone's browser.
+Both ways run in **CaissePro Scanner** (`/scanner`), a page that can be installed on the phone's home screen (see below). No app store is needed.
 
 | | How | What a scan does |
 |---|---|---|
 | **Paired with a computer** | On the computer, use the header button **Phone** (phone icon) → *Show the QR code* → scan the QR code with the phone. The phone does not sign in. | The phone shows the code, name, brand / model (devices), selling price and stock. The code is also sent to the computer's open page, as if it had been scanned there: POS adds it to the cart, Products opens it, the product form fills the barcode, Add a device fills IMEI / box code, other pages open "Scan to identify". An unknown code shows "Code not known" on the phone and a *Create a product* link on the POS (it opens in a new tab, so the sale in progress stays). *Send to the computer* can be turned off to look up only. |
-| **Signed in on the phone** | Menu → **Scan Product** (`/app/scan`). | Same result card, with *Add to cart* (opens the POS with the item), *Open*, *Sell* (devices) and *Create a product* (unknown code). |
+| **Signed in on the phone** | Open `/scanner` (or, on a phone, menu → **Scan Product**) and sign in once with the CaissePro account. The sign-in is kept (30-day refresh). | Same result card, with *Add to cart* (opens the POS with the item), *Open*, *Sell* (devices) and *Create a product* (unknown code). |
 
 Scanning is tap-to-scan: tap **Scan**, read one code, the camera stops, and the result shows. Then tap **Scan next**. This avoids adding the same item twice while it is still in front of the camera. A Bluetooth scanner or typing works in the field under the result.
 
@@ -90,3 +90,34 @@ Phone browsers only open the camera on **https** (or on `localhost`, which a pho
 - **Production** (`npm start`, the API serving `web/dist`): set `HTTPS_CERT_FILE` and `HTTPS_KEY_FILE` in `server/.env`, or put CaissePro behind an HTTPS reverse proxy.
 
 The phone and the computer must be on the same Wi-Fi. When the computer has several network addresses (e.g. WSL / Docker adapters), the pairing window lets you pick one, and 192.168.x.x comes first.
+
+## CaissePro Scanner app (home screen)
+
+- **Permanent address:** `https://<CaissePro address>/scanner`, e.g. `https://192.168.1.13:5173/scanner` with `npm run dev:phone`. To keep the address fixed, reserve the computer's IP in the Wi-Fi router (DHCP reservation), or use a domain name in production.
+- **What opens it:** the app opens on that page from its home-screen icon. The manifest's `start_url` is `/scanner?source=home-screen` and its scope is `/scanner`, so the rest of CaissePro is not taken over by the app.
+- **What it uses:** with a valid QR pairing it sends scans to that computer. Otherwise it uses the phone's own CaissePro sign-in, and without either it shows *Sign in* (and comes back to the scanner afterwards).
+- **Camera on launch:** once the phone has allowed the camera, the app opens the camera as soon as it starts.
+
+| File | Role |
+|---|---|
+| `web/public/scanner.webmanifest` | Name and short name "CaissePro Scanner", `display: standalone`, portrait, brand blue, icons 192 / 512 / maskable 512 |
+| `web/public/scanner-apple-touch-icon.png` + meta tags | iPhone home-screen icon and title |
+| `web/public/scanner-sw.js` | Service worker, scope `/scanner` only. Pages always come from the network, so prices and stock are never stale. Without a connection it shows `scanner-offline.html`. |
+| `web/scripts/scanner-icons.mjs` | Redraws the icons |
+
+The manifest and iPhone tags are only added while `/scanner` is open. Installing from another CaissePro page therefore does not create a scanner app.
+
+**Installing.**
+- *Android (Chrome):* open the scanner page, then tap the **Install the app** banner (or ⋮ → *Install app* / *Add to Home screen*).
+- *iPhone (Safari):* tap Share → **Add to Home Screen**; the page shows this hint.
+- **A certificate the phone trusts is needed for a real installed app on Android.** Chrome only installs it as an app, with its service worker, on a trusted HTTPS certificate. With the self-signed certificate of `npm run dev:phone`, Android adds a plain home-screen shortcut that opens in Chrome. iPhone adds it to the home screen either way.
+- Use [mkcert](https://github.com/FiloSottile/mkcert) (and install its root certificate on the phone), or a domain with a public certificate (e.g. Let's Encrypt) in production.
+
+## Desktop
+
+On a computer, the sidebar no longer shows *Scan Product* and the top bar has no *Scan* button. Both stay on phones and tablets. These keep working:
+- the camera buttons in POS, Products, the product form and Add a device;
+- USB / Bluetooth scanners;
+- the **Phone** button (pairing).
+
+A paired phone's scan on a page without its own scan handling still opens the "Scan to identify" result.

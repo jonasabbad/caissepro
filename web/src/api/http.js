@@ -57,7 +57,8 @@ http.interceptors.response.use(
     const status = error.response?.status;
     if (status === 401) {
       auth.clearAuth();
-      window.location.href = '/login';
+      // CaissePro Scanner comes back to the scanner after signing in again.
+      window.location.href = window.location.pathname === '/scanner' ? '/login?redirect=/scanner' : '/login';
       return Promise.reject(error);
     }
     if (status === 403) {
