@@ -32,3 +32,6 @@ Thumbs.db
 
 # Generated code graph (graphify), kept locally
 graphify-out/
+
+# Local analysis exports
+docs/analysis/*.pdf
