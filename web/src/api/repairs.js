@@ -7,6 +7,18 @@ export const repairsApi = {
     });
     return data.data.repairs;
   },
+  /** One page of the list: { repairs, meta: { total, totalPages, activeCount, … } }. */
+  async getPage(p = {}) {
+    const { data } = await http.get('/repairs', {
+      params: { query: p.query || undefined, status: p.status || undefined, repairerId: p.repairerId || undefined, paymentStatus: p.paymentStatus || undefined, page: p.page || 1, limit: p.limit || 20 },
+    });
+    return data.data;
+  },
+  /** { [soldUnitId]: number of repairs } */
+  async countsByUnit() {
+    const { data } = await http.get('/repairs/counts-by-unit');
+    return data.data.counts;
+  },
   async getBySoldUnit(unitId) {
     const { data } = await http.get(`/repairs/by-unit/${unitId}`);
     return data.data.repairs;

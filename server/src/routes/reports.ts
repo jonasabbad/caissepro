@@ -24,16 +24,30 @@ function period(q: Record<string, string>): Period {
 const fullName = (c: { firstName: string; lastName: string | null }) => `${c.firstName} ${c.lastName ?? ''}`.trim();
 
 async function salesReport(tenantId: string, p: Period) {
-  const txs = await prisma.transaction.findMany({
-    where: revenueWhere(tenantId, p.from, p.to),
-    include: { items: true, payments: true },
-    orderBy: { createdAt: 'desc' },
-  });
+  // Only the fields the report uses; lines and payments are summed by the database (a year can hold tens of
+  // thousands of sales: loading them with all their lines took seconds).
+  const where = revenueWhere(tenantId, p.from, p.to);
+  const [txs, items, methodGroups] = await Promise.all([
+    prisma.transaction.findMany({
+      where,
+      select: { id: true, createdAt: true, totalAmount: true, totalProfit: true, employeeId: true, status: true, amountPaid: true, amountRemaining: true },
+    }),
+    prisma.transactionItem.findMany({
+      where: { transaction: where },
+      select: { id: true, transactionId: true, productId: true, soldUnitId: true, productName: true, quantity: true, totalPrice: true },
+    }),
+    prisma.payment.groupBy({ by: ['method'], where: { transaction: where }, _sum: { amount: true }, _count: true }),
+  ]);
+  // Newest sale first, as the report lists them (sorted here: sorting by the sale's date in the database meant a
+  // large join and sort).
+  const soldAt = new Map(txs.map((t) => [t.id, t.createdAt]));
+  items.sort((a, b) => soldAt.get(b.transactionId)!.getTime() - soldAt.get(a.transactionId)!.getTime() || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  const recentItems = items.slice(0, 20);
   const [returns, reservations] = await Promise.all([
     prisma.transaction.aggregate({ where: { tenantId, type: 'return', status: { not: 'cancelled' }, createdAt: { gte: p.from, lte: p.to } }, _sum: { totalProfit: true } }),
     prisma.transaction.findMany({ where: { tenantId, type: 'reservation', status: { not: 'cancelled' }, createdAt: { gte: p.from, lte: p.to } }, select: { amountPaid: true } }),
   ]);
-  const unitIds = txs.flatMap((t) => t.items.map((i) => i.soldUnitId)).filter(Boolean) as string[];
+  const unitIds = recentItems.map((i) => i.soldUnitId).filter(Boolean) as string[];
   const imeis = new Map((await prisma.soldUnit.findMany({ where: { id: { in: unitIds } }, select: { id: true, imei: true } })).map((u) => [u.id, u.imei]));
   const totalSales = r2(txs.reduce((s, t) => s + num(t.totalAmount), 0));
   const totalProfit = r2(txs.reduce((s, t) => s + num(t.totalProfit), 0) + num(returns._sum.totalProfit));
@@ -58,33 +72,24 @@ async function salesReport(tenantId: string, p: Period) {
     s.profit = r2(s.profit + num(t.totalProfit));
     s.transactions++;
     bySeller.set(key, s);
-    for (const pay of t.payments) {
-      const m = byMethod.get(pay.method) ?? { method: pay.method, amount: 0, count: 0 };
-      m.amount = r2(m.amount + num(pay.amount));
-      m.count++;
-      byMethod.set(pay.method, m);
-    }
-    for (const i of t.items) {
-      const k = i.productId ?? `unit:${i.productName}`;
-      const e = byProduct.get(k) ?? { productId: i.productId ?? k, name: i.productName, quantity: 0, revenue: 0 };
-      e.quantity += i.quantity;
-      e.revenue = r2(e.revenue + num(i.totalPrice));
-      byProduct.set(k, e);
-    }
   }
-  const recentSales = txs
-    .flatMap((t) =>
-      t.items.map((i) => ({
-        id: i.id,
-        type: i.soldUnitId ? 'unit' : 'product',
-        name: i.productName,
-        quantity: i.quantity,
-        ...(i.soldUnitId && { imei: imeis.get(i.soldUnitId) ?? null }),
-        salePrice: num(i.totalPrice),
-        soldAt: t.createdAt.toISOString(),
-      })),
-    )
-    .slice(0, 20);
+  for (const g of methodGroups) byMethod.set(g.method, { method: g.method, amount: r2(num(g._sum.amount)), count: g._count });
+  for (const i of items) {
+    const k = i.productId ?? `unit:${i.productName}`;
+    const e = byProduct.get(k) ?? { productId: i.productId ?? k, name: i.productName, quantity: 0, revenue: 0 };
+    e.quantity += i.quantity;
+    e.revenue = r2(e.revenue + num(i.totalPrice));
+    byProduct.set(k, e);
+  }
+  const recentSales = recentItems.map((i) => ({
+    id: i.id,
+    type: i.soldUnitId ? 'unit' : 'product',
+    name: i.productName,
+    quantity: i.quantity,
+    ...(i.soldUnitId && { imei: imeis.get(i.soldUnitId) ?? null }),
+    salePrice: num(i.totalPrice),
+    soldAt: soldAt.get(i.transactionId)!.toISOString(),
+  }));
   const collected = r2(txs.reduce((s, t) => s + num(t.amountPaid), 0));
   const profit = await businessPnl(tenantId, p.from, p.to);
   return {
@@ -98,7 +103,7 @@ async function salesReport(tenantId: string, p: Period) {
       pendingTransactions: txs.filter((t) => t.status === 'pending').length,
       totalProfit,
       averageTransaction: txs.length ? r2(totalSales / txs.length) : 0,
-      totalItems: txs.reduce((s, t) => s + t.items.reduce((a, i) => a + i.quantity, 0), 0),
+      totalItems: items.reduce((a, i) => a + i.quantity, 0),
       totalAmountCollected: collected,
       totalAmountPending: r2(txs.reduce((s, t) => s + Math.max(0, num(t.amountRemaining)), 0)),
       reservationCount: reservations.length,

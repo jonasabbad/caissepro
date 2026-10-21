@@ -1,9 +1,9 @@
 import { createI18n } from 'vue-i18n';
 
 // Each module contributes a file per language under ./fr, ./en and ./ar; they are deep-merged here.
+// French is built in (it is also the fallback); English and Arabic are loaded only when used (bundle-en / bundle-ar).
 const frModules = import.meta.glob('./fr/*.js', { eager: true, import: 'default' });
-const enModules = import.meta.glob('./en/*.js', { eager: true, import: 'default' });
-const arModules = import.meta.glob('./ar/*.js', { eager: true, import: 'default' });
+const BUNDLES = { en: () => import('./bundle-en.js'), ar: () => import('./bundle-ar.js') };
 
 function deepMerge(target, source) {
   for (const [k, v] of Object.entries(source)) {
@@ -32,9 +32,9 @@ const saved = (() => {
 
 export const i18n = createI18n({
   legacy: false,
-  locale: normalize(saved),
+  locale: 'fr',
   fallbackLocale: 'fr',
-  messages: { fr: merge(frModules), en: merge(enModules), ar: merge(arModules) },
+  messages: { fr: merge(frModules) },
   missingWarn: false,
   fallbackWarn: false,
 });
@@ -63,8 +63,22 @@ export const dt = (key, named = {}) => i18n.global.t(key, named, { locale: docLo
 /** Number/date locale for those documents (French formatting under an Arabic interface). */
 export const docIntlLocale = () => (docLocale() === 'en' ? 'en-GB' : 'fr-MA');
 
-export function setLocale(locale) {
+const loaded = new Set(['fr']);
+/** Fetches a language's texts once (about 150 KB each), before it is shown. */
+export async function loadLocale(locale) {
   locale = normalize(locale);
+  if (!loaded.has(locale)) {
+    i18n.global.setLocaleMessage(locale, merge((await BUNDLES[locale]()).default));
+    loaded.add(locale);
+  }
+  return locale;
+}
+
+/** The language saved on this device, loaded before the app is shown (main.js). */
+export const initialLocale = () => setLocale(saved);
+
+export async function setLocale(locale) {
+  locale = await loadLocale(locale);
   i18n.global.locale.value = locale;
   try {
     localStorage.setItem(LOCALE_KEY, locale);

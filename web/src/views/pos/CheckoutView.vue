@@ -250,12 +250,9 @@ const { data: soldItemsData, isLoading: soldItemsLoading } = useQuery({
 });
 const soldUnits = computed(() => soldUnitsData.value?.units || []);
 const soldItems = computed(() => soldItemsData.value?.items || []);
-const { data: repairsData } = useQuery({ queryKey: ['pos-repairs'], queryFn: () => repairsApi.getAll(), enabled: isPhoneSeller });
-const repairsByUnit = computed(() => {
-  const m = new Map();
-  for (const r of repairsData.value || []) if (r.soldUnitId) m.set(r.soldUnitId, (m.get(r.soldUnitId) || 0) + 1);
-  return m;
-});
+// Repair count per device (badges): only the counts, not every repair.
+const { data: repairCounts } = useQuery({ queryKey: ['pos-repair-counts'], queryFn: () => repairsApi.countsByUnit(), enabled: isPhoneSeller });
+const repairsByUnit = computed(() => new Map(Object.entries(repairCounts.value || {})));
 
 // Category chips: categories that have products (whole catalogue), in catalogue order.
 const posCategories = computed(() => categoryCounts.value?.categories ?? []);

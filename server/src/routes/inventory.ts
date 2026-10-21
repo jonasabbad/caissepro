@@ -21,7 +21,8 @@ export default async function inventoryRoutes(app: FastifyInstance) {
     };
     const movements = await prisma.inventoryMovement.findMany({
       where,
-      include: { product: true },
+      // The list shows only the product's name and SKU (the full product made each row several times larger).
+      include: { product: { select: { id: true, name: true, sku: true } } },
       orderBy: { createdAt: 'desc' },
       take: Math.min(2000, parseInt(q.limit ?? '1000', 10) || 1000),
     });

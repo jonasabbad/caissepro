@@ -491,3 +491,29 @@ Tested on a temporary http Vite (port 5180, same API; stopped afterwards, `.clau
 | Server tests | `scanner.test.ts`: one-time QR codes (reuse, 10-minute expiry, invalid); key hashed; two phones → two computers independently; computer not connected → not sent, nothing queued; switch computer, but never to another business's; rename / revoke; expiry; deactivated user; key refused elsewhere; costs never sent; cashier vs manager. Full suite 72/72. |
 | Cleanup | TEST computers deleted; both TEST phones revoked; test cart emptied. |
 | Not verified | Real phones (camera, home-screen app) on the shop Wi-Fi. |
+
+## Performance (2026-10-21)
+
+**How it was measured.** Live site timings. API, query and browser measurements on a local production build with a separate MariaDB database filled with a year of synthetic data: 3,000 products, 3,000 customers, 2,500 phones, 30,000 sales (60,000 lines), 2,000 repairs and 15,000 stock movements. The optional slow-query log is `PRISMA_LOG_SLOW_MS=40`.
+
+**Main cause on Hostinger.** Each request costs about 60–75 ms of network plus 70–450 ms in Hostinger's proxy, even for an empty health check. Before the changes, every visit re-checked every file, because `/assets/*` was sent with `Cache-Control: max-age=0`.
+
+| | Before | After |
+|---|---|---|
+| Files for the dashboard | 61 JS/CSS, all re-checked at each visit | 25, then **0 requests** on later visits (hashed assets cached 1 year, `immutable`; `index.html` and the PWA files `no-cache`) |
+| Startup script | 593 KB (all 3 languages inside) | 140 KB (45 KB compressed) + framework file 264 KB cached for a year; English / Arabic loaded on demand (114 KB) |
+| Dashboard chart / date picker | In the page's own file | Loaded after the page is shown |
+| `/dashboard/kpis` (today) | 804 ms | 36 ms: customer debts computed only for customers that can owe money, sales grouped per customer once instead of filtered for every customer |
+| `/reports?type=sales`, one year | 6.4 s | 1.9 s: only the needed fields; payments totalled by the database; lines sorted in memory |
+| Sales search by text | 552 ms | 406 ms: one look-up in the lines for name and SKU |
+| Repairs list | Everything (2.8 MB at 2,000 repairs) | 20 per page (28 KB), with page buttons and a 0.3 s pause before searching |
+| POS repair badges | All repairs downloaded | Counts per phone only (`/repairs/counts-by-unit`) |
+| Stock movements | Full product record per row | Product name and SKU only |
+
+**Outputs unchanged.** The responses of the changed endpoints were compared byte for byte before and after (sales reports month/year, dashboard today/month, customers pages, sales searches, customers report): identical. MariaDB's plans for the report use the existing indexes (sales by tenant + date, lines by sale), so no index was added.
+
+**Tests.** 73/73 on MariaDB, including the new `listPerformance.test.ts` (repairs pages, totals, order, filters, counts per phone).
+
+**Left as is.**
+- **POS in-stock phones** (about 1.1 KB each; all fields are used for selling).
+- **Stock movements:** they merge product movements with phone arrivals and sales in the browser; paging them means moving that merge to the server.

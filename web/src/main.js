@@ -9,7 +9,7 @@ import '@fontsource/ibm-plex-sans-arabic/700.css';
 import './styles/main.css';
 import App from './App.vue';
 import { router } from './router';
-import { i18n, ltr } from './i18n';
+import { i18n, initialLocale, ltr } from './i18n';
 import { queryClient } from './queryClient';
 import { captureInstallPrompt } from './composables/useScannerApp';
 
@@ -23,4 +23,7 @@ app.use(router);
 app.use(i18n);
 // Keeps signed numbers, codes and amounts in left-to-right order inside Arabic text.
 app.config.globalProperties.$ltr = ltr;
-app.mount('#app');
+// The saved language is loaded first, so the interface does not flash in French.
+initialLocale()
+  .catch(() => undefined)
+  .finally(() => app.mount('#app'));

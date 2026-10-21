@@ -2,7 +2,7 @@
 import { hasManagerRole } from '@/utils/format';
 import { useAuthStore } from '@/stores/auth';
 import { intlLocale } from '@/i18n';
-import { computed, ref } from 'vue';
+import { computed, defineAsyncComponent, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useQuery } from '@tanstack/vue-query';
 import {
@@ -27,7 +27,8 @@ import { useSubscriptionStore } from '@/stores/subscription';
 import { Plans } from '@/config/constants';
 import { formatCurrency } from '@/utils/format';
 import KpiCard from '@/components/dashboard/KpiCard.vue';
-import SalesChart from '@/components/dashboard/SalesChart.vue';
+// The chart library (about 600 KB) loads after the figures are shown.
+const SalesChart = defineAsyncComponent(() => import('@/components/dashboard/SalesChart.vue'));
 
 const { t } = useI18n();
 const canManageExpenses = computed(() => hasManagerRole(useAuthStore().currentUser?.roles));

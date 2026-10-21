@@ -46,7 +46,8 @@ export default async function transactionRoutes(app: FastifyInstance) {
       ...(qStr(q.type) ? { type: q.type } : {}),
       ...(qStr(q.status) ? { status: q.status } : {}),
       ...(created ? { createdAt: created } : {}),
-      ...(query ? { OR: [{ transactionNumber: { contains: query } }, { items: { some: { productName: { contains: query } } } }, { items: { some: { sku: { contains: query } } } }] } : {}),
+      // One look-up in the sale's lines for both the name and the SKU (two separate ones doubled the work).
+      ...(query ? { OR: [{ transactionNumber: { contains: query } }, { items: { some: { OR: [{ productName: { contains: query } }, { sku: { contains: query } }] } } }] } : {}),
     };
   }
 

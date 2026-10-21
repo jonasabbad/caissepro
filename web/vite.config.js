@@ -17,6 +17,21 @@ export default defineConfig(({ mode }) => {
     resolve: {
       alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
     },
+    build: {
+      rollupOptions: {
+        output: {
+          // The framework and the icons are shared by every screen: two files cached for a long time, instead of
+          // dozens of tiny files fetched (and re-checked) one by one. Heavy libraries (charts, PDF, camera) stay in
+          // their own files, loaded only by the screens that use them.
+          manualChunks(id) {
+            if (!id.includes('node_modules')) return undefined;
+            if (/[\/]node_modules[\/]@heroicons[\/]/.test(id)) return 'icons';
+            if (/[\/]node_modules[\/](vue|@vue|vue-router|pinia|@tanstack|vue-i18n|@intlify|axios)[\/]/.test(id)) return 'vendor';
+            return undefined;
+          },
+        },
+      },
+    },
     server: {
       port: 5173,
       ...(phone ? { host: true, ...(cert ? { https: cert } : {}) } : {}),

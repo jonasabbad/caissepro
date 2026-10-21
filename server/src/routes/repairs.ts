@@ -6,7 +6,7 @@ import { badRequest, conflict, notFound } from '../lib/errors.js';
 import { num, parseJson, r2, serialize } from '../lib/serialize.js';
 import { authed, ok, type Req } from '../lib/route.js';
 import { makeRef } from '../lib/refs.js';
-import { endOfDay, qStr, startOfDay } from '../lib/pagination.js';
+import { endOfDay, pageMeta, pageParams, qStr, startOfDay } from '../lib/pagination.js';
 import { resolveStoreId } from '../lib/tenant.js';
 import { moveStock } from '../lib/stock.js';
 import { moveCaisse } from '../lib/caisse.js';
@@ -182,8 +182,24 @@ export default async function repairRoutes(app: FastifyInstance) {
         OR: [{ repairNumber: { contains: query } }, { deviceDescription: { contains: query } }, { customerId: { in: customers.map((c) => c.id) } }],
       };
     }
+    // With ?page=…, one page plus the totals the list shows; without it, every match (kept for older callers).
+    if (q.page !== undefined) {
+      const p = pageParams(q, 20, 100);
+      const [total, activeCount, rows] = await Promise.all([
+        prisma.repair.count({ where }),
+        prisma.repair.count({ where: { AND: [where, { status: { in: ['pending', 'in_progress', 'completed'] } }] } }),
+        prisma.repair.findMany({ where, include: { expenses: true }, orderBy: { receivedAt: 'desc' }, skip: p.skip, take: p.limit }),
+      ]);
+      return ok({ repairs: await present(rows), meta: { ...pageMeta(total, p), activeCount } });
+    }
     const rows = await prisma.repair.findMany({ where, include: { expenses: true }, orderBy: { receivedAt: 'desc' } });
     return ok({ repairs: await present(rows) });
+  });
+
+  /** How many repairs each device has had (POS badges), without loading the repairs themselves. */
+  app.get('/repairs/counts-by-unit', async (req) => {
+    const groups = await prisma.repair.groupBy({ by: ['soldUnitId'], where: { tenantId: req.auth.tenantId, soldUnitId: { not: null } }, _count: true });
+    return ok({ counts: Object.fromEntries(groups.map((g) => [g.soldUnitId!, g._count])) });
   });
 
   app.get('/repairs/by-unit/:unitId', async (req: Req<unknown, unknown, { unitId: string }>) => {

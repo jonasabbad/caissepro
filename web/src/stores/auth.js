@@ -30,7 +30,7 @@ export const useAuthStore = defineStore('auth', () => {
   /** Switches the interface language, remembers it on this device and saves it to the signed-in user. */
   async function setLanguage(l) {
     const before = currentLocale();
-    setLocale(l);
+    await setLocale(l);
     // Data fetched in the previous language (category names...) is fetched again.
     if (currentLocale() !== before) queryClient.invalidateQueries();
     if (!user.value || !tokens.value?.accessToken) {
@@ -48,7 +48,7 @@ export const useAuthStore = defineStore('auth', () => {
       localeChosenSignedOut = false;
       return setLanguage(currentLocale());
     }
-    if (user.value.locale && user.value.locale !== currentLocale()) setLocale(user.value.locale);
+    if (user.value.locale && user.value.locale !== currentLocale()) await setLocale(user.value.locale);
   }
 
   const isAuthenticated = computed(() => !!user.value && !!tokens.value?.accessToken);

@@ -1,6 +1,6 @@
 <script setup>
 import { intlLocale } from '@/i18n';
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useQuery } from '@tanstack/vue-query';
 import {
@@ -21,6 +21,7 @@ import { formatCurrency } from '@/utils/format';
 import { printRepairLabel, repairReceiptProps } from '@/utils/repairPrint';
 import ReceiptModal from '@/components/pos/ReceiptModal.vue';
 import Toast from '@/components/ui/Toast.vue';
+import Pagination from '@/components/ui/Pagination.vue';
 
 const { t } = useI18n();
 const auth = useAuthStore();
@@ -29,11 +30,23 @@ const status = ref('');
 const repairerId = ref('');
 const paymentStatus = ref('');
 const { data: repairers } = useQuery({ queryKey: ['repairers-all'], queryFn: () => repairersApi.getAll() });
-const { data: repairs, isLoading } = useQuery({
-  queryKey: ['repairs', query, status, repairerId, paymentStatus],
-  queryFn: () =>
-    repairsApi.getAll({ query: query.value || undefined, status: status.value || undefined, repairerId: repairerId.value || undefined, paymentStatus: paymentStatus.value || undefined }),
+// One page at a time; the search waits for a short pause in typing instead of asking the server at every key.
+const page = ref(1);
+const search = ref('');
+let searchTimer = null;
+watch(query, (v) => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => (search.value = v.trim()), 300);
 });
+watch([search, status, repairerId, paymentStatus], () => (page.value = 1));
+const { data: repairsPage, isLoading } = useQuery({
+  queryKey: ['repairs', search, status, repairerId, paymentStatus, page],
+  queryFn: () =>
+    repairsApi.getPage({ query: search.value || undefined, status: status.value || undefined, repairerId: repairerId.value || undefined, paymentStatus: paymentStatus.value || undefined, page: page.value }),
+  placeholderData: (prev) => prev,
+});
+const repairs = computed(() => repairsPage.value?.repairs || []);
+const meta = computed(() => repairsPage.value?.meta || { total: 0, totalPages: 1, activeCount: 0 });
 const PAY_BADGE = { unpaid: 'bg-red-100 text-red-700', partial: 'bg-amber-100 text-amber-700', paid: 'bg-emerald-100 text-emerald-700' };
 
 const formatDay = (d) => new Date(d).toLocaleDateString(intlLocale(), { day: '2-digit', month: 'short', year: 'numeric' });
@@ -44,7 +57,7 @@ const STATUS = {
   delivered: { cls: 'badge-secondary', icon: TruckIcon },
   cancelled: { cls: 'badge-danger', icon: XCircleIcon },
 };
-const activeCount = computed(() => (repairs.value || []).filter((r) => ['pending', 'in_progress', 'completed'].includes(r.status)).length);
+const activeCount = computed(() => meta.value.activeCount);
 
 const showTicket = ref(false);
 const ticketRepair = ref(null);
@@ -151,6 +164,9 @@ async function printLabel(r) {
             </tr>
           </tbody>
         </table>
+      </div>
+      <div v-if="meta.totalPages > 1" class="border-t border-gray-100 p-3">
+        <Pagination v-model:page="page" :total-pages="meta.totalPages" :total="meta.total" :page-size="20" />
       </div>
     </div>
 

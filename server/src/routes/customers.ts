@@ -27,6 +27,22 @@ const blankToNull = (v: string | null | undefined) => (v === undefined ? undefin
  * Derived customer figures.
  * balance < 0: the customer owes the shop (unpaid sales); balance > 0: the shop owes the customer (credit).
  */
+/**
+ * Customers that can owe money: an unpaid balance on a sale, or a negative account balance. Everyone else has a
+ * balance of zero or more, so debt totals only need these (instead of every customer of the business).
+ */
+export async function customersWithPossibleDebt(tenantId: string) {
+  const [withDebt, negative] = await Promise.all([
+    prisma.transaction.findMany({
+      where: { tenantId, customerId: { not: null }, status: { not: 'cancelled' }, type: { notIn: ['return', 'reservation'] }, amountRemaining: { not: 0 } },
+      select: { customerId: true },
+      distinct: ['customerId'],
+    }),
+    prisma.customer.findMany({ where: { tenantId, currentBalance: { lt: 0 } }, select: { id: true } }),
+  ]);
+  return [...new Set([...withDebt.map((t) => t.customerId!), ...negative.map((c) => c.id)])];
+}
+
 export async function customerStats(tenantId: string, ids: string[]) {
   if (!ids.length) return new Map<string, any>();
   const [txs, refunds, reservations] = await Promise.all([
@@ -38,9 +54,21 @@ export async function customerStats(tenantId: string, ids: string[]) {
     prisma.soldUnit.findMany({ where: { tenantId, reservedByCustomerId: { in: ids }, soldAt: null, reservedAt: { not: null } }, select: { reservedByCustomerId: true } }),
   ]);
   const customers = await prisma.customer.findMany({ where: { id: { in: ids } }, select: { id: true, currentBalance: true } });
+  // Grouped once per customer (filtering the whole list for every customer grew with customers × sales).
+  const group = <T,>(rows: T[], key: (r: T) => string | null) => {
+    const m = new Map<string, T[]>();
+    for (const r of rows) {
+      const k = key(r);
+      if (k) (m.get(k) ?? m.set(k, []).get(k)!).push(r);
+    }
+    return m;
+  };
+  const txsBy = group(txs, (t) => t.customerId);
+  const refundsBy = group(refunds, (r) => r.customerId);
+  const reservationsBy = group(reservations, (r) => r.reservedByCustomerId);
   const out = new Map<string, any>();
   for (const c of customers) {
-    const mine = txs.filter((t) => t.customerId === c.id);
+    const mine = txsBy.get(c.id) ?? [];
     // Reservations are deposits on items not handed over yet: their balance is not a debt.
     const sales = mine.filter((t) => t.type !== 'return' && t.type !== 'reservation');
     const returns = mine.filter((t) => t.type === 'return');
@@ -52,10 +80,8 @@ export async function customerStats(tenantId: string, ids: string[]) {
       totalRefunded: r2(returns.reduce((s, t) => s + num(t.amountPaid), 0)),
       balance: r2(credit - debt),
       debt: r2(debt),
-      reservationCount: reservations.filter((r) => r.reservedByCustomerId === c.id).length,
-      pendingRefundAmount: r2(
-        refunds.filter((r) => r.customerId === c.id).reduce((s, r) => s + num(r.amount) - num(r.amountPaid), 0),
-      ),
+      reservationCount: (reservationsBy.get(c.id) ?? []).length,
+      pendingRefundAmount: r2((refundsBy.get(c.id) ?? []).reduce((s, r) => s + num(r.amount) - num(r.amountPaid), 0)),
     });
   }
   return out;

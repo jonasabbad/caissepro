@@ -3,7 +3,7 @@ import { prisma, Prisma } from '../lib/prisma.js';
 import { num, r2, serialize } from '../lib/serialize.js';
 import { authed, ok, type Req } from '../lib/route.js';
 import { endOfDay, qStr, startOfDay } from '../lib/pagination.js';
-import { customerStats } from './customers.js';
+import { customerStats, customersWithPossibleDebt } from './customers.js';
 import { supplierStats } from './suppliers.js';
 import { businessPnl, repairsPnl } from '../lib/profit.js';
 
@@ -72,13 +72,13 @@ export default async function dashboardRoutes(app: FastifyInstance) {
       salesAndProfit(t, p.prevFrom, p.prevTo, storeId),
       businessPnl(t, p.from, p.to, storeId),
       businessPnl(t, p.prevFrom, p.prevTo, storeId),
-      prisma.customer.findMany({ where: { tenantId: t }, select: { id: true } }),
+      customersWithPossibleDebt(t),
       prisma.supplier.findMany({ where: { tenantId: t }, select: { id: true } }),
       prisma.customerPayment.aggregate({ where: { tenantId: t, createdAt: { gte: p.from, lte: p.to } }, _sum: { amount: true }, _count: true }),
       prisma.customer.count({ where: { tenantId: t, createdAt: { gte: p.from, lte: p.to } } }),
       prisma.payment.aggregate({ where: { transaction: { tenantId: t, ...(storeId && { storeId }) }, receivedAt: { gte: p.from, lte: p.to } }, _sum: { amount: true } }),
     ]);
-    const cStats = [...(await customerStats(t, customers.map((c) => c.id))).values()].filter((s: any) => s.balance < 0);
+    const cStats = [...(await customerStats(t, customers)).values()].filter((s: any) => s.balance < 0);
     const sStats = [...(await supplierStats(t, suppliers.map((s) => s.id))).values()].filter((s) => s.balance < 0);
     return ok({
       kpis: {

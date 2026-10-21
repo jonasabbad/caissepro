@@ -1,17 +1,31 @@
 <script setup>
 // Date range picker (YYYY-MM-DD strings) with quick presets: today, this week, last 30 days, ...
-import VueDatePicker from '@vuepic/vue-datepicker';
-import '@vuepic/vue-datepicker/dist/main.css';
 import { format, parseISO, startOfMonth, endOfMonth, startOfYear, subDays, subMonths } from 'date-fns';
 import { arMA, enGB, fr } from 'date-fns/locale';
-import { computed } from 'vue';
+import { computed, defineAsyncComponent, h } from 'vue';
 import { currentLocale, i18n } from '@/i18n';
 const dfLocale = () => ({ en: enGB, ar: arMA })[currentLocale()] || fr;
 
 const model = defineModel({ type: Array, default: null });
-defineProps({
+const props = defineProps({
   clearable: { type: Boolean, default: true },
   placeholder: { type: String, default: null },
+});
+
+// The calendar library (about 200 KB) loads after the page is shown; until then, the same field shows the
+// selected period (or the placeholder).
+const VueDatePicker = defineAsyncComponent({
+  loader: () => Promise.all([import('@vuepic/vue-datepicker'), import('@vuepic/vue-datepicker/dist/main.css')]).then(([m]) => m.default),
+  loadingComponent: {
+    render: () =>
+      h('input', {
+        class: 'dp__input dp-loading-input',
+        readonly: true,
+        value: model.value?.length ? display(model.value) : '',
+        placeholder: props.placeholder || i18n.global.t('common.selectPeriod'),
+      }),
+  },
+  delay: 0,
 });
 
 const iso = (d) => format(d, 'yyyy-MM-dd');
@@ -68,6 +82,11 @@ const presets = computed(() => [
 </template>
 
 <style scoped>
+.date-picker-wrapper :deep(.dp-loading-input) {
+  width: 100%;
+  border-width: 1px;
+  padding: 0 0.75rem;
+}
 .date-picker-wrapper :deep(.dp__input) {
   height: 2.625rem;
   border-radius: 0.5rem;

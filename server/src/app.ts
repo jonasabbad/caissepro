@@ -69,7 +69,17 @@ export async function buildApp(opts: { logger?: boolean; https?: { key: Buffer; 
   // Serve the built SPA in production (web/dist), with history-API fallback.
   const webDist = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../web/dist');
   if (existsSync(webDist)) {
-    await app.register(fastifyStatic, { root: webDist, wildcard: false });
+    // Built files under /assets/ have a content hash in their name: browsers keep them for a year without asking
+    // again. Everything else (index.html, manifest, service worker, icons) is checked on each visit, so a new
+    // version shows up at once.
+    await app.register(fastifyStatic, {
+      root: webDist,
+      wildcard: false,
+      cacheControl: false,
+      setHeaders: (res, filePath) => {
+        res.setHeader('Cache-Control', /[\\/]assets[\\/]/.test(filePath) ? 'public, max-age=31536000, immutable' : 'no-cache');
+      },
+    });
     app.setNotFoundHandler((req, reply) => {
       if (req.url.startsWith('/api/') || req.url.startsWith('/uploads/')) {
         return reply.status(404).send({ success: false, message: `Cannot ${req.method} ${req.url}`, error: 'Not Found', statusCode: 404 });
