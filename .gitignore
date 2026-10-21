@@ -1,10 +1,34 @@
+# Dependencies and build output
 node_modules/
 dist/
-*.log
-.env
-server/prisma/*.db
-server/prisma/*.db-journal
-server/uploads/
 coverage/
-.DS_Store
+*.tsbuildinfo
+.vite/
+deploy/
+
+# Environment and secrets (server/.env.example is the template)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+
+# Databases and client data: never committed
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+server/uploads/
 server/uploads-test/
+
+# Logs and OS files
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+
+# Generated code graph (graphify), kept locally
+graphify-out/
