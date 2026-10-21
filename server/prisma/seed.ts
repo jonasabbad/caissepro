@@ -2,42 +2,14 @@
  * Development seed: categories, a demo tenant with one store and an admin account.
  *   admin@caissepro.local / demo1234
  */
-import { readFileSync } from 'node:fs';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import { seedReferenceData } from '../src/lib/bootstrap.js';
 
 const prisma = new PrismaClient();
 
-const categories: Record<string, [string, string][]> = JSON.parse(
-  readFileSync(new URL('../src/data/categories.json', import.meta.url), 'utf8'),
-);
-
 async function main() {
-  for (const [activityType, list] of Object.entries(categories)) {
-    for (const [i, [name, slug]] of list.entries()) {
-      await prisma.category.upsert({
-        where: { activityType_slug: { activityType, slug } },
-        update: { name, sortOrder: i + 1 },
-        create: { activityType, name, slug, sortOrder: i + 1 },
-      });
-    }
-  }
-
-  // Subscription plans (prices are editable from the super-admin area).
-  const featureLabels: [string, string][] = JSON.parse(
-    readFileSync(new URL('../src/data/plan-features.json', import.meta.url), 'utf8'),
-  );
-  const plans: any[] = JSON.parse(readFileSync(new URL('../src/data/plans.json', import.meta.url), 'utf8'));
-  for (const p of plans) {
-    const { included, ...rest } = p;
-    const features = JSON.stringify(featureLabels.map(([key, label]) => ({ key, label, included: included.includes(key) })));
-    await prisma.subscriptionPlan.upsert({
-      where: { code: p.code },
-      update: {},
-      create: { ...rest, features },
-    });
-  }
-  await prisma.platformSettings.upsert({ where: { id: 'platform' }, update: {}, create: { id: 'platform' } });
+  await seedReferenceData({ refreshNames: true });
 
   const tenant = await prisma.tenant.upsert({
     where: { slug: 'demo' },

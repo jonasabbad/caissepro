@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch --env-file=.env src/index.ts",
-    "build": "tsc -p tsconfig.json",
-    "start": "node --env-file=.env dist/index.js",
+    "build": "prisma generate && tsc -p tsconfig.json && node scripts/copy-data.mjs",
+    "start": "node start.mjs",
     "db:push": "prisma db push",
     "db:init": "prisma db push && tsx prisma/seed.ts",
     "db:seed": "tsx prisma/seed.ts",
@@ -25,12 +25,12 @@
     "bcryptjs": "^3.0.2",
     "fastify": "^5.12.7",
     "jsonwebtoken": "^9.0.2",
+    "prisma": "6.19.3",
     "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/jsonwebtoken": "^9.0.9",
     "@types/node": "^22.15.0",
-    "prisma": "6.19.3",
     "tsx": "^4.19.4",
     "typescript": "^5.8.3",
     "vitest": "^3.1.3"
