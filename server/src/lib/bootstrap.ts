@@ -1,6 +1,8 @@
 import { readFileSync } from 'node:fs';
+import { gunzipSync } from 'node:zlib';
 import bcrypt from 'bcryptjs';
 import { prisma } from './prisma.js';
+import { importTacRows } from './tac.js';
 
 const data = <T>(file: string): T => JSON.parse(readFileSync(new URL(`../data/${file}`, import.meta.url), 'utf8'));
 
@@ -56,4 +58,22 @@ export async function bootstrapFirstAdmin(env = process.env) {
     },
   });
   return email;
+}
+
+/**
+ * Phone models for IMEI identification (TAC → brand / model), shipped with the app in data/tac-reference.json.gz
+ * (Osmocom TAC database, CC BY-SA 3.0). Loaded only while no shared TAC row exists, so imports made later with
+ * `npm run tac:import` are never overwritten. Returns the number of rows loaded.
+ */
+export async function seedTacReference() {
+  if ((await prisma.tacModel.count({ where: { tenantId: '' } })) > 0) return 0;
+  const file = JSON.parse(gunzipSync(readFileSync(new URL('../data/tac-reference.json.gz', import.meta.url))).toString('utf8')) as {
+    sources: { source: string; rows: [string, string, string, string | null, string | null, string | null][] }[];
+  };
+  let n = 0;
+  for (const { source, rows } of file.sources) {
+    await importTacRows(rows.map(([tac, brand, model, modelNumber, aliases, deviceType]) => ({ tac, brand, model, modelNumber, aliases, deviceType })), source);
+    n += rows.length;
+  }
+  return n;
 }

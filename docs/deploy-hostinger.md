@@ -9,15 +9,15 @@ Target: **https://caissepro.electro36.ma**. It is a subdomain of its own, so it 
 | Runtime | Node.js 22 (20 also works); one process serves the web app, the API and `/uploads/` |
 | Build | `npm run build` at the repository root: Vite builds `web/dist`; the server runs `prisma generate`, `tsc`, then copies its catalogues to `server/dist/data` |
 | Start | `npm start` (root) → `server/start.mjs`. It updates the database schema (`prisma db push`, which refuses data-losing changes), then starts the server on `PORT` |
-| Database | SQLite file. **It must live outside the deployed folder**: each deploy replaces the site's files |
-| Uploads | Product / device images and documents, **also outside the deployed folder** (`UPLOAD_DIR`) |
+| Database | MariaDB on Hostinger (hPanel → Databases). The app reaches it at **127.0.0.1:3306** (not `localhost`, which can resolve to IPv6). At each start, `prisma migrate deploy` applies the migrations not applied yet; it never resets data. On a new database it also loads the reference phone models (TAC) |
+| Uploads | Product / device images and documents, **outside the deployed folder** (`UPLOAD_DIR`): each deploy replaces the site's files |
 
 ## Environment variables (hPanel → the Node.js app → Environment variables)
 
 | Variable | Value |
 |---|---|
 | `NODE_ENV` | `production` |
-| `DATABASE_URL` | `file:/home/<hosting user>/caissepro-data/caissepro.db` (absolute path, outside `public_html` / the app folder) |
+| `DATABASE_URL` | `mysql://<db user>:<password>@127.0.0.1:3306/<db name>`, e.g. `mysql://u251095411_caissepro:<password>@127.0.0.1:3306/u251095411_caisseproDATA`. URL-encode special characters in the password (`@` → `%40`, `:` → `%3A`, `/` → `%2F`, `#` → `%23`) |
 | `UPLOAD_DIR` | `/home/<hosting user>/caissepro-data/uploads` |
 | `JWT_SECRET` | random, 32+ characters (e.g. `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`) |
 | `JWT_REFRESH_SECRET` | another random value, 32+ characters |
@@ -29,7 +29,7 @@ Target: **https://caissepro.electro36.ma**. It is a subdomain of its own, so it 
 
 1. hPanel → Websites: add **caissepro.electro36.ma** as a Node.js web app, or as a subdomain of electro36.ma, and enable SSL.
 2. Set the environment variables above.
-3. Deploy the repository archive (without `node_modules`, `dist`, `.env`, `*.db`, `uploads`), Node 22:
+3. Deploy the repository archive (without `node_modules`, `dist`, `.env`, `uploads`), Node 22:
    - build command `npm run build`;
    - start command `npm start` (entry file `server/start.mjs`).
 4. Open the site and sign in with `ADMIN_EMAIL`. Then remove `ADMIN_PASSWORD` from the variables.
@@ -45,3 +45,11 @@ The site has a real certificate, so phones get camera access and CaissePro Scann
 - **Pages:** `/`, `/scanner`, the manifest, the API health check, sign-in, categories and catalogues all respond.
 - **Accounts:** the demo account is refused. A second start does not create another account.
 - **Secrets:** a short `JWT_SECRET` stops the start.
+
+## Variables are applied at build time
+
+Hostinger writes the environment variables into the app when it builds. After changing a variable in hPanel, start a new build (Redeploy). Otherwise the running app keeps the old values.
+
+## Moving existing SQLite data
+
+An old SQLite `.db` file can be copied into an **empty** MariaDB database (migrations applied first) with `npm run db:copy-sqlite -w server -- <file.db>`, from a computer that can reach the database. The SQLite file is only read. The copy refuses a database that already holds rows, runs in one transaction, and compares the row counts of every table.

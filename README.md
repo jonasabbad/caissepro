@@ -26,7 +26,7 @@ Point-of-sale and store management for phone shops: sales, phones tracked by IME
 | | |
 |---|---|
 | `web/` | Vue 3, Vite, Tailwind CSS, vue-i18n, Pinia, TanStack Vue Query |
-| `server/` | Node.js, Fastify 5, Prisma with SQLite, Zod, Vitest |
+| `server/` | Node.js, Fastify 5, Prisma with MariaDB / MySQL, Zod, Vitest |
 
 The two parts are npm workspaces of one repository. In production the server also serves the built web app.
 
@@ -34,13 +34,15 @@ The two parts are npm workspaces of one repository. In production the server als
 
 - Node.js 20.12 or later (22 recommended)
 - npm
+- MariaDB 10.6+ or MySQL 8+, with two databases: one for development (e.g. `caissepro_dev`) and one for the tests (its name must contain `test`, e.g. `caissepro_test`)
 
 ## Getting started
 
 ```bash
 npm install
-cp server/.env.example server/.env   # then set JWT_SECRET and JWT_REFRESH_SECRET
-npm run setup                         # creates the database and a demo account
+cp server/.env.example server/.env              # set DATABASE_URL, JWT_SECRET and JWT_REFRESH_SECRET
+cp server/.env.test.example server/.env.test    # set TEST_DATABASE_URL (used by npm test only)
+npm run setup                                    # applies the migrations and creates a demo account
 npm run dev                           # web on http://localhost:5173, API on http://localhost:3001
 ```
 
@@ -62,10 +64,12 @@ Then open the **Phone** button in the top bar and scan the QR code with the phon
 |---|---|
 | `npm run dev` | Web and API in watch mode |
 | `npm run dev:phone` | Same, with the web app served over HTTPS on the local network |
-| `npm test` | Server tests (Vitest, on a separate test database) |
+| `npm test` | Server tests (Vitest). **Empties the database in `TEST_DATABASE_URL`** at each run; that name must contain `test` |
 | `npm run build` | Builds the web app and the server |
-| `npm start` | Production start: updates the database schema, then starts the server |
-| `npm run db:reset` | **Deletes the development database** and recreates it with the demo data |
+| `npm start` | Production start: applies new database migrations (`prisma migrate deploy`, never resets), then starts the server |
+| `npm run db:migrate -w server` | Creates a migration after a change to `server/prisma/schema.prisma` (development) |
+| `npm run db:reset` | **Deletes all data in the development database** and recreates it with the demo data |
+| `npm run db:copy-sqlite -w server -- <old.db>` | Copies an old SQLite CaissePro database into an empty MariaDB / MySQL database |
 | `npm run tac:import -w server -- <file>` | Imports a TAC database for IMEI identification ([docs/imei-identification.md](docs/imei-identification.md)) |
 | `npm run i18n:check -w web` | Checks that French, English and Arabic have the same keys |
 
@@ -75,7 +79,7 @@ Settings come from environment variables. Locally they can be in `server/.env`.
 
 | Variable | Purpose |
 |---|---|
-| `DATABASE_URL` | SQLite file, e.g. `file:./dev.db`. In production, use an absolute path outside the app folder |
+| `DATABASE_URL` | MariaDB / MySQL address, e.g. `mysql://user:password@127.0.0.1:3306/caissepro`. Special characters in the password must be URL-encoded |
 | `JWT_SECRET`, `JWT_REFRESH_SECRET` | Random values. In production the server refuses to start unless each is at least 32 characters |
 | `PORT` / `API_PORT` | Server port (`PORT` is set by hosting providers; default 3001) |
 | `UPLOAD_DIR` | Folder for uploaded images and documents (default `server/uploads`) |
@@ -89,7 +93,8 @@ See [docs/deploy-hostinger.md](docs/deploy-hostinger.md) (Node.js hosting, with 
 
 ## Data and security
 
-- **Kept out of Git** (`.gitignore`): databases (`*.db`), `.env` files, keys, uploads, logs and build output. Back up the database file and the uploads folder yourself.
+- **Kept out of Git** (`.gitignore`): `.env` files, keys, uploads, logs and build output. The data lives in MariaDB / MySQL: back up that database and the uploads folder.
+- **Schema changes** are versioned migrations in `server/prisma/migrations`, applied in order at start-up.
 - **Passwords** are hashed with bcrypt.
 - **Sessions** use 8-hour JWT access tokens and refresh tokens that rotate on each use.
 - **Phone scanners** use their own keys, stored only as hashes. These keys can only look products up and send codes to a computer of the same business.

@@ -7,13 +7,14 @@
     "dev": "tsx watch --env-file=.env src/index.ts",
     "build": "prisma generate && tsc -p tsconfig.json && node scripts/copy-data.mjs",
     "start": "node start.mjs",
-    "db:push": "prisma db push",
-    "db:init": "prisma db push && tsx prisma/seed.ts",
+    "db:init": "prisma migrate deploy && tsx prisma/seed.ts",
     "db:seed": "tsx prisma/seed.ts",
-    "db:reset": "prisma db push --force-reset && tsx prisma/seed.ts",
+    "db:reset": "prisma migrate reset",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "tac:import": "tsx --env-file=.env scripts/import-tac.ts"
+    "tac:import": "tsx --env-file=.env scripts/import-tac.ts",
+    "db:migrate": "prisma migrate dev",
+    "db:copy-sqlite": "tsx --env-file=.env scripts/copy-sqlite-to-mysql.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

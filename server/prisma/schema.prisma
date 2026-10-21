@@ -7,7 +7,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
@@ -21,17 +21,17 @@ model Tenant {
   status                String    @default("active") // active | suspended | expired (no trial period)
   plan                  String    @default("") // "" | demarrage | professionnel | multi_magasins | lifetime
   subscriptionExpiresAt DateTime?
-  enabledModules        String    @default("[\"core\"]") // JSON string[]
-  customPricing         String? // JSON {discountPercent, monthlyPrice?, yearlyPrice?}
+  enabledModules        String    @default("[\"core\"]") @db.Text // JSON string[]
+  customPricing         String?   @db.Text // JSON {discountPercent, monthlyPrice?, yearlyPrice?}
   autoRenew             Boolean   @default(false)
   city                  String?
   latitude              Float?
   longitude             Float?
   applyTva              Boolean   @default(false)
   legalStatus           String? // auto_entrepreneur | sarl | ...
-  settings              String    @default("{}") // JSON: locale, taxRate, currency, timezone, lowStockThreshold, defaultPaymentMethods
-  businessInfo          String    @default("{}") // JSON: legalName, ice, rc, if, patente, cnss, address, city, phone, email
-  printing              String    @default("{}") // JSON printing preferences
+  settings              String    @default("{}") @db.Text // JSON: locale, taxRate, currency, timezone, lowStockThreshold, defaultPaymentMethods
+  businessInfo          String    @default("{}") @db.Text // JSON: legalName, ice, rc, if, patente, cnss, address, city, phone, email
+  printing              String    @default("{}") @db.Text // JSON printing preferences
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
@@ -51,7 +51,7 @@ model Store {
   tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   name          String
   code          String
-  address       String?
+  address       String?  @db.Text
   city          String?
   phone         String?
   isActive      Boolean  @default(true)
@@ -73,7 +73,7 @@ model User {
   passwordHash               String
   firstName                  String    @default("")
   lastName                   String    @default("")
-  roles                      String    @default("[\"admin\"]") // JSON: super_admin | admin | manager | cashier | viewer
+  roles                      String    @default("[\"admin\"]") @db.Text // JSON: super_admin | admin | manager | cashier | viewer
   isActive                   Boolean   @default(true)
   currentStoreId             String?
   lastLoginAt                DateTime?
@@ -128,7 +128,7 @@ model Product {
   sku             String
   barcode         String?
   name            String
-  description     String?
+  description     String?   @db.Text
   costPrice       Decimal   @default(0)
   retailPrice     Decimal   @default(0)
   stockQuantity   Int       @default(0)
@@ -137,8 +137,8 @@ model Product {
   packCostPrice   Decimal?
   packRetailPrice Decimal?
   status          String    @default("available") // available | low_stock | out_of_stock | archived
-  variants        String? // JSON object
-  imageUrl        String?
+  variants        String?   @db.Text // JSON object
+  imageUrl        String?   @db.Text
   isTracked       Boolean   @default(true)
   archivedAt      DateTime?
   createdAt       DateTime  @default(now())
@@ -162,7 +162,7 @@ model InventoryMovement {
   previousQuantity Int
   newQuantity      Int
   reference        String?
-  notes            String?
+  notes            String?  @db.Text
   createdBy        String?
   createdAt        DateTime @default(now())
 
@@ -198,9 +198,9 @@ model SoldUnit {
   repairCost               Decimal   @default(0)
   batteryHealth            Int?
   chargeCycles             Int?
-  notes                    String?
-  accessories              String? // JSON string[]
-  imageUrl                 String? // photo of this device (uploaded), shown in lists and on its page
+  notes                    String?   @db.Text
+  accessories              String?   @db.Text // JSON string[]
+  imageUrl                 String?   @db.Text // photo of this device (uploaded), shown in lists and on its page
   hasWarranty              Boolean   @default(true)
   warrantyDays             Int?
   warrantyExpiresAt        DateTime?
@@ -232,8 +232,8 @@ model ReservationRefund {
   amount        Decimal
   amountPaid    Decimal   @default(0)
   status        String    @default("pending") // pending | partial | completed
-  payments      String    @default("[]") // JSON [{amount, method, paidAt, notes}]
-  reason        String?
+  payments      String    @default("[]") @db.Text // JSON [{amount, method, paidAt, notes}]
+  reason        String?   @db.Text
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   completedAt   DateTime?
@@ -251,11 +251,11 @@ model Customer {
   lastName       String   @default("")
   email          String?
   phone          String?
-  address        String?
+  address        String?  @db.Text
   city           String?
   cin            String?
   ice            String?
-  notes          String?
+  notes          String?  @db.Text
   totalPurchases Int      @default(0)
   totalSpent     Decimal  @default(0)
   currentBalance Decimal  @default(0) // amount the customer owes the store
@@ -277,8 +277,8 @@ model CustomerPayment {
   amount      Decimal
   method      String   @default("cash")
   reference   String?
-  notes       String?
-  allocations String   @default("[]") // JSON [{transactionId, amount}]
+  notes       String?  @db.Text
+  allocations String   @default("[]") @db.Text // JSON [{transactionId, amount}]
   createdBy   String?
   createdAt   DateTime @default(now())
 }
@@ -291,9 +291,9 @@ model Supplier {
   contactName    String?
   email          String?
   phone          String?
-  address        String?
+  address        String?           @db.Text
   city           String?
-  notes          String?
+  notes          String?           @db.Text
   totalOrders    Int               @default(0)
   totalPurchased Decimal           @default(0)
   currentBalance Decimal           @default(0) // amount the store owes the supplier
@@ -315,8 +315,8 @@ model SupplierOrder {
   totalAmount     Decimal   @default(0)
   amountPaid      Decimal   @default(0)
   amountRemaining Decimal   @default(0)
-  payments        String    @default("[]") // JSON [{amount, method, paidAt, reference}]
-  notes           String?
+  payments        String    @default("[]") @db.Text // JSON [{amount, method, paidAt, reference}]
+  notes           String?   @db.Text
   orderedAt       DateTime  @default(now())
   receivedAt      DateTime?
   createdBy       String?
@@ -344,7 +344,7 @@ model SupplierOrderItem {
   brand            String?
   deviceModel      String?
   defaultSalePrice Decimal?
-  unitDetails      String? // JSON [{imei, serialNumber, storage, color, condition, salePrice, soldUnitId}]
+  unitDetails      String?       @db.Text // JSON [{imei, serialNumber, storage, color, condition, salePrice, soldUnitId}]
 }
 
 model Employee {
@@ -386,8 +386,8 @@ model Transaction {
   totalProfit           Decimal   @default(0)
   tradeInValue          Decimal   @default(0)
   originalTransactionId String?
-  notes                 String?
-  cancelReason          String?
+  notes                 String?   @db.Text
+  cancelReason          String?   @db.Text
   cancelledAt           DateTime?
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
@@ -415,7 +415,7 @@ model TransactionItem {
   totalPrice       Decimal
   profit           Decimal     @default(0)
   saleMode         String? // unit | pack
-  variants         String? // JSON
+  variants         String?     @db.Text // JSON
   returnedQuantity Int         @default(0)
   originalItemId   String?
 }
@@ -441,7 +441,7 @@ model CaisseMovement {
   amount            Decimal // positive; signed only for adjustments
   balanceBefore     Decimal
   balanceAfter      Decimal
-  reason            String?
+  reason            String?  @db.Text
   transactionId     String?
   transactionNumber String?
   createdBy         String?
@@ -462,14 +462,14 @@ model Invoice {
   customerId      String?
   customerName    String?
   customerTaxId   String?
-  customerAddress String?
-  items           String    @default("[]") // JSON [{id, description, quantity, unitPrice, subtotal}]
+  customerAddress String?   @db.Text
+  items           String    @default("[]") @db.Text // JSON [{id, description, quantity, unitPrice, subtotal}]
   subtotal        Decimal   @default(0)
   discountAmount  Decimal   @default(0)
   taxRate         Decimal   @default(0)
   taxAmount       Decimal   @default(0)
   totalAmount     Decimal   @default(0)
-  notes           String?
+  notes           String?   @db.Text
   date            DateTime  @default(now())
   isArchived      Boolean   @default(false)
   archivedAt      DateTime?
@@ -501,10 +501,10 @@ model Repair {
   storeId               String?
   repairNumber          String
   customerId            String?
-  deviceDescription     String
+  deviceDescription     String    @db.Text
   soldUnitId            String?
   repairerId            String?
-  diagnosticNotes       String?
+  diagnosticNotes       String?   @db.Text
   fixedPrice            Decimal?
   totalCost             Decimal   @default(0)
   status                String    @default("pending") // pending | in_progress | completed | delivered | cancelled
@@ -513,11 +513,11 @@ model Repair {
   deliveredAt           DateTime?
   transactionId         String?
   createdBy             String?
-  notes                 String?
+  notes                 String?   @db.Text
   // Payments collected from the customer (repairs are paid here, never through the POS).
   amountPaid            Decimal   @default(0)
   paymentStatus         String    @default("unpaid") // unpaid | partial | paid
-  payments              String    @default("[]") // JSON [{id, amount, method, reference?, paidAt, userId}]
+  payments              String    @default("[]") @db.Text // JSON [{id, amount, method, reference?, paidAt, userId}]
   // When the repair became realized income: completed/delivered AND fully paid. Null otherwise.
   realizedAt            DateTime?
   /// Legacy: costs added to the linked stock device's cost instead of the repair (repairs before 2026-10-17 only).
@@ -537,7 +537,7 @@ model RepairExpense {
   repairId       String
   repair         Repair   @relation(fields: [repairId], references: [id], onDelete: Cascade)
   tenantId       String
-  description    String
+  description    String   @db.Text
   amount         Decimal
   type           String   @default("part") // part (bought for the job) | stock_part (taken from inventory) | labor | other
   productId      String? // stock_part: the product taken from stock
@@ -561,8 +561,8 @@ model Expense {
   date          DateTime
   paymentMethod String // cash | card | bank_transfer
   recipient     String?
-  notes         String?
-  receiptUrl    String?
+  notes         String?   @db.Text
+  receiptUrl    String?   @db.Text
   receiptName   String?
   clientRef     String? // idempotency key from the entry form
   createdBy     String?
@@ -583,7 +583,7 @@ model LabelTemplate {
   brand      String? // device variants only
   deviceType String? // device variants only
   name       String
-  template   String   @default("{}") // JSON layout + include* flags
+  template   String   @default("{}") @db.Text // JSON layout + include* flags
   isDefault  Boolean  @default(false)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
@@ -594,7 +594,7 @@ model LabelTemplate {
 model Announcement {
   id        String    @id @default(uuid())
   title     String
-  body      String
+  body      String    @db.Text
   type      String    @default("info") // info | warning | success
   isActive  Boolean   @default(true)
   startsAt  DateTime?
@@ -608,7 +608,7 @@ model PaperOrder {
   tenantId  String
   quantity  Int
   paperType String   @default("caisse") // caisse | produits
-  note      String?
+  note      String?  @db.Text
   status    String   @default("new") // new | confirmed | shipped | delivered | cancelled
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -616,7 +616,7 @@ model PaperOrder {
 
 model PublicOrder {
   id        String   @id @default(uuid())
-  data      String // JSON payload from /commander
+  data      String   @db.Text // JSON payload from /commander
   status    String   @default("new")
   createdAt DateTime @default(now())
 }
@@ -625,10 +625,10 @@ model SubscriptionPlan {
   id            String   @id @default(uuid())
   code          String   @unique
   name          String
-  description   String?
+  description   String?  @db.Text
   monthlyPrice  Decimal
   yearlyPrice   Decimal?
-  features      String   @default("[]") // JSON [{key, label, included}]
+  features      String   @default("[]") @db.Text // JSON [{key, label, included}]
   maxStores     Int?
   maxUsers      Int?
   maxProducts   Int?
@@ -694,11 +694,11 @@ model SupplierInvoice {
   extraChargesLabel String?
   total             Decimal   @default(0)
   amountPaid        Decimal   @default(0)
-  notes             String?
-  paymentTerms      String?
+  notes             String?   @db.Text
+  paymentTerms      String?   @db.Text
   confirmedAt       DateTime?
   cancelledAt       DateTime?
-  cancelReason      String?
+  cancelReason      String?   @db.Text
   createdBy         String?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
@@ -738,11 +738,11 @@ model SupplierPayment {
   method     String // cash | card | bank_transfer | check
   paidAt     DateTime
   reference  String?
-  notes      String?
+  notes      String?          @db.Text
   fromOrder  Boolean          @default(false) // carried over from the purchase order (already out of the drawer)
   storeId    String?
   voidedAt   DateTime?
-  voidReason String?
+  voidReason String?          @db.Text
   createdBy  String?
   createdAt  DateTime         @default(now())
 
@@ -760,7 +760,7 @@ model TacModel {
   brand       String
   model       String
   modelNumber String?
-  aliases     String? // other names for this TAC in the source ("aka"), comma-separated
+  aliases     String?  @db.Text // other names for this TAC in the source ("aka"), comma-separated
   deviceType  String?
   source      String // "own" or the imported file's source / licence
   seenCount   Int      @default(1)
@@ -810,7 +810,7 @@ model ScannerDevice {
   name       String
   tokenHash  String    @unique
   screenId   String? // where its scans go
-  userAgent  String?
+  userAgent  String?   @db.Text
   scanCount  Int       @default(0)
   lastSeenAt DateTime?
   expiresAt  DateTime // moves forward each time the phone is used
