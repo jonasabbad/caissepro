@@ -15,10 +15,16 @@ const app = await buildApp({ logger: true, https });
 await seedReferenceData();
 const admin = await bootstrapFirstAdmin();
 if (admin) app.log.info(`Created the first account: ${admin}`);
-const tacs = await seedTacReference();
-if (tacs) app.log.info(`Loaded ${tacs} reference phone models (TAC)`);
 const migrated = await runDataMigrations();
 if (Object.keys(migrated).length) app.log.info(migrated, 'Applied data migrations');
-const filled = await backfillCodes();
-if (filled.products || filled.repairs) app.log.info(filled, 'Added missing product barcodes and repair tracking tokens');
 await app.listen({ port, host: '0.0.0.0' });
+
+// Housekeeping that does not need to delay the first requests (hosts expect the app to listen within seconds).
+try {
+  const tacs = await seedTacReference();
+  if (tacs) app.log.info(`Loaded ${tacs} reference phone models (TAC)`);
+  const filled = await backfillCodes();
+  if (filled.products || filled.repairs) app.log.info(filled, 'Added missing product barcodes and repair tracking tokens');
+} catch (e) {
+  app.log.error(e, 'Start-up housekeeping failed');
+}
