@@ -2,6 +2,11 @@ export default {
   app: { name: 'CaissePro', tagline: 'Logiciel de caisse et de gestion' },
   impersonation: { banner: 'Session ouverte en tant que {name}', stop: 'Retour au SuperAdmin' },
   nav: {
+    mainMenu: "Menu principal",
+    language: "Langue",
+    collapse: "Réduire le menu",
+    expand: "Agrandir le menu",
+    groups: { sales: "Ventes", inventory: "Stock", purchasing: "Achats", finance: "Finance", management: "Gestion", other: "Autres" },
     dashboard: 'Tableau de bord',
     pos: 'Caisse',
     scan: "Scanner un produit",

@@ -2,6 +2,11 @@ export default {
   app: { name: 'CaissePro', tagline: 'Point of sale and store management software' },
   impersonation: { banner: 'Signed in as {name}', stop: 'Back to SuperAdmin' },
   nav: {
+    mainMenu: "Main menu",
+    language: "Language",
+    collapse: "Collapse menu",
+    expand: "Expand menu",
+    groups: { sales: "Sales", inventory: "Inventory", purchasing: "Purchasing", finance: "Finance", management: "Management", other: "Other" },
     dashboard: 'Dashboard',
     pos: 'Point of Sale',
     scan: "Scan Product",

@@ -8,6 +8,11 @@ export default {
     stop: "العودة إلى حساب المشرف العام",
   },
   nav: {
+    mainMenu: "القائمة الرئيسية",
+    language: "اللغة",
+    collapse: "تصغير القائمة",
+    expand: "توسيع القائمة",
+    groups: { sales: "المبيعات", inventory: "المخزون", purchasing: "المشتريات", finance: "المالية", management: "الإدارة", other: "أخرى" },
     dashboard: "لوحة التحكم",
     pos: "نقطة البيع",
     scan: "مسح منتج",

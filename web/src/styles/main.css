@@ -142,10 +142,6 @@
     @apply mb-1.5 block text-sm font-medium text-gray-700;
   }
 
-  .sidebar {
-    @apply fixed bottom-0 top-0 z-50 flex w-64 flex-col bg-black text-white transition-transform duration-300;
-    inset-inline-start: 0;
-  }
   /*
    * Sidebar menu: scrolls on its own under the fixed shop name (wheel, trackpad, touch), never scrolls the page
    * behind it, never sideways. Slim scrollbar in the sidebar's colours, shown while the pointer is over the menu.
@@ -180,15 +176,14 @@
   .sidebar-nav::-webkit-scrollbar-thumb:hover {
     background-color: rgb(255 255 255 / 0.38);
   }
-  .sidebar-link {
-    @apply mx-2 flex items-center gap-3 rounded-lg px-4 py-2.5 text-sm font-medium text-gray-300 transition-colors duration-150;
+  /* Drawer backdrop (phones, tablets). */
+  .sidebar-backdrop-enter-active,
+  .sidebar-backdrop-leave-active {
+    transition: opacity 0.25s ease;
   }
-  .sidebar-link:hover {
-    @apply bg-white/10 text-white;
-  }
-  .sidebar-link-active,
-  .sidebar-link-active:hover {
-    @apply bg-primary-600 text-white;
+  .sidebar-backdrop-enter-from,
+  .sidebar-backdrop-leave-to {
+    opacity: 0;
   }
 
   .table {

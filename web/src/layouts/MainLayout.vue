@@ -26,8 +26,6 @@ import {
   Squares2X2Icon,
   FireIcon,
   QueueListIcon,
-  Cog6ToothIcon,
-  LanguageIcon,
   ArrowRightOnRectangleIcon,
   Bars3Icon,
   XMarkIcon,
@@ -51,8 +49,9 @@ import { useAuthStore } from '@/stores/auth';
 import { useSubscriptionStore } from '@/stores/subscription';
 import { useActivity } from '@/composables/useActivity';
 import { settingsApi } from '@/api/misc';
-import { LOCALES, LOCALE_NAMES } from '@/i18n';
 import LanguageSwitcher from '@/components/layout/LanguageSwitcher.vue';
+import AppSidebar from '@/components/layout/AppSidebar.vue';
+import { useSidebar } from '@/composables/useSidebar';
 import { APP_CONFIG, Modules, Plans, Roles, SELLER_MODE_ROUTES } from '@/config/constants';
 import { hasManagerRole } from '@/utils/format';
 
@@ -76,6 +75,7 @@ const renewalAmount = computed(() => Number(sub.status?.platformSettings?.firstP
 
 const showBankTransfer = ref(false);
 const sidebarOpen = ref(false);
+const { collapsed: sidebarCollapsed } = useSidebar();
 // Phones: while the menu is open, the page behind it does not scroll (only the menu does).
 watch(sidebarOpen, (open) => {
   document.documentElement.style.overflow = open ? 'hidden' : '';
@@ -174,58 +174,13 @@ const supportLink = `https://wa.me/${APP_CONFIG.support.whatsapp}?text=${encodeU
 
 <template>
   <div class="min-h-screen bg-gray-50 print:min-h-0 print:bg-white">
-    <div v-if="sidebarOpen" class="fixed inset-0 z-40 bg-black/50 print:hidden lg:hidden" @click="sidebarOpen = false" />
+    <Transition name="sidebar-backdrop">
+      <div v-if="sidebarOpen" class="fixed inset-0 z-40 bg-slate-950/50 backdrop-blur-sm print:hidden lg:hidden" @click="sidebarOpen = false" />
+    </Transition>
 
-    <!-- Sidebar -->
-    <aside
-      v-if="!isCashierOnly"
-      :class="['sidebar print:hidden', sidebarOpen ? 'translate-x-0' : '-translate-x-full rtl:translate-x-full lg:translate-x-0 rtl:lg:translate-x-0']"
-    >
-      <div class="shrink-0 border-b border-primary-700 px-6 py-5">
-        <h1 class="truncate text-lg font-bold text-white">{{ storeTitle }}</h1>
-      </div>
-      <nav class="sidebar-nav py-4">
-        <RouterLink
-          v-for="item in visibleNavigation"
-          :key="item.href"
-          :to="item.href"
-          :class="['sidebar-link', isActive(item.href) && 'sidebar-link-active', item.mobileOnly && 'lg:hidden']"
-          @click="sidebarOpen = false"
-        >
-          <component :is="item.icon" class="h-5 w-5" />
-          <span>{{ item.name }}</span>
-        </RouterLink>
-      </nav>
-      <div class="shrink-0 space-y-2 border-t border-primary-700 p-4">
-        <template v-if="!auth.sellerMode">
-          <RouterLink to="/app/settings" class="sidebar-link" :class="isActive('/app/settings') && 'sidebar-link-active'">
-            <Cog6ToothIcon class="h-5 w-5" />
-            <span>{{ t('nav.settings') }}</span>
-          </RouterLink>
-        </template>
-        <div class="flex items-center gap-2 px-3 py-1.5 text-sm">
-          <LanguageIcon class="h-5 w-5 shrink-0 opacity-80" />
-          <div class="flex flex-1 gap-1">
-            <button
-              v-for="l in LOCALES"
-              :key="l"
-              :lang="l"
-              :title="LOCALE_NAMES[l]"
-              :class="['flex-1 rounded-md px-2 py-1 text-xs font-medium transition-colors', $i18n.locale === l ? 'bg-white text-gray-900' : 'text-white/70 hover:bg-white/10 hover:text-white']"
-              @click="auth.setLanguage(l)"
-            >
-              {{ l === 'ar' ? 'ع' : l.toUpperCase() }}
-            </button>
-          </div>
-        </div>
-        <button v-if="!auth.sellerMode" class="sidebar-link w-full text-red-400 hover:bg-red-600 hover:text-white" @click="logout">
-          <ArrowRightOnRectangleIcon class="h-5 w-5" />
-          <span>{{ t('nav.logout') }}</span>
-        </button>
-      </div>
-    </aside>
+    <AppSidebar v-if="!isCashierOnly" :items="visibleNavigation" :open="sidebarOpen" :store-title="storeTitle" :is-active="isActive" @close="sidebarOpen = false" @logout="logout" />
 
-    <div :class="['print:ps-0', !isCashierOnly && 'lg:ps-64']">
+    <div :class="['print:ps-0 transition-[padding] duration-200', !isCashierOnly && (sidebarCollapsed ? 'lg:ps-[4.5rem]' : 'lg:ps-64')]">
       <!-- Cashier-only header -->
       <header v-if="isCashierOnly" class="sticky top-0 z-30 bg-white shadow-sm print:hidden">
         <div class="flex h-16 items-center justify-between px-4 lg:px-8">
