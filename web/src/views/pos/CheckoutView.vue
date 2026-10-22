@@ -282,6 +282,13 @@ const unitPages = computed(() => Math.max(1, Math.ceil(filteredUnits.value.lengt
 watch([search, pageSize], () => (unitPage.value = 1));
 watch(unitPages, (n) => unitPage.value > n && (unitPage.value = n));
 const pagedUnits = computed(() => filteredUnits.value.slice((unitPage.value - 1) * pageSize.value, unitPage.value * pageSize.value));
+// Two lists on screen: each one keeps its pager under its own cards; one list: the products pager stays in the footer.
+const showUnits = computed(() => isPhoneSeller.value && !cart.isReturnMode && pagedUnits.value.length > 0);
+const unitsSection = ref(null);
+function goUnitPage(p) {
+  unitPage.value = p;
+  nextTick(() => unitsSection.value?.scrollIntoView({ block: 'start' }));
+}
 const cartOnlyDevices = computed(() => cart.items.length > 0 && cart.items.every((i) => i.soldUnit !== undefined));
 const gridLoading = computed(
   () => productsLoading.value || (isPhoneSeller.value && (unitsLoading.value || soldUnitsLoading.value)) || (cart.isReturnMode && soldItemsLoading.value),
@@ -1031,7 +1038,7 @@ const customerLocked = computed(() => cart.isReturnMode && !cart.isEmpty);
 
           <!-- Sale mode: products (one page) + devices in stock -->
           <template v-else>
-          <p v-if="isPhoneSeller && pagedUnits.length && filteredProducts.length" class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">{{ t('pos.productsTitle') }}</p>
+          <p v-if="showUnits && filteredProducts.length" class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">{{ t('pos.productsTitle') }}</p>
           <div v-if="filteredProducts.length" class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-5 2xl:gap-4">
             <button
               v-for="p in filteredProducts"
@@ -1078,8 +1085,11 @@ const customerLocked = computed(() => cart.isReturnMode && !cart.isEmpty);
               </div>
             </button>
           </div>
-          <template v-if="isPhoneSeller && pagedUnits.length">
-            <p :class="['mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500', filteredProducts.length && 'mt-6']">{{ t('pos.devicesInStock') }} <span class="text-gray-400">{{ filteredUnits.length }}</span></p>
+          <div v-if="showUnits && productMeta.total" class="mt-4 border-t border-gray-100 pt-3">
+            <Pagination v-model:page="page" v-model:page-size="pageSize" :total-pages="productMeta.totalPages" :total="productMeta.total" :page-sizes="PAGE_SIZES" />
+          </div>
+          <template v-if="showUnits">
+            <p ref="unitsSection" :class="['mb-2 scroll-mt-3 text-xs font-semibold uppercase tracking-wide text-gray-500', filteredProducts.length && 'mt-6 border-t border-gray-200 pt-6']">{{ t('pos.devicesInStock') }} <span class="text-gray-400">{{ filteredUnits.length }}</span></p>
             <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-5 2xl:gap-4">
               <button
                 v-for="u in pagedUnits"
@@ -1110,13 +1120,13 @@ const customerLocked = computed(() => cart.isReturnMode && !cart.isEmpty);
                 </div>
               </button>
             </div>
-            <div v-if="unitPages > 1" class="mt-4">
-              <Pagination v-model:page="unitPage" :total-pages="unitPages" :total="filteredUnits.length" :page-size="pageSize" />
+            <div v-if="unitPages > 1" class="mt-4 border-t border-gray-100 pt-3">
+              <Pagination :page="unitPage" :total-pages="unitPages" :total="filteredUnits.length" :page-size="pageSize" @update:page="goUnitPage" />
             </div>
           </template>
           </template>
         </div>
-        <div v-if="!cart.isReturnMode && productMeta.total" class="border-t border-gray-100 px-3 py-2.5 sm:px-4">
+        <div v-if="!cart.isReturnMode && !showUnits && productMeta.total" class="border-t border-gray-100 px-3 py-2.5 sm:px-4">
           <Pagination v-model:page="page" v-model:page-size="pageSize" :total-pages="productMeta.totalPages" :total="productMeta.total" :page-sizes="PAGE_SIZES" />
         </div>
       </div>

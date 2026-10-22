@@ -33,7 +33,7 @@ const items = computed(() => {
 const from = computed(() => (props.total ? (props.page - 1) * props.pageSize + 1 : 0));
 const to = computed(() => Math.min(props.total, props.page * props.pageSize));
 const go = (p) => p >= 1 && p <= props.totalPages && p !== props.page && emit('update:page', p);
-const btn = 'inline-flex h-9 min-w-9 items-center justify-center rounded-lg border px-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40';
+const btn = 'inline-flex h-8 min-w-8 items-center justify-center rounded-lg border px-1.5 text-sm sm:h-9 sm:min-w-9 sm:px-2 font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40';
 </script>
 
 <template>
@@ -52,12 +52,12 @@ const btn = 'inline-flex h-9 min-w-9 items-center justify-center rounded-lg bord
         </select>
       </label>
     </div>
-    <nav v-if="totalPages > 1" class="flex items-center gap-1" :aria-label="t('common.pagination')">
+    <nav v-if="totalPages > 1" class="flex max-w-full items-center gap-0.5 sm:gap-1" :aria-label="t('common.pagination')">
       <button type="button" :class="[btn, 'border-gray-200 bg-white text-gray-700 hover:border-gray-400']" :disabled="page <= 1" :aria-label="t('common.previous')" @click="go(page - 1)">
         <ChevronLeftIcon class="h-5 w-5 rtl:rotate-180" /><span class="hidden xl:inline pe-1">{{ t('common.previous') }}</span>
       </button>
       <template v-for="(p, i) in items" :key="p ?? `gap-${i}`">
-        <span v-if="p === null" class="px-1 text-gray-400">…</span>
+        <span v-if="p === null" class="px-0.5 text-gray-400 sm:px-1">…</span>
         <button
           v-else
           type="button"
