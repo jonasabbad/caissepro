@@ -1,5 +1,12 @@
 export default {
   app: { name: 'CaissePro', tagline: 'Point of sale and store management software' },
+  home: {
+    welcome: "Welcome to",
+    message: "Manage your sales, stock and till simply, all in one place.",
+    signIn: "Sign in",
+    openApp: "Open the app",
+    rights: "All rights reserved.",
+  },
   impersonation: { banner: 'Signed in as {name}', stop: 'Back to SuperAdmin' },
   nav: {
     mainMenu: "Main menu",

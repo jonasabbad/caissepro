@@ -3,6 +3,13 @@ export default {
     name: "CaissePro",
     tagline: "برنامج نقطة البيع وإدارة المتجر",
   },
+  home: {
+    welcome: "مرحبًا بكم في",
+    message: "أدِر مبيعاتك ومخزونك وصندوقك بسهولة، في مكان واحد.",
+    signIn: "تسجيل الدخول",
+    openApp: "فتح التطبيق",
+    rights: "جميع الحقوق محفوظة.",
+  },
   impersonation: {
     banner: "أنت متصل باسم {name}",
     stop: "العودة إلى حساب المشرف العام",

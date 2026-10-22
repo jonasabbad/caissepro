@@ -1,5 +1,12 @@
 export default {
   app: { name: 'CaissePro', tagline: 'Logiciel de caisse et de gestion' },
+  home: {
+    welcome: "Bienvenue sur",
+    message: "Gérez vos ventes, votre stock et votre caisse simplement, au même endroit.",
+    signIn: "Se connecter",
+    openApp: "Ouvrir l’application",
+    rights: "Tous droits réservés.",
+  },
   impersonation: { banner: 'Session ouverte en tant que {name}', stop: 'Retour au SuperAdmin' },
   nav: {
     mainMenu: "Menu principal",
