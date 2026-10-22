@@ -131,3 +131,36 @@ describe('phone scanners', () => {
     expect((await api.get('/scanner/devices')).body.data.devices).toHaveLength(2);
   }, 30_000);
 });
+
+describe('phone scanner cost', () => {
+  it('sends the cost to phones only when the business turns it on', async () => {
+    const { api } = await newTenant();
+    await api.post('/products', { name: 'Coque', costPrice: 25, retailPrice: 79, stockQuantity: 4, barcode: '6110000000017' });
+    const imei = '990000000000017';
+    await api.post('/phone-seller/sold-units', { brand: 'OPPO', model: 'A79', imei, purchasePrice: 1500, salePrice: 1900 });
+    const screen = (await api.post('/scanner/screens', { name: 'Caisse' })).body.data.screen;
+    const { ph } = await pairPhone(api, screen.id, 'Phone');
+
+    // Off by default: no cost at all in what the phone receives.
+    let r = (await ph.post('/scanner/device/scan', { code: '6110000000017', send: false })).body.data.result;
+    expect([r.showCost, r.products[0].costPrice]).toEqual([false, undefined]);
+    r = (await ph.post('/scanner/device/scan', { code: imei, send: false })).body.data.result;
+    expect(r.units[0]).not.toHaveProperty('purchasePrice');
+    expect((await ph.get('/scanner/device/session')).body.data.showCost).toBe(false);
+
+    // Turned on in Settings: the same cost as the POS product details (product cost price, device purchase price).
+    expect((await api.patch('/settings/preferences', { scannerShowCost: true })).status).toBe(200);
+    r = (await ph.post('/scanner/device/scan', { code: '6110000000017', send: false })).body.data.result;
+    expect([r.showCost, r.products[0].costPrice]).toEqual([true, '25.00']);
+    r = (await ph.post('/scanner/device/scan', { code: imei, send: false })).body.data.result;
+    expect(r.units[0].purchasePrice).toBe('1500.00');
+    expect((await ph.get('/scanner/device/session')).body.data.showCost).toBe(true);
+    expect((await api.get('/scan/6110000000017')).body.data.showCost).toBe(true);
+    expect((await api.get('/settings/tenant')).body.data.settings.scannerShowCost).toBe(true);
+
+    // Off again.
+    await api.patch('/settings/preferences', { scannerShowCost: false });
+    r = (await ph.post('/scanner/device/scan', { code: '6110000000017', send: false })).body.data.result;
+    expect(r.products[0]).not.toHaveProperty('costPrice');
+  }, 30_000);
+});

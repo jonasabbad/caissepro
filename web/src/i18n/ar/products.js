@@ -150,6 +150,8 @@ export default {
       hint: "JPEG أو PNG أو WebP. يتم تصغير الصورة تلقائياً للحفاظ على سرعة نقطة البيع.",
       invalid: "هذا الملف ليس صورة",
       failed: "تعذر رفع الصورة",
+      takePhoto: "التقاط صورة",
+      fromGallery: "من المعرض",
     },
     labels: {
       title: "ملصقات الباركود",

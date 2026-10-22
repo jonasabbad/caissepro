@@ -1,12 +1,14 @@
 import { nextTick, onBeforeUnmount, ref, watch } from 'vue';
+import { codeFromScan } from '@/utils/scanCode';
 
 /**
- * Camera barcode reading (EAN-13 / EAN-8 / UPC / Code 128 / Code 39 / ITF — product, box, IMEI and serial barcodes).
+ * Camera barcode reading (EAN-13 / EAN-8 / UPC / Code 128 / Code 39 / ITF — product, box, IMEI and serial barcodes —
+ * and QR codes, whose product code is taken from what they hold: see utils/scanCode.js).
  * Uses the browser's native BarcodeDetector when it has one, otherwise ZXing (@zxing/browser, MIT, loaded on demand).
  * `start()` opens the camera into `video` and calls `onCode(code)` once, then stops the camera; call `start()` again
  * for the next code. The camera needs a secure page (https or localhost); `error` says why it could not start.
  */
-const FORMATS_NATIVE = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39', 'itf'];
+const FORMATS_NATIVE = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39', 'itf', 'qr_code'];
 const backFirst = (list) => [...list].sort((a, b) => Number(/back|rear|environment|arrière/i.test(b.label)) - Number(/back|rear|environment|arrière/i.test(a.label)));
 
 /** Short beep and vibration when a code is read. */
@@ -51,8 +53,8 @@ export function useBarcodeCamera(video, onCode) {
     if (status.value !== 'error') status.value = 'idle';
   }
 
-  function deliver(raw) {
-    const code = String(raw || '').trim();
+  function deliver(raw, isQr = false) {
+    const code = isQr ? codeFromScan(raw) : String(raw || '').trim();
     if (!code || done) return;
     done = true;
     scanFeedback();
@@ -85,7 +87,7 @@ export function useBarcodeCamera(video, onCode) {
           if (!stream || done) return;
           try {
             const found = await detector.detect(video.value);
-            if (found[0]?.rawValue) return deliver(found[0].rawValue);
+            if (found[0]?.rawValue) return deliver(found[0].rawValue, found[0].format === 'qr_code');
           } catch {
             /* frame not ready */
           }
@@ -97,11 +99,11 @@ export function useBarcodeCamera(video, onCode) {
         const hints = new Map([
           [
             DecodeHintType.POSSIBLE_FORMATS,
-            [BarcodeFormat.EAN_13, BarcodeFormat.EAN_8, BarcodeFormat.UPC_A, BarcodeFormat.UPC_E, BarcodeFormat.CODE_128, BarcodeFormat.CODE_39, BarcodeFormat.ITF],
+            [BarcodeFormat.EAN_13, BarcodeFormat.EAN_8, BarcodeFormat.UPC_A, BarcodeFormat.UPC_E, BarcodeFormat.CODE_128, BarcodeFormat.CODE_39, BarcodeFormat.ITF, BarcodeFormat.QR_CODE],
           ],
         ]);
         const reader = new BrowserMultiFormatReader(hints, { delayBetweenScanAttempts: 120 });
-        controls = await reader.decodeFromStream(stream, video.value, (result) => result && deliver(result.getText()));
+        controls = await reader.decodeFromStream(stream, video.value, (result) => result && deliver(result.getText(), result.getBarcodeFormat() === BarcodeFormat.QR_CODE));
       }
     } catch (e) {
       stop();

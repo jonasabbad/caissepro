@@ -7,6 +7,7 @@ import { badRequest, forbidden, HttpError, notFound } from '../lib/errors.js';
 import { authenticate, isManager } from '../lib/auth.js';
 import { ok, type Req } from '../lib/route.js';
 import { CODE, lookupCode } from './scan.js';
+import { tenantSettings } from '../lib/tenant.js';
 
 /**
  * Phones as barcode scanners, for several phones and several computers.
@@ -96,9 +97,13 @@ async function phoneDevice(req: FastifyRequest) {
 const touch = (id: string, extra: Record<string, unknown> = {}) =>
   prisma.scannerDevice.update({ where: { id }, data: { lastSeenAt: new Date(), expiresAt: new Date(Date.now() + DEVICE_TTL_MS), ...extra } });
 
-/** What the phone may see: names, selling prices and stock; never cost prices or customers. */
-function phoneView(r: Awaited<ReturnType<typeof lookupCode>>) {
+/**
+ * What the phone may see: names, selling prices and stock, never customers. Cost (product cost price, device purchase
+ * price) only when the business turned on "Show cost in CaissePro Scanner".
+ */
+function phoneView(r: Awaited<ReturnType<typeof lookupCode>>, showCost: boolean) {
   return {
+    showCost,
     code: r.code,
     found: r.found,
     looksLikeImei: r.looksLikeImei,
@@ -113,8 +118,9 @@ function phoneView(r: Awaited<ReturnType<typeof lookupCode>>) {
       packSize: p.packSize,
       packRetailPrice: p.packRetailPrice,
       imageUrl: p.imageUrl,
+      ...(showCost ? { costPrice: p.costPrice } : {}),
     })),
-    units: r.units,
+    units: (r.units as any[]).map(({ purchasePrice, ...u }) => (showCost ? { ...u, purchasePrice } : u)),
     modelBarcode: r.modelBarcode ? { brand: r.modelBarcode.brand, model: r.modelBarcode.model, storage: r.modelBarcode.storage, color: r.modelBarcode.color } : null,
     imei: r.imei ? { device: r.imei.device ? { brand: r.imei.device.brand, model: r.imei.device.model } : null } : null,
   };
@@ -287,7 +293,8 @@ export default async function scannerRoutes(app: FastifyInstance) {
       user.currentStoreId ? prisma.store.findUnique({ where: { id: user.currentStoreId }, select: { name: true } }) : null,
       screensOf(d.tenantId),
     ]);
-    return ok({ device: deviceView(d), business: tenant?.name ?? '', store: store?.name ?? null, screens });
+    const full = await prisma.tenant.findUnique({ where: { id: d.tenantId } });
+    return ok({ device: deviceView(d), business: tenant?.name ?? '', store: store?.name ?? null, screens, showCost: !!full && tenantSettings(full).scannerShowCost });
   });
 
   /** The phone chooses where its scans go (a computer of this business, or none) and may rename itself. */
@@ -308,7 +315,8 @@ export default async function scannerRoutes(app: FastifyInstance) {
     const recent = (recentScans.get(device.id) ?? []).filter((t) => now - t < 60_000);
     if (recent.length >= MAX_SCANS_PER_MINUTE) throw new HttpError(429, 'Trop de scans, patientez un instant');
     recentScans.set(device.id, [...recent, now]);
-    const result = phoneView(await lookupCode(device.tenantId, body.code));
+    const [found, tenant] = await Promise.all([lookupCode(device.tenantId, body.code), prisma.tenant.findUnique({ where: { id: device.tenantId } })]);
+    const result = phoneView(found, !!tenant && tenantSettings(tenant).scannerShowCost);
     await touch(device.id, { scanCount: { increment: 1 } });
     // Sent only to a computer that is connected now; otherwise the phone says so (nothing is queued for later).
     const target = body.send && device.screenId ? await prisma.scannerScreen.findUnique({ where: { id: device.screenId } }) : null;

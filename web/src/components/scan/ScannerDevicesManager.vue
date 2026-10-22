@@ -16,7 +16,9 @@ import {
 import { scannerApi } from '@/api/scanner';
 import { usePhoneScanner } from '@/composables/usePhoneScanner';
 import { apiErrorMessage } from '@/api/http';
-import { formatDateTime } from '@/utils/format';
+import { formatDateTime, hasManagerRole } from '@/utils/format';
+import { settingsApi } from '@/api/misc';
+import { useAuthStore } from '@/stores/auth';
 import ConfirmModal from '@/components/ui/ConfirmModal.vue';
 
 /**
@@ -26,6 +28,28 @@ import ConfirmModal from '@/components/ui/ConfirmModal.vue';
  */
 const { t } = useI18n();
 const { state, renameScreen, phoneUrl } = usePhoneScanner();
+
+// "Show cost in CaissePro Scanner" (business setting; managers change it).
+const auth = useAuthStore();
+const canManage = computed(() => hasManagerRole(auth.currentUser?.roles));
+const showCost = ref(false);
+const savingCost = ref(false);
+settingsApi
+  .getTenantSettings()
+  .then((r) => (showCost.value = !!r?.settings?.scannerShowCost))
+  .catch(() => undefined);
+async function toggleCost() {
+  const next = !showCost.value;
+  savingCost.value = true;
+  try {
+    await settingsApi.updatePreferences({ scannerShowCost: next });
+    showCost.value = next;
+  } catch (e) {
+    error.value = apiErrorMessage(e);
+  } finally {
+    savingCost.value = false;
+  }
+}
 
 const devices = ref([]);
 const screens = ref([]);
@@ -149,6 +173,26 @@ async function copy() {
 <template>
   <div class="space-y-5 text-sm">
     <p v-if="error" class="rounded-lg bg-danger-50 p-3 text-danger-700" role="alert">{{ error }}</p>
+
+    <!-- Cost in the phone app -->
+    <section class="flex items-start justify-between gap-3 rounded-lg border border-gray-200 p-3">
+      <div class="min-w-0">
+        <p id="scanner-cost-label" class="font-medium text-gray-900">{{ t('scan.devices.showCost') }}</p>
+        <p class="mt-0.5 text-xs text-gray-500">{{ t('scan.devices.showCostHint') }}</p>
+      </div>
+      <button
+        type="button"
+        role="switch"
+        :aria-checked="showCost"
+        aria-labelledby="scanner-cost-label"
+        :disabled="!canManage || savingCost"
+        :title="canManage ? '' : t('scan.devices.managersOnly')"
+        :class="['relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-50', showCost ? 'bg-primary-600' : 'bg-gray-300']"
+        @click="toggleCost"
+      >
+        <span :class="['inline-block h-5 w-5 rounded-full bg-white shadow transition-transform', showCost ? 'translate-x-5 rtl:-translate-x-5' : 'translate-x-0.5 rtl:-translate-x-0.5']" />
+      </button>
+    </section>
 
     <!-- This computer -->
     <section class="rounded-lg border border-gray-200 p-3">

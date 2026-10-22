@@ -135,7 +135,7 @@ export default {
         other: 'Autre',
       },
     },
-    "image": {"label":"Photo du produit","add":"Ajouter","choose":"Choisir une photo","replace":"Remplacer","remove":"Retirer","hint":"JPEG, PNG ou WebP. La photo est redimensionnée automatiquement pour garder la caisse rapide.","invalid":"Ce fichier n’est pas une image","failed":"Impossible d’envoyer la photo"},
+    "image": {"label":"Photo du produit","add":"Ajouter","choose":"Choisir une photo","replace":"Remplacer","remove":"Retirer","hint":"JPEG, PNG ou WebP. La photo est redimensionnée automatiquement pour garder la caisse rapide.","invalid":"Ce fichier n’est pas une image","failed":"Impossible d’envoyer la photo","takePhoto":"Prendre une photo","fromGallery":"Depuis la galerie"},
     labels: {"title":"Étiquettes code-barres","size":"Format d'étiquette","sizes":{"compact":"Compacte","standard":"Standard","small":"Mini"},"preview":"Aperçu","hint":"Nom, prix de vente et code-barres — à coller au dos du produit.","copies":"Nombre d'étiquettes","fewer":"Moins","more":"Plus","oneEachInStock":"Une étiquette par pièce en stock","stockShort":"stock ({n})","noBarcode":"Sans code-barres","missing":"{n} produit(s) sans code-barres ignoré(s).","count":"{n} étiquette(s)","print":"Imprimer ({n})","printSelected":"Imprimer les étiquettes ({n})","selectAll":"Tout sélectionner","select":"Sélectionner"},
     scan: {"hint":"Scannez un code-barres pour trouver un produit","found":"Produit trouvé : {name}","notFound":"Aucun produit avec le code-barres {code}","create":"Créer un produit avec ce code"},
     barcodeAutoHint: "Scannez le code du fabricant, ou laissez vide : un code-barres unique est généré automatiquement.",

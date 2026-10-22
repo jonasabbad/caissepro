@@ -4,7 +4,7 @@ export default {
     title: "Scan a barcode",
     identify: "Scan to identify",
     starting: "Opening the camera…",
-    aim: "Place the barcode inside the frame.",
+    aim: "Place the barcode or QR code inside the frame.",
     camera: "Camera",
     manualPlaceholder: "Or type / scan the code here",
     use: "Use",
@@ -61,6 +61,7 @@ export default {
       scanning: "Aim at the barcode…",
       scanNext: "Scan next",
       scan: "Scan",
+      cost: "Cost",
     },
     pair: {
       button: "Phone scanners",
@@ -117,6 +118,9 @@ export default {
       inSettings: "Open in Settings",
       settingsTab: "Phone scanners",
       settingsIntro: "The phones that scan for this business with CaissePro Scanner. Each phone is authorized once, then reconnects by itself.",
+      showCost: "Show cost in CaissePro Scanner",
+      showCostHint: "The purchase price (as in the POS product details) is shown next to the selling price on phones. Off: phones do not receive it.",
+      managersOnly: "Managers only",
     },
     phoneApp: {
       paired: "Phone authorized: it will reconnect by itself from now on.",

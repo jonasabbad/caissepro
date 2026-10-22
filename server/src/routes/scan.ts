@@ -5,6 +5,7 @@ import { badRequest } from '../lib/errors.js';
 import { serialize } from '../lib/serialize.js';
 import { authed, ok, type Req } from '../lib/route.js';
 import { isValidImei, lookupTac, tacOf } from '../lib/tac.js';
+import { getTenant, tenantSettings } from '../lib/tenant.js';
 
 /**
  * Scan lookup: one scanned code (camera, USB / Bluetooth scanner or typed) → what CaissePro knows about it.
@@ -70,6 +71,7 @@ export async function lookupCode(tenantId: string, code: string) {
         imei: u.imei,
         serialNumber: u.serialNumber,
         salePrice: u.salePrice,
+        purchasePrice: u.purchasePrice,
         imageUrl: u.imageUrl,
         soldAt: u.soldAt,
         reservedAt: u.reservedAt,
@@ -86,7 +88,8 @@ export default async function scanRoutes(app: FastifyInstance) {
   app.get('/scan/:code', async (req: Req<unknown, unknown, { code: string }>) => {
     const code = decodeURIComponent(req.params.code ?? '').trim();
     if (!CODE.test(code)) throw badRequest('Code invalide');
-    return ok(await lookupCode(req.auth.tenantId, code));
+    const [result, tenant] = await Promise.all([lookupCode(req.auth.tenantId, code), getTenant(req.auth.tenantId)]);
+    return ok({ ...result, showCost: tenantSettings(tenant).scannerShowCost });
   });
 
   /** Links a box barcode to a model by hand (e.g. after identifying an unknown box). */

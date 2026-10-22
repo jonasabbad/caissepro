@@ -4,7 +4,7 @@ export default {
     title: "Scanner un code-barres",
     identify: "Scanner pour identifier",
     starting: "Ouverture de la caméra…",
-    aim: "Placez le code-barres dans le cadre.",
+    aim: "Placez le code-barres ou le QR code dans le cadre.",
     camera: "Caméra",
     manualPlaceholder: "Ou saisissez / scannez le code ici",
     use: "Valider",
@@ -61,6 +61,7 @@ export default {
       scanning: "Visez le code-barres…",
       scanNext: "Scanner le suivant",
       scan: "Scanner",
+      cost: "Coût",
     },
     pair: {
       button: "Téléphones scanners",
@@ -117,6 +118,9 @@ export default {
       inSettings: "Ouvrir dans les paramètres",
       settingsTab: "Téléphones scanners",
       settingsIntro: "Les téléphones qui scannent pour ce commerce avec CaissePro Scanner. Chaque téléphone est autorisé une fois, puis se reconnecte tout seul.",
+      showCost: "Afficher le coût dans CaissePro Scanner",
+      showCostHint: "Le prix d’achat (comme dans le détail produit de la caisse) s’affiche à côté du prix de vente sur les téléphones. Désactivé : les téléphones ne le reçoivent pas.",
+      managersOnly: "Réservé aux gérants",
     },
     phoneApp: {
       paired: "Téléphone autorisé : il se reconnectera tout seul les prochaines fois.",

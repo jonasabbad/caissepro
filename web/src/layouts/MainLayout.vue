@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useQuery } from '@tanstack/vue-query';
@@ -76,6 +76,11 @@ const renewalAmount = computed(() => Number(sub.status?.platformSettings?.firstP
 
 const showBankTransfer = ref(false);
 const sidebarOpen = ref(false);
+// Phones: while the menu is open, the page behind it does not scroll (only the menu does).
+watch(sidebarOpen, (open) => {
+  document.documentElement.style.overflow = open ? 'hidden' : '';
+});
+onBeforeUnmount(() => (document.documentElement.style.overflow = ''));
 const showPaperOrder = ref(false);
 const showUnlock = ref(false);
 const locking = ref(false);
@@ -176,10 +181,10 @@ const supportLink = `https://wa.me/${APP_CONFIG.support.whatsapp}?text=${encodeU
       v-if="!isCashierOnly"
       :class="['sidebar print:hidden', sidebarOpen ? 'translate-x-0' : '-translate-x-full rtl:translate-x-full lg:translate-x-0 rtl:lg:translate-x-0']"
     >
-      <div class="border-b border-primary-700 px-6 py-5">
+      <div class="shrink-0 border-b border-primary-700 px-6 py-5">
         <h1 class="truncate text-lg font-bold text-white">{{ storeTitle }}</h1>
       </div>
-      <nav class="flex-1 overflow-y-auto py-4">
+      <nav class="sidebar-nav py-4">
         <RouterLink
           v-for="item in visibleNavigation"
           :key="item.href"
@@ -191,7 +196,7 @@ const supportLink = `https://wa.me/${APP_CONFIG.support.whatsapp}?text=${encodeU
           <span>{{ item.name }}</span>
         </RouterLink>
       </nav>
-      <div class="space-y-2 border-t border-primary-700 p-4">
+      <div class="shrink-0 space-y-2 border-t border-primary-700 p-4">
         <template v-if="!auth.sellerMode">
           <RouterLink to="/app/settings" class="sidebar-link" :class="isActive('/app/settings') && 'sidebar-link-active'">
             <Cog6ToothIcon class="h-5 w-5" />

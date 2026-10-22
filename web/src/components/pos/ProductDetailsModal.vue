@@ -1,5 +1,6 @@
 <script setup>
 import { intlLocale } from '@/i18n';
+import { itemCost } from '@/utils/cost';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useQuery } from '@tanstack/vue-query';
@@ -30,7 +31,7 @@ const { t } = useI18n();
 const isUnit = computed(() => !!props.product?._isUnit);
 const title = computed(() => (!props.product ? '' : isUnit.value ? `${props.product.brand} ${props.product.model}` : props.product.name));
 const price = computed(() => (!props.product ? 0 : isUnit.value ? Number(props.product.salePrice) : Number(props.product.retailPrice)));
-const cost = computed(() => (!props.product ? 0 : isUnit.value ? Number(props.product.purchasePrice) : Number(props.product.costPrice)));
+const cost = computed(() => itemCost(props.product, isUnit.value));
 const profit = computed(() => price.value - cost.value);
 const margin = computed(() => (price.value === 0 ? 0 : (profit.value / price.value) * 100));
 const lowStock = computed(() => !isUnit.value && !!props.product && props.product.stockQuantity <= (props.product.minStockLevel || 5));

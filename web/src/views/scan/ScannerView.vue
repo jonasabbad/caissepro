@@ -22,6 +22,7 @@ import { scanApi } from '@/api/scan';
 import { apiErrorMessage } from '@/api/http';
 import { useAuthStore } from '@/stores/auth';
 import { formatCurrency } from '@/utils/format';
+import { itemCost } from '@/utils/cost';
 import { formatImei } from '@/api/soldUnits';
 import LanguageSwitcher from '@/components/layout/LanguageSwitcher.vue';
 
@@ -123,6 +124,8 @@ function submitManual() {
   else handle(c);
 }
 
+// Cost (as on the POS product details), shown only when the business turned it on (Settings → Phone scanners).
+const showCost = computed(() => !!result.value?.showCost);
 const deviceState = (u) => (u.soldAt ? 'sold' : u.reservedAt ? 'reserved' : 'inStock');
 const stockClass = (n) => (n <= 0 ? 'text-danger-700' : n <= 3 ? 'text-warning-700' : 'text-success-700');
 
@@ -380,10 +383,14 @@ onBeforeUnmount(() => {
           <div v-for="p in result.products || []" :key="p.id" class="mt-3 border-t border-gray-100 pt-3">
             <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">{{ t('scan.product') }}<template v-if="p.category?.name || p.categoryName"> · {{ p.category?.name || p.categoryName }}</template></p>
             <p class="text-lg font-semibold text-gray-900">{{ p.name }}</p>
-            <dl class="mt-2 grid grid-cols-2 gap-2 text-sm">
+            <dl class="mt-2 grid gap-2 text-sm" :class="showCost && p.costPrice != null ? 'grid-cols-3' : 'grid-cols-2'">
               <div class="rounded-lg bg-gray-50 p-2">
                 <dt class="text-xs text-gray-500">{{ t('scan.phone.price') }}</dt>
                 <dd class="text-base font-bold text-gray-900">{{ formatCurrency(p.retailPrice) }}</dd>
+              </div>
+              <div v-if="showCost && p.costPrice != null" class="rounded-lg bg-gray-50 p-2">
+                <dt class="text-xs text-gray-500">{{ t('scan.phone.cost') }}</dt>
+                <dd class="text-base font-bold text-gray-700">{{ formatCurrency(itemCost(p, false)) }}</dd>
               </div>
               <div class="rounded-lg bg-gray-50 p-2">
                 <dt class="text-xs text-gray-500">{{ t('scan.phone.stock') }}</dt>
@@ -407,6 +414,10 @@ onBeforeUnmount(() => {
               <div class="rounded-lg bg-gray-50 p-2">
                 <dt class="text-xs text-gray-500">{{ t('scan.phone.price') }}</dt>
                 <dd class="text-base font-bold text-gray-900">{{ formatCurrency(u.salePrice) }}</dd>
+              </div>
+              <div v-if="showCost && u.purchasePrice != null" class="rounded-lg bg-gray-50 p-2">
+                <dt class="text-xs text-gray-500">{{ t('scan.phone.cost') }}</dt>
+                <dd class="text-base font-bold text-gray-700">{{ formatCurrency(itemCost(u, true)) }}</dd>
               </div>
               <div class="rounded-lg bg-gray-50 p-2">
                 <dt class="text-xs text-gray-500">{{ t('scan.phone.stock') }}</dt>

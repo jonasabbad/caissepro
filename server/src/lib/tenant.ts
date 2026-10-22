@@ -9,6 +9,8 @@ export interface TenantSettings {
   timezone: string;
   lowStockThreshold: number;
   defaultPaymentMethods: string[];
+  /** CaissePro Scanner shows the cost (purchase price) next to the selling price. Off: phones never receive it. */
+  scannerShowCost: boolean;
 }
 
 export const DEFAULT_TENANT_SETTINGS: TenantSettings = {
@@ -18,6 +20,7 @@ export const DEFAULT_TENANT_SETTINGS: TenantSettings = {
   timezone: 'Africa/Casablanca',
   lowStockThreshold: 5,
   defaultPaymentMethods: ['cash', 'card'],
+  scannerShowCost: false,
 };
 
 export async function getTenant(tenantId: string) {

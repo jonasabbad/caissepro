@@ -144,6 +144,8 @@ export default {
       hint: 'JPEG, PNG or WebP. The photo is resized automatically to keep the POS fast.',
       invalid: 'This file is not an image',
       failed: 'Could not upload the photo',
+      takePhoto: 'Take a photo',
+      fromGallery: 'From the gallery',
     },
     labels: {"title":"Barcode labels","size":"Label size","sizes":{"compact":"Compact","standard":"Standard","small":"Mini"},"preview":"Preview","hint":"Name, selling price and barcode — to stick on the back of the product.","copies":"Number of labels","fewer":"Fewer","more":"More","oneEachInStock":"One label per piece in stock","stockShort":"stock ({n})","noBarcode":"No barcode","missing":"{n} product(s) without a barcode skipped.","count":"{n} label(s)","print":"Print ({n})","printSelected":"Print labels ({n})","selectAll":"Select all","select":"Select"},
     scan: {"hint":"Scan a barcode to find a product","found":"Product found: {name}","notFound":"No product with barcode {code}","create":"Create a product with this code"},

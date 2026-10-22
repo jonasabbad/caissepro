@@ -117,6 +117,7 @@ export default async function settingsRoutes(app: FastifyInstance) {
         timezone: z.string().optional(),
         lowStockThreshold: z.coerce.number().int().min(0).optional(),
         defaultPaymentMethods: z.array(z.string()).optional(),
+        scannerShowCost: z.boolean().optional(),
       })
       .parse(req.body ?? {});
     const tenant = await getTenant(req.auth.tenantId);
