@@ -120,6 +120,54 @@ describe('suppliers & supplier orders', () => {
     expect([s.invoiceCount, s.totalPurchases, s.balance]).toEqual([1, 100, -100]);
   });
 
+  it('receives all eligible orders at once, and only those', async () => {
+    const { api, supplier, product } = await setup();
+    const stock = async () => (await api.get(`/products/${product.id}`)).body.data.product.stockQuantity;
+    const status = async (o: any) => (await api.get(`/supplier-orders/${o.id}`)).body.data.order.status;
+    const make = async (qty: number, extra: any[] = []) =>
+      (await api.post('/supplier-orders', { supplierId: supplier.id, items: [{ productId: product.id, productName: product.name, quantityOrdered: qty, unitCost: 5 }, ...extra] })).body.data.order;
+    const pending = await make(4);
+    const partial = await make(3);
+    const draft = await make(7);
+    const received = await make(2);
+    const cancelled = await make(9);
+    const devices = await make(1, [{ itemType: 'unit', productName: 'Apple iPhone 13', quantityOrdered: 1, unitCost: 3000, deviceType: 'phone', brand: 'Apple', model: 'iPhone 13' }]);
+    for (const o of [pending, partial, received, devices]) await api.post(`/supplier-orders/${o.id}/submit`);
+    await api.post(`/supplier-orders/${partial.id}/receive`, { items: [{ itemId: partial.items[0].id, quantityReceived: 1 }] });
+    await api.post(`/supplier-orders/${received.id}/receive`, { items: [{ itemId: received.items[0].id, quantityReceived: 2 }] });
+    await api.post(`/supplier-orders/${cancelled.id}/cancel`);
+    const before = await stock(); // 18 + 1 + 2
+
+    // Two clicks at once: each order is received once.
+    const [a, b] = await Promise.all([api.post('/supplier-orders/receive-all', {}), api.post('/supplier-orders/receive-all', {})]);
+    expect([...a.body.data.received, ...b.body.data.received].sort()).toEqual([partial.orderNumber, pending.orderNumber].sort());
+    expect(a.body.data.skipped.concat(b.body.data.skipped).filter((s: any) => s.reason === 'devices').map((s: any) => s.orderNumber)).toContain(devices.orderNumber);
+    expect(await stock()).toBe(before + 4 + 2);
+    expect([await status(pending), await status(partial)]).toEqual(['received', 'received']);
+    expect([await status(draft), await status(received), await status(cancelled), await status(devices)]).toEqual(['draft', 'received', 'cancelled', 'pending']);
+    const mv = (await api.get(`/inventory-movements?productId=${product.id}&type=purchase`)).body.data.movements;
+    expect(mv.filter((m: any) => m.reference === pending.orderNumber).map((m: any) => m.quantity)).toEqual([4]);
+
+    // Nothing left: a second Receive All changes nothing; ineligible orders named explicitly are skipped.
+    const again = (await api.post('/supplier-orders/receive-all', { orderIds: [pending.id, draft.id, cancelled.id] })).body.data;
+    expect(again.received).toEqual([]);
+    expect(again.skipped.map((s: any) => s.reason)).toEqual(['status', 'status', 'status']);
+    expect(await stock()).toBe(before + 6);
+  });
+
+  it('receives one order line at a time, never twice for simultaneous clicks', async () => {
+    const { api, supplier, product } = await setup();
+    const order = (await api.post('/supplier-orders', { supplierId: supplier.id, items: [{ productId: product.id, productName: product.name, quantityOrdered: 5, unitCost: 5 }] })).body.data.order;
+    await api.post(`/supplier-orders/${order.id}/submit`);
+    const line = [{ itemId: order.items[0].id, quantityReceived: 5 }];
+    const res = await Promise.all([api.post(`/supplier-orders/${order.id}/receive`, { items: line }), api.post(`/supplier-orders/${order.id}/receive`, { items: line })]);
+    // One succeeds; the other is refused (nothing left to receive, or caught while the first was running).
+    expect(res.map((r) => r.status).filter((s) => s === 200)).toHaveLength(1);
+    expect(res.every((r) => [200, 400, 409].includes(r.status))).toBe(true);
+    expect((await api.get(`/products/${product.id}`)).body.data.product.stockQuantity).toBe(18 + 5);
+    expect((await api.get(`/supplier-orders/${order.id}`)).body.data.order.status).toBe('received');
+  });
+
   it('cancels only unreceived orders', async () => {
     const { api, supplier, product } = await setup();
     const order = (

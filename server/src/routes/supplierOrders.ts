@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { moveCaisse } from '../lib/caisse.js';
 import { prisma, Prisma, type Tx } from '../lib/prisma.js';
-import { badRequest, notFound } from '../lib/errors.js';
+import { badRequest, conflict, notFound } from '../lib/errors.js';
 import { num, parseJson, r2, serialize } from '../lib/serialize.js';
 import { authed, ok, type Req } from '../lib/route.js';
 import { qStr } from '../lib/pagination.js';
@@ -234,34 +234,83 @@ export default async function supplierOrderRoutes(app: FastifyInstance) {
     paymentAmount: z.coerce.number().min(0).optional(),
   });
 
-  /** Receiving product lines adds stock ("purchase" movement) and updates the product cost price. */
+  /**
+   * Receiving product lines adds stock ("purchase" movement) and updates the product cost price. Each line is re-read
+   * inside the transaction and only updated if nobody received it meanwhile, so two receptions at once (a double
+   * click, two screens, Receive All) can never add the same pieces twice.
+   */
+  async function receiveLines(tx: Tx, req: Req, order: { id: string; orderNumber: string; storeId: string | null }, lines: { itemId: string; quantityReceived: number }[]) {
+    for (const r of lines) {
+      const item = await tx.supplierOrderItem.findFirst({ where: { id: r.itemId, supplierOrderId: order.id } });
+      if (!item) throw notFound('Order item', r.itemId);
+      if (item.itemType === 'unit') throw badRequest('Les appareils sont ajoutés au stock un par un');
+      const open = item.quantityOrdered - item.quantityReceived;
+      if (r.quantityReceived > open) throw badRequest(`Quantité maximale pour « ${item.productName} » : ${open}`);
+      const done = await tx.supplierOrderItem.updateMany({ where: { id: item.id, quantityReceived: item.quantityReceived }, data: { quantityReceived: item.quantityReceived + r.quantityReceived } });
+      if (done.count !== 1) throw conflict('Réception déjà en cours, réessayez');
+      if (item.productId) {
+        await tx.product.update({ where: { id: item.productId }, data: { costPrice: item.unitCost } });
+        await moveStock(tx, {
+          tenantId: req.auth.tenantId,
+          productId: item.productId,
+          delta: r.quantityReceived,
+          type: 'purchase',
+          reference: order.orderNumber,
+          notes: 'Stock received from supplier',
+          storeId: order.storeId,
+          userId: req.auth.userId,
+        });
+      }
+    }
+  }
+
+  /**
+   * Receive All: receives everything still open on the given orders (all orders when none are given). Only submitted
+   * orders (pending / partial) whose open lines are all products qualify: drafts, received and cancelled orders are
+   * left as they are, and so are orders still waiting for devices, which are added to stock one by one with their
+   * IMEI. Each order is received in its own transaction; the answer lists what was received and what was skipped.
+   */
+  app.post('/supplier-orders/receive-all', async (req: Req<{ orderIds?: string[] }>) => {
+    const { orderIds } = z.object({ orderIds: z.array(z.string()).max(500).optional() }).parse(req.body ?? {});
+    const orders = await prisma.supplierOrder.findMany({
+      where: { tenantId: req.auth.tenantId, ...(orderIds ? { id: { in: orderIds } } : { status: { in: ['pending', 'partial'] } }) },
+      include,
+      orderBy: { createdAt: 'asc' },
+    });
+    const received: string[] = [];
+    const skipped: { orderNumber: string; reason: 'status' | 'devices' | 'busy' }[] = [];
+    for (const order of orders) {
+      if (!['pending', 'partial'].includes(order.status)) {
+        skipped.push({ orderNumber: order.orderNumber, reason: 'status' });
+        continue;
+      }
+      const open = order.items.filter((i) => i.quantityReceived < i.quantityOrdered);
+      if (!open.length || open.some((i) => i.itemType === 'unit')) {
+        skipped.push({ orderNumber: order.orderNumber, reason: open.length ? 'devices' : 'status' });
+        continue;
+      }
+      try {
+        await prisma.$transaction(async (tx) => {
+          await receiveLines(tx, req, order, open.map((i) => ({ itemId: i.id, quantityReceived: i.quantityOrdered - i.quantityReceived })));
+          await refreshStatus(tx, order.id);
+        });
+        received.push(order.orderNumber);
+      } catch (e) {
+        // Usually received meanwhile (another click or screen). Nothing was applied for this order either way.
+        req.log.warn({ err: e, orderId: order.id }, 'receive-all: order skipped');
+        skipped.push({ orderNumber: order.orderNumber, reason: 'busy' });
+      }
+    }
+    return ok({ received, skipped });
+  });
+
   app.post('/supplier-orders/:id/receive', async (req: Req<z.infer<typeof receiveSchema>, unknown, { id: string }>) => {
     const body = receiveSchema.parse(req.body);
     const order = await loadOrder(req.auth.tenantId, req.params.id);
     if (['draft', 'cancelled'].includes(order.status)) throw badRequest("Cette commande ne peut pas être réceptionnée");
     if (body.paymentAmount) await assertNotInvoiced(order.id);
     await prisma.$transaction(async (tx) => {
-      for (const r of body.items) {
-        const item = order.items.find((i) => i.id === r.itemId);
-        if (!item) throw notFound('Order item', r.itemId);
-        if (item.itemType === 'unit') throw badRequest('Les appareils sont ajoutés au stock un par un');
-        const open = item.quantityOrdered - item.quantityReceived;
-        if (r.quantityReceived > open) throw badRequest(`Quantité maximale pour « ${item.productName} » : ${open}`);
-        if (item.productId) {
-          await tx.product.update({ where: { id: item.productId }, data: { costPrice: item.unitCost } });
-          await moveStock(tx, {
-            tenantId: req.auth.tenantId,
-            productId: item.productId,
-            delta: r.quantityReceived,
-            type: 'purchase',
-            reference: order.orderNumber,
-            notes: 'Stock received from supplier',
-            storeId: order.storeId,
-            userId: req.auth.userId,
-          });
-        }
-        await tx.supplierOrderItem.update({ where: { id: item.id }, data: { quantityReceived: item.quantityReceived + r.quantityReceived } });
-      }
+      await receiveLines(tx, req, order, body.items);
       if (body.paymentAmount) await applyPayment(tx, order.id, body.paymentAmount, { id: req.auth.userId, name: userName(req) });
       await refreshStatus(tx, order.id);
     });

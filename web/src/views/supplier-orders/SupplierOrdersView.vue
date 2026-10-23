@@ -3,8 +3,11 @@ import { computed, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
-import { BanknotesIcon, ClipboardDocumentListIcon, EyeIcon, MagnifyingGlassIcon, PaperAirplaneIcon, PlusIcon, XMarkIcon } from '@heroicons/vue/24/outline';
+import { ArchiveBoxArrowDownIcon, BanknotesIcon, ClipboardDocumentListIcon, EyeIcon, MagnifyingGlassIcon, PaperAirplaneIcon, PlusIcon, XMarkIcon } from '@heroicons/vue/24/outline';
 import { supplierOrdersApi } from '@/api/supplierOrders';
+import { apiErrorMessage } from '@/api/http';
+import ConfirmModal from '@/components/ui/ConfirmModal.vue';
+import Toast from '@/components/ui/Toast.vue';
 import { formatCurrency, formatDate } from '@/utils/format';
 import { statusInfo } from '@/utils/supplierOrderStatus';
 
@@ -50,6 +53,43 @@ const submitMutation = useMutation({
   mutationFn: (id) => supplierOrdersApi.submit(id),
   onSuccess: () => ['supplier-orders', 'suppliers'].forEach((k) => queryClient.invalidateQueries({ queryKey: [k] })),
 });
+
+// ── Receive (one order or all eligible ones) ──
+// Submitted orders whose remaining lines are products; devices are added to stock one by one from the order page.
+const openLines = (o) => o.items.filter((i) => i.receivedQuantity < i.quantity);
+const isOpen = (o) => ['pending', 'partial'].includes(o.status) && openLines(o).length > 0;
+const canReceive = (o) => isOpen(o) && openLines(o).every((i) => i.itemType !== 'unit');
+const eligible = computed(() => (orders.value ?? []).filter(canReceive));
+const withDevices = computed(() => (orders.value ?? []).filter((o) => isOpen(o) && !canReceive(o)).length);
+
+const receiveTargets = ref([]);
+const receiveBulk = ref(false);
+function askReceive(list, bulk) {
+  receiveTargets.value = list;
+  receiveBulk.value = bulk;
+}
+const receiveMessage = computed(() => {
+  const list = receiveTargets.value;
+  if (!receiveBulk.value) return list[0] ? t('supplierOrders.receiveOneConfirm', { number: list[0].orderNumber }) : '';
+  const names = list.slice(0, 6).map((o) => o.orderNumber).join(', ') + (list.length > 6 ? ', …' : '');
+  const msg = t('supplierOrders.receiveAllConfirm', { n: list.length, list: names });
+  return withDevices.value ? `${msg} ${t('supplierOrders.receiveAllDevicesNote', { n: withDevices.value })}` : msg;
+});
+const toast = ref({ show: false, message: '', type: 'success' });
+const receiveMutation = useMutation({
+  mutationFn: (ids) => supplierOrdersApi.receiveAll(ids),
+  onSuccess: ({ received, skipped }) => {
+    receiveTargets.value = [];
+    for (const k of ['supplier-orders', 'supplier-order', 'suppliers', 'supplier', 'products', 'pos-products', 'inventory-movements', 'dashboard']) queryClient.invalidateQueries({ queryKey: [k] });
+    const parts = [received.length && t('supplierOrders.toast.receivedAll', { n: received.length }), skipped.length && t('supplierOrders.toast.receivedSkipped', { n: skipped.length })];
+    toast.value = { show: true, message: parts.filter(Boolean).join(' · ') || t('supplierOrders.receiveAllNone'), type: received.length ? 'success' : 'error' };
+  },
+  onError: (e) => {
+    receiveTargets.value = [];
+    toast.value = { show: true, message: apiErrorMessage(e, t('supplierOrders.toast.receiveError')), type: 'error' };
+  },
+});
+const confirmReceive = () => !receiveMutation.isPending.value && receiveTargets.value.length && receiveMutation.mutate(receiveTargets.value.map((o) => o.id));
 const th = 'px-4 py-3 text-start text-sm font-medium text-gray-500';
 </script>
 
@@ -63,7 +103,19 @@ const th = 'px-4 py-3 text-start text-sm font-medium text-gray-500';
           <span class="font-medium text-danger-600">{{ formatCurrency(summary.totalDebt) }}</span> {{ t('supplierOrders.toPay') }}
         </p>
       </div>
-      <RouterLink to="/app/supplier-orders/new" class="btn-primary inline-flex items-center gap-2"><PlusIcon class="h-5 w-5" /> {{ t('supplierOrders.newOrder') }}</RouterLink>
+      <div class="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          class="btn-secondary inline-flex items-center gap-2"
+          :disabled="!eligible.length || receiveMutation.isPending.value"
+          :title="eligible.length ? t('supplierOrders.receiveAll') : t('supplierOrders.receiveAllNone')"
+          @click="askReceive(eligible, true)"
+        >
+          <ArchiveBoxArrowDownIcon class="h-5 w-5" /> {{ t('supplierOrders.receiveAll') }}
+          <span v-if="eligible.length" class="rounded-full bg-gray-100 px-1.5 text-xs font-semibold text-gray-700">{{ eligible.length }}</span>
+        </button>
+        <RouterLink to="/app/supplier-orders/new" class="btn-primary inline-flex items-center gap-2"><PlusIcon class="h-5 w-5" /> {{ t('supplierOrders.newOrder') }}</RouterLink>
+      </div>
     </div>
 
     <div class="card p-4">
@@ -117,6 +169,16 @@ const th = 'px-4 py-3 text-start text-sm font-medium text-gray-500';
                   <RouterLink :to="`/app/supplier-orders/${o.id}`" class="inline-block p-2 text-gray-400 hover:text-primary-600" :title="t('supplierOrders.viewDetails')">
                     <EyeIcon class="h-5 w-5" />
                   </RouterLink>
+                  <button
+                    v-if="canReceive(o)"
+                    class="p-2 text-gray-400 hover:text-success-600 disabled:opacity-40"
+                    :title="t('supplierOrders.receiveAction')"
+                    :aria-label="`${t('supplierOrders.receiveAction')} ${o.orderNumber}`"
+                    :disabled="receiveMutation.isPending.value"
+                    @click="askReceive([o], false)"
+                  >
+                    <ArchiveBoxArrowDownIcon class="h-5 w-5" />
+                  </button>
                   <button v-if="o.status === 'draft'" class="p-2 text-gray-400 hover:text-primary-600" :title="t('supplierOrders.submitOrder')" @click="submitMutation.mutate(o.id)">
                     <PaperAirplaneIcon class="h-5 w-5" />
                   </button>
@@ -164,5 +226,18 @@ const th = 'px-4 py-3 text-start text-sm font-medium text-gray-500';
         </div>
       </div>
     </Teleport>
+
+    <ConfirmModal
+      :show="receiveTargets.length > 0"
+      :title="receiveBulk ? t('supplierOrders.receiveAllTitle') : t('supplierOrders.receiveTitle')"
+      :message="receiveMessage"
+      :confirm-text="receiveBulk ? t('supplierOrders.receiveAll') : t('supplierOrders.receiveAction')"
+      :cancel-text="t('common.cancel')"
+      :loading="receiveMutation.isPending.value"
+      type="success"
+      @confirm="confirmReceive"
+      @cancel="receiveTargets = []"
+    />
+    <Toast :show="toast.show" :message="toast.message" :type="toast.type" @close="toast.show = false" />
   </div>
 </template>

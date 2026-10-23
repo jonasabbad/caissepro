@@ -62,6 +62,11 @@ export const supplierOrdersApi = {
     const { data } = await http.post(`/supplier-orders/${id}/receive`, { items, paymentAmount });
     return mapOrder(data.data.order);
   },
+  /** Receives everything still open on these orders; returns { received: [orderNumber], skipped: [{ orderNumber, reason }] }. */
+  async receiveAll(orderIds) {
+    const { data } = await http.post('/supplier-orders/receive-all', { orderIds });
+    return data.data;
+  },
   async addPayment(id, amount) {
     const { data } = await http.post(`/supplier-orders/${id}/payment`, { amount });
     return mapOrder(data.data.order);
