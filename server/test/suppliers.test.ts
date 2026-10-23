@@ -100,6 +100,26 @@ describe('suppliers & supplier orders', () => {
     expect(units[0].supplier.name).toBe('Oussama');
   });
 
+  it('counts every order of a supplier, received and invoiced ones included, without counting their debt twice', async () => {
+    const { api, supplier, product } = await setup();
+    const newOrder = async () =>
+      (await api.post('/supplier-orders', { supplierId: supplier.id, items: [{ productId: product.id, productName: product.name, quantityOrdered: 2, unitCost: 50 }] })).body.data.order;
+    const received = await newOrder();
+    await api.post(`/supplier-orders/${received.id}/submit`);
+    await api.post(`/supplier-orders/${received.id}/receive`, { items: [{ itemId: received.items[0].id, quantityReceived: 2 }] });
+    const inv = (await api.post(`/supplier-invoices/from-order/${received.id}`)).body.data.invoice;
+    await api.post(`/supplier-invoices/${inv.id}/confirm`);
+    await newOrder(); // draft
+
+    const listed = (await api.get('/suppliers')).body.data.suppliers.find((x: any) => x.id === supplier.id);
+    const s = (await api.get(`/suppliers/${supplier.id}`)).body.data.supplier;
+    const orders = (await api.get(`/suppliers/${supplier.id}/orders`)).body.data.orders;
+    expect(orders.map((o: any) => o.status).sort()).toEqual(['draft', 'received']);
+    expect([listed.orderCount, s.orderCount, s.totalOrders]).toEqual([2, 2, 2]);
+    // The received order's 100 DH is owed once, through its invoice.
+    expect([s.invoiceCount, s.totalPurchases, s.balance]).toEqual([1, 100, -100]);
+  });
+
   it('cancels only unreceived orders', async () => {
     const { api, supplier, product } = await setup();
     const order = (

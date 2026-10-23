@@ -102,6 +102,7 @@ const createOrder = useMutation({
   mutationFn: () => supplierOrdersApi.create({ supplierId: order.value.supplierId, items: items.value, notes: order.value.notes || undefined }),
   onSuccess: () => {
     queryClient.invalidateQueries({ queryKey: ['supplier-orders'] });
+    queryClient.invalidateQueries({ queryKey: ['suppliers'] });
     router.push('/app/supplier-orders');
   },
   onError: (e) => warn(apiErrorMessage(e, t('common.error'))),

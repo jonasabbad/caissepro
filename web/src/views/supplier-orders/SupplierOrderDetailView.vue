@@ -57,6 +57,9 @@ const notify = (message, type = 'success') => (toast.value = { show: true, messa
 const refresh = () => {
   queryClient.invalidateQueries({ queryKey: ['supplier-order', orderId.value] });
   queryClient.invalidateQueries({ queryKey: ['supplier-orders'] });
+  // Supplier pages show the order count and balance.
+  queryClient.invalidateQueries({ queryKey: ['suppliers'] });
+  queryClient.invalidateQueries({ queryKey: ['supplier'] });
 };
 
 // Per-device rows built from the item's unitDetails.

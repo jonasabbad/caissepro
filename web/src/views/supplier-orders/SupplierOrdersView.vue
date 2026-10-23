@@ -42,12 +42,13 @@ const payMutation = useMutation({
   mutationFn: () => supplierOrdersApi.addPayment(payOrderId.value, payAmount.value),
   onSuccess: () => {
     queryClient.invalidateQueries({ queryKey: ['supplier-orders'] });
+    queryClient.invalidateQueries({ queryKey: ['suppliers'] });
     payOpen.value = false;
   },
 });
 const submitMutation = useMutation({
   mutationFn: (id) => supplierOrdersApi.submit(id),
-  onSuccess: () => queryClient.invalidateQueries({ queryKey: ['supplier-orders'] }),
+  onSuccess: () => ['supplier-orders', 'suppliers'].forEach((k) => queryClient.invalidateQueries({ queryKey: [k] })),
 });
 const th = 'px-4 py-3 text-start text-sm font-medium text-gray-500';
 </script>

@@ -11,6 +11,7 @@ import { num, parseJson, r2 } from './serialize.js';
 
 export interface SupplierBalance {
   invoiceCount: number;
+  /** Every purchase order of the supplier, whatever its status (received, invoiced, draft…), as listed on its page. */
   orderCount: number;
   totalPurchases: number;
   totalPaid: number;
@@ -44,7 +45,7 @@ export async function invoicedOrderIds(tenantId: string) {
 }
 
 export async function supplierBalances(tenantId: string, ids: string[]) {
-  const [invoices, orders, invoiced] = await Promise.all([
+  const [invoices, orders, invoiced, orderCounts] = await Promise.all([
     prisma.supplierInvoice.findMany({
       where: { tenantId, supplierId: { in: ids }, status: 'confirmed' },
       select: { supplierId: true, status: true, total: true, amountPaid: true, dueDate: true },
@@ -54,6 +55,7 @@ export async function supplierBalances(tenantId: string, ids: string[]) {
       select: { id: true, supplierId: true, totalAmount: true, amountPaid: true, amountRemaining: true },
     }),
     invoicedOrderIds(tenantId),
+    prisma.supplierOrder.groupBy({ by: ['supplierId'], where: { tenantId, supplierId: { in: ids } }, _count: { _all: true } }),
   ]);
   const out = new Map<string, SupplierBalance>();
   for (const id of ids) out.set(id, { invoiceCount: 0, orderCount: 0, totalPurchases: 0, totalPaid: 0, outstanding: 0, overdue: 0, overdueCount: 0 });
@@ -66,10 +68,11 @@ export async function supplierBalances(tenantId: string, ids: string[]) {
     b.outstanding += st.remaining;
     if (st.overdue) (b.overdue += st.remaining), b.overdueCount++;
   }
+  for (const c of orderCounts) out.get(c.supplierId)!.orderCount = c._count._all;
+  // Amounts only: an invoiced order's debt and payments are counted through its invoice.
   for (const o of orders) {
     if (invoiced.has(o.id)) continue;
     const b = out.get(o.supplierId)!;
-    b.orderCount++;
     b.totalPurchases += num(o.totalAmount);
     b.totalPaid += num(o.amountPaid);
     b.outstanding += num(o.amountRemaining);
