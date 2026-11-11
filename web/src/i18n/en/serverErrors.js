@@ -46,6 +46,7 @@ export default {
     selectCustomer: 'Select a customer',
     transactionCancelled: 'Transaction cancelled',
     transactionAlreadyCancelled: 'Transaction already cancelled',
+    onlyManagerCancelsSale: 'Only a manager can cancel a sale',
     invalidReportType: 'Invalid report type',
     invalidImageUrl: 'Invalid image URL',
     emailExists: 'A user with this email already exists',

@@ -1,5 +1,5 @@
 <script setup>
-import { nextTick, ref } from 'vue';
+import { nextTick, ref, useId } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ArrowUturnLeftIcon, CheckIcon, PencilSquareIcon } from '@heroicons/vue/20/solid';
 import { useCartStore } from '@/stores/cart';
@@ -18,6 +18,8 @@ const editing = ref(false);
 const draft = ref('');
 const error = ref('');
 const input = ref(null);
+// The same line can show in several places (POS cart, phone cashier): each editor has its own ids.
+const uid = useId();
 
 async function open() {
   if (!cart.canEditPrice(props.item)) return;
@@ -56,9 +58,9 @@ function reset() {
 <template>
   <div class="mt-1">
     <form v-if="editing" class="flex items-center gap-1.5" @submit.prevent="save">
-      <label :for="`price-${item.productId}`" class="sr-only">{{ t('pos.priceEdit.label', { name: item.product.name }) }}</label>
+      <label :for="`price-${uid}`" class="sr-only">{{ t('pos.priceEdit.label', { name: item.product.name }) }}</label>
       <input
-        :id="`price-${item.productId}`"
+        :id="`price-${uid}`"
         ref="input"
         v-model="draft"
         type="text"
@@ -66,7 +68,7 @@ function reset() {
         autocomplete="off"
         dir="ltr"
         :aria-invalid="!!error"
-        :aria-describedby="error ? `price-err-${item.productId}` : undefined"
+        :aria-describedby="error ? `price-err-${uid}` : undefined"
         :class="['input h-9 w-28 px-2 py-1 text-base font-semibold sm:h-8 sm:text-sm', error && 'border-danger-400 focus:border-danger-500 focus:ring-danger-500']"
         @keydown.esc.prevent="cancel"
         @blur="onBlur"
@@ -76,7 +78,7 @@ function reset() {
         <CheckIcon class="h-4 w-4" />
       </button>
     </form>
-    <p v-if="editing && error" :id="`price-err-${item.productId}`" class="mt-1 text-xs text-danger-600" role="alert">{{ error }}</p>
+    <p v-if="editing && error" :id="`price-err-${uid}`" class="mt-1 text-xs text-danger-600" role="alert">{{ error }}</p>
 
     <div v-if="!editing" class="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
       <button

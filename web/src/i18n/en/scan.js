@@ -79,6 +79,13 @@ export default {
     },
     app: {
       name: "CaissePro Scanner",
+      cashier: "Mobile cashier",
+      cashierHint: "Scan one product after another, manage the cart and check out from this phone.",
+      modeLabel: "Phone mode",
+      modeSend: "Send to PC",
+      modeLookup: "Identify",
+      cashierSignin: "Requires signing in to your account.",
+      cashierSigninButton: "Mobile cashier (sign in)",
       signedInAs: "Signed in: {name}",
       openApp: "Open CaissePro",
       installTitle: "Add CaissePro Scanner to your home screen",

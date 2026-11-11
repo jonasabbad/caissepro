@@ -277,3 +277,61 @@ describe('POS: selling price changed at the till', () => {
     expect((await m.api.get(`/products/${cable.id}`)).body.data.product.stockQuantity).toBe(10);
   });
 });
+
+describe('POS payment: amount received, change and remaining (sale total 420 DH)', () => {
+  // 420 DH: the phone sold at 420 (its cost 300), so every case sells the same thing.
+  async function sale420() {
+    const t = await setup();
+    const p = (await t.api.post('/products', { name: 'Écran', costPrice: 300, retailPrice: 420, stockQuantity: 10 })).body.data.product;
+    const items = [{ productId: p.id, quantity: 1, unitPrice: 420 }];
+    const sell = async (payments: { method: string; amount: number }[], extra: Record<string, unknown> = {}) => {
+      const before = await t.caisse();
+      const r = await t.api.post('/checkout', { items, payments, ...extra });
+      return { r, tx: r.body.data?.transaction, drawer: Math.round(((await t.caisse()) - before) * 100) / 100 };
+    };
+    return { ...t, sell };
+  }
+  const paid = (tx: any) => tx.payments.map((p: any) => [p.method, p.amount]).sort((a: string[], b: string[]) => a[0].localeCompare(b[0]));
+
+  it('1/5. cash 500 → change 80 is not revenue: total 420, payment 420, drawer +420', async () => {
+    const { sell } = await sale420();
+    const { tx, drawer } = await sell([{ method: 'cash', amount: 500 }]);
+    expect([tx.totalAmount, tx.amountPaid, tx.amountRemaining, tx.totalProfit, tx.status]).toEqual(['420.00', '420.00', '0.00', '120.00', 'completed']);
+    expect(paid(tx)).toEqual([['cash', '420.00']]);
+    expect(drawer).toBe(420);
+  });
+
+  it('2. exact 420 → total 420, drawer +420', async () => {
+    const { sell } = await sale420();
+    const { tx, drawer } = await sell([{ method: 'cash', amount: 420 }]);
+    expect([tx.totalAmount, tx.amountPaid]).toEqual(['420.00', '420.00']);
+    expect(drawer).toBe(420);
+  });
+
+  it('3. 400 received: refused for a direct sale; as a credit sale 20 stays owed (total 420)', async () => {
+    const { sell, api } = await sale420();
+    const short = await sell([{ method: 'cash', amount: 400 }]);
+    expect(short.r.status).toBe(400);
+    expect(short.drawer).toBe(0);
+    const customer = (await api.post('/customers', { firstName: 'Nadia' })).body.data.customer;
+    const { tx, drawer } = await sell([{ method: 'cash', amount: 400 }], { type: 'credit', customerId: customer.id });
+    expect([tx.totalAmount, tx.amountPaid, tx.amountRemaining, tx.status]).toEqual(['420.00', '400.00', '20.00', 'partial']);
+    expect(drawer).toBe(400);
+  });
+
+  it('4. card 120 + cash 300 → fully paid, drawer +300 (only the cash)', async () => {
+    const { sell } = await sale420();
+    const { tx, drawer } = await sell([{ method: 'card', amount: 120 }, { method: 'cash', amount: 300 }]);
+    expect([tx.totalAmount, tx.amountPaid, tx.status]).toEqual(['420.00', '420.00', 'completed']);
+    expect(paid(tx)).toEqual([['card', '120.00'], ['cash', '300.00']]);
+    expect(drawer).toBe(300);
+  });
+
+  it('change always comes out of the cash, whatever the order: cash 400 + card 100 → cash 320, drawer +320', async () => {
+    const { sell } = await sale420();
+    const { tx, drawer } = await sell([{ method: 'cash', amount: 400 }, { method: 'card', amount: 100 }]);
+    expect(tx.totalAmount).toBe('420.00');
+    expect(paid(tx)).toEqual([['card', '100.00'], ['cash', '320.00']]);
+    expect(drawer).toBe(320);
+  });
+});

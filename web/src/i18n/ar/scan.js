@@ -79,6 +79,13 @@ export default {
     },
     app: {
       name: "CaissePro Scanner",
+      cashier: "نقطة بيع متنقلة",
+      cashierHint: "امسح المنتجات تباعًا، وأدر السلة، وأتمم البيع من هذا الهاتف.",
+      modeLabel: "وضع الهاتف",
+      modeSend: "إرسال إلى الحاسوب",
+      modeLookup: "تعرّف",
+      cashierSignin: "يتطلب تسجيل الدخول إلى حسابك.",
+      cashierSigninButton: "نقطة بيع متنقلة (تسجيل الدخول)",
       signedInAs: "متصل: {name}",
       openApp: "فتح CaissePro",
       installTitle: "أضف CaissePro Scanner إلى الشاشة الرئيسية",

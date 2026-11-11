@@ -68,3 +68,38 @@ export function createScanGate({ minGapMs = 400, sameGoneMs = 700 } = {}) {
     },
   };
 }
+
+/**
+ * The cart line a scanned product went into, so the phone cashier can keep showing it (live: quantity, price, total).
+ * A device has its own line (`unit-<id>`); a product's piece line wins over its box line when both exist.
+ */
+export function scannedLineId(items, { productId, unitId } = {}) {
+  if (unitId) return items.some((i) => i.productId === `unit-${unitId}`) ? `unit-${unitId}` : null;
+  if (!productId) return null;
+  const lines = items.filter((i) => !i.soldUnit && (i.realProductId ?? i.productId) === productId);
+  return (lines.find((i) => i.saleMode !== 'pack') ?? lines[0])?.productId ?? null;
+}
+
+/** What the phone cashier shows for a cart line: selling price (charged), cost and stock, kept apart. */
+export function lineFigures(line, cartItems = []) {
+  if (!line) return null;
+  const isPack = line.saleMode === 'pack';
+  const per = isPack ? line.packSize || 1 : 1;
+  const realId = line.realProductId ?? line.productId;
+  const inCart = line.soldUnit ? 1 : cartItems.filter((i) => !i.soldUnit && (i.realProductId ?? i.productId) === realId).reduce((s, i) => s + i.quantity, 0);
+  const stock = line.soldUnit ? 1 : Number(line.product.stockQuantity) || 0;
+  const quantity = isPack ? line.quantity / per : line.quantity;
+  const round2 = (n) => Math.round(n * 100) / 100;
+  return {
+    // Per piece, or per box for a box line (its fixed box price: line total / boxes).
+    sellingPrice: isPack ? round2(line.total / (quantity || 1)) : line.unitPrice,
+    cost: round2(Number(line.product.costPrice) * per),
+    stock,
+    inCart,
+    left: Math.max(0, stock - inCart),
+    quantity,
+    perBox: isPack ? per : null,
+    total: line.total,
+    profit: line.profit,
+  };
+}

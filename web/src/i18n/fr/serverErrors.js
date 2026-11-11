@@ -48,6 +48,7 @@ export default {
     selectCustomer: 'Sélectionnez un client',
     transactionCancelled: 'Transaction annulée',
     transactionAlreadyCancelled: 'Transaction déjà annulée',
+    onlyManagerCancelsSale: 'Seul un responsable peut annuler une vente',
     invalidReportType: 'Type de rapport invalide',
     invalidImageUrl: 'URL d’image invalide',
     emailExists: 'Un utilisateur avec cet email existe déjà',

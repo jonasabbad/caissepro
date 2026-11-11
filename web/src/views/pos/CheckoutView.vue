@@ -48,7 +48,8 @@ import Pagination from '@/components/ui/Pagination.vue';
 import ScanButton from '@/components/scan/ScanButton.vue';
 import CartLinePrice from '@/components/pos/CartLinePrice.vue';
 import PosScanSheet from '@/components/pos/PosScanSheet.vue';
-import { resolveScan } from '@/utils/posScan';
+import { resolveScan, scannedLineId } from '@/utils/posScan';
+import { cashSuggestions, parseAmount, round2, settlePayment } from '@/utils/payment';
 import { usePhoneScanHandler } from '@/composables/usePhoneScanner';
 import { useRoute, useRouter } from 'vue-router';
 
@@ -110,9 +111,10 @@ function onSellerChange(e) {
 // ── Screen state ──
 const search = ref('');
 const showPayment = ref(false);
-const amountPaid = ref(0);
-const paymentMethod = ref('cash');
-const overpayMode = ref('change'); // change | supplement
+// Money received, by method: the first row is the main method (left empty = the exact amount still due), the others
+// are extra methods. Arithmetic in utils/payment.js.
+const payRows = ref([{ method: 'cash', amount: '', reference: '' }]);
+const giveGapAsDiscount = ref(false); // a direct sale / trade-in paid short: the gap becomes a discount (explicit)
 const saleType = ref('sale'); // sale | credit | reservation
 const processing = ref(false);
 const paymentError = ref('');
@@ -462,13 +464,26 @@ function closePack() {
   packProduct.value = null;
 }
 function packChooseUnit() {
-  if (packProduct.value) cart.addItem(productSnapshot(packProduct.value));
+  const p = packProduct.value;
+  if (p) {
+    cart.addItem(productSnapshot(p));
+    sayAddedInSheet(p.name, cart.items.find((i) => i.productId === p.id));
+  }
   closePack();
 }
 function packChooseBox() {
   const p = packProduct.value;
-  if (p && !cart.addPackItem(productSnapshot(p))) scanError.value = t('pos.packStockShort', { name: p.name });
+  if (p && !cart.addPackItem(productSnapshot(p))) {
+    scanError.value = t('pos.packStockShort', { name: p.name });
+    if (showScanSheet.value) sayScan('error', scanError.value);
+  } else if (p) sayAddedInSheet(p.name, cart.items.find((i) => i.productId === `pack-${p.id}`));
   closePack();
+}
+/** After a choice made in a dialog (piece or box, which phone), the phone cashier shows the line it went into. */
+function sayAddedInSheet(name, line) {
+  if (!showScanSheet.value || !line) return;
+  const n = line.saleMode === 'pack' ? line.quantity / (line.packSize || 1) : line.quantity;
+  sayScan('success', t('pos.scanSheet.added', { name, n }), line.productId);
 }
 function onUnitPicked(u) {
   const p = unitPickerProduct.value;
@@ -487,6 +502,7 @@ function onUnitPicked(u) {
     1,
     { id: u.id, imei: u.imei, serialNumber: u.serialNumber, condition: u.condition },
   );
+  sayAddedInSheet(p.name, cart.items.find((i) => i.productId === `unit-${u.id}`));
   closeUnitPicker();
 }
 function closeUnitPicker() {
@@ -549,8 +565,9 @@ async function lookup() {
 const showScanSheet = ref(false);
 const cartPanel = ref(null);
 const scanFeedback = ref(null);
-const sayScan = (type, text) => {
-  scanFeedback.value = { type, text, at: Date.now() };
+// `lineId`: the cart line a successful scan went into (the phone cashier keeps showing it while scanning on).
+const sayScan = (type, text, lineId = null) => {
+  scanFeedback.value = { type, text, at: Date.now(), lineId };
   if (type === 'error' && !showScanSheet.value) scanError.value = text;
 };
 async function findProductByCode(code) {
@@ -577,7 +594,9 @@ async function addScannedCode(raw) {
   if (res.kind === 'unit') {
     const before = cart.items.length;
     selectUnit(res.unit);
-    if (cart.items.length > before) sayScan('success', t('pos.scanSheet.added', { name: `${res.unit.brand} ${res.unit.model}`, n: 1 }));
+    if (cart.items.length > before) {
+      sayScan('success', t('pos.scanSheet.added', { name: `${res.unit.brand} ${res.unit.model}`, n: 1 }), scannedLineId(cart.items, { unitId: res.unit.id }));
+    }
     return;
   }
   addPicked(res.product);
@@ -587,7 +606,7 @@ function addPicked(p) {
   const before = qtyInCart(p.id);
   selectProduct(p);
   const after = qtyInCart(p.id);
-  if (after > before) sayScan('success', t('pos.scanSheet.added', { name: p.name, n: after }));
+  if (after > before) sayScan('success', t('pos.scanSheet.added', { name: p.name, n: after }), scannedLineId(cart.items, { productId: p.id }));
   else if (scanError.value) sayScan('error', scanError.value);
 }
 /** Checkout from the phone bar or the scan sheet; when something is missing (e.g. the seller), show the cart. */
@@ -603,6 +622,24 @@ function onCameraScan(code) {
 }
 const route = useRoute();
 const router = useRouter();
+// ?cashier=1 (from CaissePro Scanner on a phone): open the phone cashier straight away. With from=scanner, the
+// cashier offers the way back to the scanner mode (send scans to a computer).
+const cashierFromScanner = ref(false);
+function backToScanner() {
+  showScanSheet.value = false;
+  router.push({ path: '/scanner', query: { mode: 'send' } });
+}
+watch(
+  () => route.query.cashier,
+  (v) => {
+    if (!v) return;
+    cashierFromScanner.value = route.query.from === 'scanner';
+    router.replace({ query: { ...route.query, cashier: undefined, from: undefined } });
+    if (cart.isReturnMode) toggleReturnMode(); // a sale, not a return
+    showScanSheet.value = true;
+  },
+  { immediate: true },
+);
 watch(
   () => [route.query.scan, gridLoading.value],
   ([code, loading]) => {
@@ -732,33 +769,37 @@ async function confirmReturn(refunds) {
 function onTradeIn(device) {
   cart.addTradeIn(device);
   showTradeIn.value = false;
-  amountPaid.value = cart.totalAfterTradeIn;
 }
 
 // ── Payment ──
+// Total owed (after trade-ins), what was received, the change handed back (cash only, never revenue) and what is
+// still owed: all from utils/payment.js. The sale's total never includes the change.
 const amountDue = computed(() => (cart.hasTradeIn ? cart.totalAfterTradeIn : cart.total));
-const changeDue = computed(() => Math.max(0, amountPaid.value - amountDue.value));
-const isOverpaid = computed(() => saleType.value === 'sale' && amountPaid.value > amountDue.value);
-watch(paymentMethod, (m) => (overpayMode.value = m === 'cash' ? 'change' : 'supplement'));
-
-function onAmountInput(e) {
-  const v = e.target.value;
-  if (v === '') {
-    amountPaid.value = 0;
-    return;
-  }
-  const n = Number(v);
-  if (Number.isFinite(n)) amountPaid.value = Math.round(n * 100) / 100;
+const payType = computed(() => (cart.hasTradeIn ? 'exchange' : saleType.value));
+const settlement = computed(() => settlePayment({ due: amountDue.value, rows: payRows.value, saleType: payType.value, allowDiscount: giveGapAsDiscount.value }));
+const mainRow = computed(() => payRows.value[0]);
+const quickAmounts = computed(() => (mainRow.value.method === 'cash' && payRows.value.length === 1 && payType.value !== 'reservation' ? cashSuggestions(amountDue.value) : []));
+const amountInput = ref(null);
+function setMainAmount(v) {
+  mainRow.value.amount = String(v);
 }
+const formatNumber = (n) => new Intl.NumberFormat(intlLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+// A new amount means a new decision about any gap.
+watch(
+  () => payRows.value.map((r) => r.amount).join('|') + payType.value,
+  () => (giveGapAsDiscount.value = false),
+);
 
 // ── Sale options (config/saleOptions.js): every type and method is offered; requirements are resolved on click ──
 const SALE_TONE = {
-  gray: 'border-black bg-gray-100 text-black font-medium',
-  blue: 'border-blue-500 bg-blue-50 text-blue-700 font-medium',
-  purple: 'border-purple-500 bg-purple-50 text-purple-700 font-medium',
-  green: 'border-green-500 bg-green-50 text-green-700 font-medium',
+  gray: 'border-gray-900 bg-gray-50 text-gray-900 ring-1 ring-gray-900',
+  blue: 'border-blue-600 bg-blue-50 text-blue-800 ring-1 ring-blue-600',
+  purple: 'border-purple-600 bg-purple-50 text-purple-800 ring-1 ring-purple-600',
+  green: 'border-green-600 bg-green-50 text-green-800 ring-1 ring-green-600',
 };
 const visibleSaleTypes = computed(() => SALE_TYPES.filter((o) => !o.phoneSellerOnly || isPhoneSeller.value));
+// Paid short: switching to a credit sale keeps the rest as the customer's debt (offered next to the discount).
+const creditOption = SALE_TYPES.find((o) => o.key === 'credit');
 const isSaleOptionActive = (o) => (o.action === 'tradeIn' ? cart.hasTradeIn : saleType.value === o.key);
 const pendingSaleOption = ref(null);
 const saleOptionHint = ref('');
@@ -776,16 +817,14 @@ function chooseSaleOption(o) {
   if (o.action === 'tradeIn') showTradeIn.value = true;
   else saleType.value = o.key;
 }
-// Split payment: extra rows carve amounts out of the total received; the main method pays the rest
-// (sent last, so change is taken from it).
-const paymentReference = ref('');
-const splitPayments = ref([]);
-const splitTotal = computed(() => splitPayments.value.reduce((sum, p) => sum + (Number(p.amount) || 0), 0));
-const primaryAmount = computed(() => Math.round((amountPaid.value - splitTotal.value) * 100) / 100);
-function addSplit() {
-  const used = new Set([paymentMethod.value, ...splitPayments.value.map((p) => p.method)]);
+// Another method (e.g. part by card): the first method not used yet; the main amount can stay empty (= the rest).
+function addPayRow() {
+  const used = new Set(payRows.value.map((r) => r.method));
   const m = PAYMENT_METHODS.find((x) => !used.has(x.key)) || PAYMENT_METHODS[1];
-  splitPayments.value.push({ method: m.key, amount: 0, reference: '' });
+  payRows.value.push({ method: m.key, amount: '', reference: '' });
+}
+function removePayRow(i) {
+  payRows.value.splice(i, 1);
 }
 
 function openPayment() {
@@ -793,35 +832,58 @@ function openPayment() {
     sellerError.value = t('employees.selectSellerRequired');
     return;
   }
-  amountPaid.value = cart.hasTradeIn ? cart.totalAfterTradeIn : cart.total;
+  // Nothing pre-filled: the cashier types what the customer hands over (empty = the exact amount).
+  payRows.value = [{ method: 'cash', amount: '', reference: '' }];
+  giveGapAsDiscount.value = false;
   saleType.value = 'sale';
-  paymentMethod.value = 'cash';
-  overpayMode.value = 'change';
   paymentError.value = '';
-  paymentReference.value = '';
-  splitPayments.value = [];
   saleOptionHint.value = '';
   showPayment.value = true;
+  nextTick(() => amountInput.value?.focus());
 }
 
+/** The one-line summary kept next to the Confirm button (the detailed panel above may be scrolled away). */
+const payStatus = computed(() => {
+  const s = settlement.value;
+  if (s.errors.includes('invalidAmount')) return { label: t('pos.pay.invalidAmount'), amount: null, tone: 'bg-danger-50 text-danger-700' };
+  if (s.errors.includes('nonCashOver')) return { label: t('pos.pay.tooMuch'), amount: null, tone: 'bg-danger-50 text-danger-700' };
+  if (s.change > 0) return { label: t('payment.change'), amount: s.change, tone: 'bg-success-50 text-success-800' };
+  if (s.remaining > 0) {
+    if (saleType.value === 'credit' && !cart.hasTradeIn) return { label: t('pos.remainingCredit'), amount: s.remaining, tone: 'bg-blue-50 text-blue-800' };
+    if (saleType.value === 'reservation') return { label: t('pos.pay.remainingAtPickup'), amount: s.remaining, tone: 'bg-purple-50 text-purple-800' };
+    if (s.discount > 0) return { label: t('pos.discount'), amount: s.discount, tone: 'bg-amber-50 text-amber-900' };
+    return { label: t('payment.amountDue'), amount: s.remaining, tone: 'bg-amber-50 text-amber-900' };
+  }
+  return { label: t('payment.change'), amount: 0, tone: 'bg-gray-50 text-gray-700' };
+});
+
+/** Why the payment cannot be confirmed yet (shown on the button and above it), or ''. */
+const paymentBlocker = computed(() => {
+  const s = settlement.value;
+  if (s.errors.includes('invalidAmount')) return t('pos.pay.invalidAmount');
+  if (s.errors.includes('nonCashOver')) return t('pos.pay.nonCashOver');
+  if (s.errors.includes('remaining')) return t('pos.pay.remainingBlocked', { amount: formatCurrency(s.remaining) });
+  if (payRows.value.some((r, i) => methodInfo(r.method)?.reference === 'required' && s.amounts[i] > 0 && !String(r.reference || '').trim())) {
+    return t('pos.referenceMissing');
+  }
+  return '';
+});
+
 /**
- * A plain sale always settles in full: paying less turns the gap into a discount, paying more is either change
- * (not recorded) or a "supplement" that raises the sale total.
+ * Records the sale through the usual checkout. The total is the cart's (minus a gap given as a discount, when the
+ * cashier chose it); the money received is sent by method, cash last, and the server keeps the change out of the
+ * payments and of the cash drawer.
  */
 async function completePayment() {
   if (sellerRequired.value && !cart.selectedEmployeeId) {
     sellerError.value = t('employees.selectSellerRequired');
     return;
   }
-  const rows = [{ method: paymentMethod.value, reference: paymentReference.value }, ...splitPayments.value.filter((p) => Number(p.amount) > 0)];
-  if (rows.some((p) => methodInfo(p.method)?.reference === 'required' && !String(p.reference || '').trim())) {
-    paymentError.value = t('pos.referenceMissing');
+  if (paymentBlocker.value) {
+    paymentError.value = paymentBlocker.value;
     return;
   }
-  if (primaryAmount.value < 0) {
-    paymentError.value = t('pos.splitTooHigh');
-    return;
-  }
+  const s = settlement.value;
   processing.value = true;
   paymentError.value = '';
   try {
@@ -833,16 +895,12 @@ async function completePayment() {
       ...(i.discount > 0 && { discount: i.discount }),
       ...(i.soldUnitId && { soldUnitId: i.soldUnitId }),
     }));
-    const paid = amountPaid.value;
-    const extras = splitPayments.value
-      .filter((p) => Number(p.amount) > 0)
-      .map((p) => ({ method: p.method, amount: Number(p.amount), reference: String(p.reference || '').trim() || undefined }));
-    const main = primaryAmount.value;
-    const payments = [...extras, ...(main > 0 ? [{ method: paymentMethod.value, amount: main, reference: paymentReference.value.trim() || undefined }] : [])];
+    // Money received by method (change included: the server takes it out of the cash, it is never recorded).
+    const payments = s.payments;
+    // Only a gap the cashier chose to give as a discount changes the total; extra money received never does.
+    const adjust = s.discount;
     let tx;
     if (cart.hasTradeIn) {
-      const due = cart.totalAfterTradeIn;
-      const adjust = paid < due || (paid > due && overpayMode.value === 'supplement') ? due - paid : 0;
       tx = (
         await checkoutApi.checkoutWithTradeIn({
           customerId: customer.value?.id,
@@ -857,7 +915,6 @@ async function completePayment() {
         })
       ).transaction;
     } else {
-      const adjust = saleType.value === 'sale' && (paid < cart.total || (paid > cart.total && overpayMode.value === 'supplement')) ? cart.total - paid : 0;
       const discount = cart.discountAmount + adjust;
       tx = await checkoutApi.checkout({
         customerId: customer.value?.id,
@@ -871,10 +928,6 @@ async function completePayment() {
       });
     }
 
-    const isSale = saleType.value === 'sale';
-    const over = isSale && paid > amountDue.value ? paid - amountDue.value : 0;
-    const supplement = over > 0 && overpayMode.value === 'supplement';
-    const discounted = isSale && !cart.hasTradeIn && paid < cart.total;
     receipt.value = {
       items: cart.items.map((i) => ({
         id: i.productId,
@@ -886,10 +939,10 @@ async function completePayment() {
       })),
       subtotal: cart.subtotal,
       tax: cart.taxAmount,
-      total: discounted ? paid : cart.total + (supplement ? over : 0),
-      amountPaid: paid,
-      change: discounted || supplement ? 0 : changeDue.value,
-      paymentMethod: extras.length ? 'mixed' : paymentMethod.value,
+      total: round2(cart.total - adjust),
+      amountPaid: s.received,
+      change: s.change,
+      paymentMethod: payments.length > 1 ? 'mixed' : payments[0]?.method || mainRow.value.method,
     };
     lastTransactionNumber.value = tx.transactionNumber;
     showPayment.value = false;
@@ -1330,199 +1383,328 @@ const customerLocked = computed(() => cart.isReturnMode && !cart.isEmpty);
       </div>
     </div>
 
-    <!-- Payment -->
+    <!-- Payment: what is owed, how it is paid, the money received, the change to hand back -->
     <Teleport to="body">
-      <div v-if="showPayment" class="modal-overlay" @click.self="showPayment = false">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h3 class="text-lg font-bold text-gray-900">{{ t('payment.title') }}</h3>
-            <button class="p-1 hover:bg-gray-100 rounded" @click="showPayment = false"><XMarkIcon class="w-5 h-5" /></button>
-          </div>
-          <div class="modal-body space-y-6">
-            <div v-if="paymentError" class="bg-danger-50 border border-danger-200 rounded-lg p-3">
-              <p class="text-sm text-danger-700">{{ paymentError }}</p>
+      <div v-if="showPayment" class="fixed inset-0 z-50 flex items-end justify-center bg-gray-950/50 backdrop-blur-sm sm:items-center sm:p-4" @click.self="showPayment = false">
+        <form
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="pay-title"
+          class="flex max-h-[100dvh] w-full flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl sm:max-h-[94dvh] sm:max-w-xl sm:rounded-2xl"
+          novalidate
+          @submit.prevent="completePayment"
+        >
+          <!-- Header -->
+          <header class="flex items-start justify-between gap-3 border-b border-gray-100 px-5 py-4 sm:px-6">
+            <div class="min-w-0">
+              <h2 id="pay-title" class="text-lg font-semibold text-gray-900">{{ t('payment.title') }}</h2>
+              <p class="truncate text-sm text-gray-500">
+                {{ t('pos.scanSheet.items', { n: cart.itemCount }) }}<template v-if="customer"> · {{ `${customer.firstName || ''} ${customer.lastName || ''}`.trim() }}</template>
+              </p>
             </div>
-            <div class="text-center">
-              <p class="text-sm text-gray-500">{{ t('pos.total') }}</p>
-              <p class="text-3xl font-bold text-black">{{ formatCurrency(cart.total) }}</p>
-            </div>
-            <div v-if="sellerRequired && !cart.selectedEmployeeId" class="bg-danger-50 border border-danger-200 rounded-lg p-3">
-              <p class="text-sm text-danger-700">{{ t('employees.selectSellerRequired') }}</p>
+            <button type="button" class="-me-2 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800" :aria-label="t('common.close')" @click="showPayment = false">
+              <XMarkIcon class="h-5 w-5" />
+            </button>
+          </header>
+
+          <div class="min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-contain px-5 py-5 sm:px-6">
+            <div v-if="paymentError" class="rounded-xl border border-danger-200 bg-danger-50 px-4 py-3 text-sm text-danger-700" role="alert">{{ paymentError }}</div>
+            <div v-if="sellerRequired && !cart.selectedEmployeeId" class="rounded-xl border border-danger-200 bg-danger-50 px-4 py-3 text-sm text-danger-700" role="alert">
+              {{ t('employees.selectSellerRequired') }}
             </div>
 
-            <div>
-              <label class="label">{{ t('pos.saleType') }}</label>
+            <!-- Total owed -->
+            <div class="rounded-2xl bg-gray-900 px-5 py-4 text-white">
+              <p class="text-xs font-medium uppercase tracking-wider text-white/60">{{ t('pos.pay.totalDue') }}</p>
+              <p class="mt-1 text-4xl font-bold tabular-nums tracking-tight" dir="ltr">{{ formatCurrency(amountDue) }}</p>
+              <dl v-if="cart.hasTradeIn" class="mt-3 space-y-1 border-t border-white/10 pt-3 text-sm text-white/70">
+                <div class="flex justify-between gap-3"><dt>{{ t('tradeIn.cartTotal') }}</dt><dd class="tabular-nums">{{ formatCurrency(cart.total) }}</dd></div>
+                <div class="flex justify-between gap-3"><dt>{{ t('tradeIn.tradeInDeduction') }}</dt><dd class="tabular-nums">{{ formatCurrency(cart.totalTradeInValue, 'DH', '-') }}</dd></div>
+              </dl>
+            </div>
+
+            <!-- Sale type -->
+            <section>
+              <h3 class="mb-2 text-sm font-semibold text-gray-900">{{ t('pos.saleType') }}</h3>
               <div :class="['grid grid-cols-2 gap-2', visibleSaleTypes.length > 3 ? 'sm:grid-cols-4' : 'sm:grid-cols-3']">
                 <button
                   v-for="o in visibleSaleTypes"
                   :key="o.key"
                   type="button"
-                  :class="['p-3 rounded-lg border text-center transition-colors text-sm', isSaleOptionActive(o) ? SALE_TONE[o.tone] : 'border-gray-200 hover:border-gray-300']"
+                  :class="[
+                    'relative flex min-h-[4.5rem] flex-col items-start justify-between gap-1 rounded-xl border p-3 text-start transition-colors duration-150',
+                    isSaleOptionActive(o) ? SALE_TONE[o.tone] : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50',
+                  ]"
                   :aria-pressed="isSaleOptionActive(o)"
                   @click="chooseSaleOption(o)"
                 >
-                  <component :is="o.icon" class="w-5 h-5 mx-auto mb-1" /> {{ t(o.label) }}
-                  <span v-if="o.needsCustomer && !customer" class="mt-0.5 block text-[10px] text-gray-400">{{ t('pos.needsCustomer') }}</span>
+                  <component :is="o.icon" class="h-5 w-5" />
+                  <span class="text-sm font-semibold leading-tight">{{ t(o.label) }}</span>
+                  <span v-if="o.needsCustomer && !customer" class="text-[11px] font-normal text-gray-500">{{ t('pos.needsCustomer') }}</span>
+                  <CheckCircleIcon v-if="isSaleOptionActive(o)" class="absolute end-2.5 top-2.5 h-5 w-5" />
                 </button>
               </div>
-              <p v-if="saleOptionHint" class="text-xs text-amber-700 mt-2">{{ saleOptionHint }}</p>
-              <p v-else-if="!customer" class="text-xs text-gray-500 mt-2">{{ t('pos.customerOptionsHintClick') }}</p>
-            </div>
+              <p v-if="saleOptionHint" class="mt-2 text-xs text-amber-700">{{ saleOptionHint }}</p>
+              <p v-else-if="!customer" class="mt-2 text-xs text-gray-500">{{ t('pos.customerOptionsHintClick') }}</p>
+            </section>
 
-            <div>
-              <label class="label">{{ t('payment.method') }}</label>
-              <div class="grid grid-cols-3 gap-2 sm:grid-cols-5">
+            <!-- Payment method -->
+            <section>
+              <h3 class="mb-2 text-sm font-semibold text-gray-900">{{ t('payment.method') }}</h3>
+              <div class="grid grid-cols-3 gap-2 sm:grid-cols-5" role="radiogroup" :aria-label="t('payment.method')">
                 <button
                   v-for="m in PAYMENT_METHODS"
                   :key="m.key"
                   type="button"
+                  role="radio"
+                  :aria-checked="mainRow.method === m.key"
                   :class="[
-                    'p-2 rounded-lg border text-center transition-colors text-xs',
-                    paymentMethod === m.key ? 'border-black bg-gray-100 text-black font-medium' : 'border-gray-200 hover:border-gray-300',
+                    'flex flex-col items-center justify-center gap-1 rounded-xl border px-2 py-2.5 text-center text-xs font-medium leading-tight transition-colors duration-150',
+                    mainRow.method === m.key ? 'border-primary-600 bg-primary-50 text-primary-800 ring-1 ring-primary-600' : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50',
                   ]"
-                  :aria-pressed="paymentMethod === m.key"
-                  @click="paymentMethod = m.key"
+                  @click="mainRow.method = m.key"
                 >
-                  <component :is="m.icon" class="w-5 h-5 mx-auto mb-0.5" /> {{ t(m.label) }}
+                  <component :is="m.icon" class="h-5 w-5" /> {{ t(m.label) }}
                 </button>
               </div>
               <input
-                v-if="methodInfo(paymentMethod)?.reference"
-                v-model="paymentReference"
+                v-if="methodInfo(mainRow.method)?.reference"
+                v-model="mainRow.reference"
                 type="text"
-                class="input mt-2 text-sm"
-                :placeholder="methodInfo(paymentMethod).reference === 'required' ? t('pos.referenceRequiredPh') : t('pos.referenceOptionalPh')"
+                class="input mt-2"
+                :aria-label="t('pos.pay.reference')"
+                :placeholder="methodInfo(mainRow.method).reference === 'required' ? t('pos.referenceRequiredPh') : t('pos.referenceOptionalPh')"
               />
-              <div v-for="(p, i) in splitPayments" :key="i" class="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 p-2">
-                <select v-model="p.method" class="input w-36 py-1.5 text-sm" :aria-label="t('payment.method')">
-                  <option v-for="m in PAYMENT_METHODS" :key="m.key" :value="m.key">{{ t(m.label) }}</option>
-                </select>
-                <input v-model.number="p.amount" type="number" min="0" step="0.01" class="input w-28 py-1.5 text-sm" :aria-label="t('payment.amount')" />
+            </section>
+
+            <!-- Amount received -->
+            <section>
+              <label for="pay-amount" class="mb-2 block text-sm font-semibold text-gray-900">
+                {{ saleType === 'reservation' ? t('reservation.deposit') : saleType === 'credit' ? t('pos.pay.deposit') : t('pos.pay.received') }}
+              </label>
+              <div class="relative" dir="ltr">
                 <input
-                  v-if="methodInfo(p.method)?.reference"
-                  v-model="p.reference"
+                  id="pay-amount"
+                  ref="amountInput"
+                  v-model="mainRow.amount"
                   type="text"
-                  class="input min-w-0 flex-1 py-1.5 text-sm"
-                  :placeholder="methodInfo(p.method).reference === 'required' ? t('pos.referenceRequiredPh') : t('pos.referenceOptionalPh')"
+                  inputmode="decimal"
+                  enterkeyhint="done"
+                  autocomplete="off"
+                  :aria-invalid="Number.isNaN(parseAmount(mainRow.amount))"
+                  :aria-describedby="'pay-amount-hint'"
+                  :placeholder="formatNumber(settlement.exactRest ? settlement.mainAmount : 0)"
+                  class="block h-16 w-full rounded-xl border border-gray-300 bg-white pl-4 pr-16 text-right text-3xl font-bold tabular-nums text-gray-900 placeholder:text-gray-300 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/25 aria-[invalid=true]:border-danger-400"
                 />
-                <button type="button" class="p-1 text-gray-400 hover:text-danger-600" :title="t('common.remove')" @click="splitPayments.splice(i, 1)"><XMarkIcon class="w-4 h-4" /></button>
+                <span class="pointer-events-none absolute inset-y-0 right-4 flex items-center text-base font-semibold text-gray-400">DH</span>
               </div>
-              <button v-if="!cart.hasTradeIn" type="button" class="mt-2 inline-flex items-center gap-1 text-sm font-medium text-primary-600 hover:text-primary-800" @click="addSplit">
-                <PlusIcon class="w-4 h-4" /> {{ t('pos.splitAdd') }}
-              </button>
-              <p v-if="splitPayments.length" :class="['mt-1 text-xs', primaryAmount < 0 ? 'text-danger-600' : 'text-gray-500']">
-                {{ primaryAmount < 0 ? t('pos.splitTooHigh') : t('pos.splitPrimary', { amount: formatCurrency(primaryAmount), method: t(methodInfo(paymentMethod).label) }) }}
+              <p id="pay-amount-hint" class="mt-1.5 text-xs text-gray-500">
+                <template v-if="payRows.length > 1 && settlement.exactRest">{{ t('pos.splitPrimary', { amount: formatCurrency(settlement.mainAmount), method: t(methodInfo(mainRow.method).label) }) }}</template>
+                <template v-else-if="saleType === 'credit'">{{ t('pos.depositCreditHint') }}</template>
+                <template v-else-if="saleType === 'reservation'">{{ t('reservation.noDeposit') }}</template>
+                <template v-else>{{ t('pos.pay.emptyIsExact', { amount: formatCurrency(amountDue) }) }}</template>
               </p>
-            </div>
-
-            <div>
-              <label class="label">{{ saleType === 'reservation' ? t('reservation.deposit') : t('payment.amountPaid') }}</label>
-              <input :value="amountPaid" type="number" class="input text-2xl text-center font-bold" step="0.01" min="0" @input="onAmountInput" />
-              <p v-if="saleType === 'credit'" class="text-xs text-gray-500 mt-1">{{ t('pos.depositCreditHint') }}</p>
-              <p v-else-if="saleType === 'reservation'" class="text-xs text-gray-500 mt-1">{{ t('reservation.noDeposit') }} (0 DH minimum)</p>
-            </div>
-
-            <div v-if="saleType === 'sale' && !cart.hasTradeIn && amountPaid < cart.total && amountPaid >= 0" class="bg-amber-50 rounded-lg p-4 text-center">
-              <p class="text-sm text-amber-700">{{ t('pos.discountApplied') }}</p>
-              <p class="text-2xl font-bold text-amber-600">{{ formatCurrency(cart.total - amountPaid, 'DH', '-') }}</p>
-            </div>
-            <div v-else-if="isOverpaid" class="rounded-lg border border-stone-200 bg-white p-3 space-y-3">
-              <p class="text-xs font-medium text-stone-500 text-center">{{ t('pos.overpayQuestion', { amount: formatCurrency(amountPaid - amountDue) }) }}</p>
-              <div class="grid grid-cols-2 gap-2">
+              <div v-if="quickAmounts.length" class="mt-3 flex flex-wrap gap-2">
                 <button
+                  v-for="(v, i) in quickAmounts"
+                  :key="v"
                   type="button"
                   :class="[
-                    'rounded-lg border p-3 text-start transition-colors duration-150',
-                    overpayMode === 'change' ? 'border-stone-900 bg-stone-900 text-white' : 'border-stone-200 bg-white text-stone-700 hover:border-stone-300',
+                    'h-10 rounded-full border px-4 text-sm font-semibold tabular-nums transition-colors',
+                    parseAmount(mainRow.amount) === v ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50',
                   ]"
-                  @click="overpayMode = 'change'"
+                  @click="setMainAmount(v)"
                 >
-                  <p :class="['text-xs font-medium', overpayMode === 'change' ? 'text-stone-300' : 'text-stone-500']">{{ t('payment.change') }}</p>
-                  <p class="text-lg font-bold">{{ formatCurrency(amountPaid - amountDue) }}</p>
-                  <p :class="['text-[11px] mt-1', overpayMode === 'change' ? 'text-stone-400' : 'text-stone-500']">{{ t('pos.saleStaysAt', { amount: formatCurrency(amountDue) }) }}</p>
-                </button>
-                <button
-                  type="button"
-                  :class="[
-                    'rounded-lg border p-3 text-start transition-colors duration-150',
-                    overpayMode === 'supplement' ? 'border-stone-900 bg-stone-900 text-white' : 'border-stone-200 bg-white text-stone-700 hover:border-stone-300',
-                  ]"
-                  @click="overpayMode = 'supplement'"
-                >
-                  <p :class="['text-xs font-medium', overpayMode === 'supplement' ? 'text-stone-300' : 'text-stone-500']">{{ t('pos.supplement') }}</p>
-                  <p class="text-lg font-bold">{{ formatCurrency(amountPaid - amountDue, 'DH', '+') }}</p>
-                  <p :class="['text-[11px] mt-1', overpayMode === 'supplement' ? 'text-stone-400' : 'text-stone-500']">{{ t('pos.saleGoesTo', { amount: formatCurrency(amountPaid) }) }}</p>
+                  {{ i === 0 ? t('pos.pay.exact') : formatCurrency(v) }}
                 </button>
               </div>
-            </div>
-            <div v-if="saleType === 'credit' && amountPaid < cart.total" class="bg-blue-50 rounded-lg p-4 text-center">
-              <p class="text-sm text-blue-700">{{ t('pos.remainingCredit') }}</p>
-              <p class="text-2xl font-bold text-blue-600">{{ formatCurrency(cart.total - amountPaid) }}</p>
-            </div>
-            <div v-if="saleType === 'reservation'" class="bg-purple-50 rounded-lg p-4 text-center">
-              <p class="text-sm text-purple-700">{{ t('reservation.deposit') }}</p>
-              <p class="text-2xl font-bold text-purple-600">{{ formatCurrency(amountPaid) }}</p>
-              <p class="text-xs text-purple-500 mt-1">{{ t('pos.willBeReservedFor', { name: `${customer?.firstName || ''} ${customer?.lastName || ''}`.trim() }) }}</p>
-            </div>
 
-            <div v-if="cart.hasTradeIn" class="rounded-xl border border-green-200 bg-white overflow-hidden">
-              <div class="bg-green-50 border-b border-green-100 divide-y divide-green-100">
-                <div v-for="(d, i) in cart.tradeInDevices" :key="i" class="px-4 py-3 flex items-start justify-between gap-3">
-                  <div class="flex items-start gap-3 min-w-0">
-                    <div class="w-9 h-9 rounded-lg bg-green-100 flex items-center justify-center shrink-0"><ArrowsRightLeftIcon class="w-5 h-5 text-green-700" /></div>
+              <!-- Other methods (e.g. part by card) -->
+              <ul v-if="payRows.length > 1" class="mt-4 space-y-2">
+                <li v-for="(r, i) in payRows.slice(1)" :key="i" class="rounded-xl border border-gray-200 bg-gray-50 p-3">
+                  <div class="flex items-center gap-2">
+                    <select v-model="r.method" class="input h-11 min-w-0 flex-1 py-2" :aria-label="t('payment.method')">
+                      <option v-for="m in PAYMENT_METHODS" :key="m.key" :value="m.key">{{ t(m.label) }}</option>
+                    </select>
+                    <div class="relative w-32 shrink-0 sm:w-36" dir="ltr">
+                      <input
+                        v-model="r.amount"
+                        type="text"
+                        inputmode="decimal"
+                        autocomplete="off"
+                        :aria-label="t('payment.amount')"
+                        :aria-invalid="Number.isNaN(parseAmount(r.amount))"
+                        placeholder="0,00"
+                        class="input h-11 pr-10 text-right text-base font-semibold tabular-nums aria-[invalid=true]:border-danger-400"
+                      />
+                      <span class="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs font-semibold text-gray-400">DH</span>
+                    </div>
+                    <button type="button" class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-gray-400 hover:bg-white hover:text-danger-600" :aria-label="t('pos.pay.removeMethod')" @click="removePayRow(i + 1)">
+                      <TrashIcon class="h-5 w-5" />
+                    </button>
+                  </div>
+                  <input
+                    v-if="methodInfo(r.method)?.reference"
+                    v-model="r.reference"
+                    type="text"
+                    class="input mt-2"
+                    :aria-label="t('pos.pay.reference')"
+                    :placeholder="methodInfo(r.method).reference === 'required' ? t('pos.referenceRequiredPh') : t('pos.referenceOptionalPh')"
+                  />
+                </li>
+              </ul>
+              <button
+                v-if="!cart.hasTradeIn"
+                type="button"
+                class="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-dashed border-gray-300 text-sm font-medium text-gray-600 transition-colors hover:border-primary-400 hover:bg-primary-50/60 hover:text-primary-700"
+                @click="addPayRow"
+              >
+                <PlusIcon class="h-4 w-4" /> {{ t('pos.splitAdd') }}
+              </button>
+            </section>
+
+            <!-- Result: change to hand back, or what is still owed -->
+            <section aria-live="polite" class="space-y-2">
+              <div v-if="payRows.length > 1" class="flex items-center justify-between px-1 text-sm text-gray-600">
+                <span>{{ t('pos.pay.receivedTotal') }}</span><span class="font-semibold tabular-nums text-gray-900" dir="ltr">{{ formatCurrency(settlement.received) }}</span>
+              </div>
+
+              <div v-if="settlement.errors.includes('invalidAmount')" class="rounded-2xl border border-danger-200 bg-danger-50 px-5 py-4 text-sm font-medium text-danger-700" role="alert">
+                {{ t('pos.pay.invalidAmount') }}
+              </div>
+              <div v-else-if="settlement.errors.includes('nonCashOver')" class="rounded-2xl border border-danger-200 bg-danger-50 px-5 py-4 text-sm text-danger-700" role="alert">
+                <p class="font-semibold">{{ t('pos.pay.tooMuch') }}</p>
+                <p class="mt-0.5">{{ t('pos.pay.nonCashOver') }}</p>
+              </div>
+
+              <!-- Change -->
+              <div v-else-if="settlement.change > 0" class="flex items-center justify-between gap-4 rounded-2xl border border-success-200 bg-success-50 px-5 py-4">
+                <div class="min-w-0">
+                  <p class="text-sm font-semibold text-success-800">{{ t('payment.change') }}</p>
+                  <p class="mt-0.5 text-xs text-success-700">{{ t('pos.pay.changeHint', { received: formatCurrency(settlement.received), total: formatCurrency(amountDue) }) }}</p>
+                </div>
+                <p class="shrink-0 text-3xl font-bold tabular-nums text-success-700" dir="ltr">{{ formatCurrency(settlement.change) }}</p>
+              </div>
+
+              <!-- Still owed -->
+              <template v-else-if="settlement.remaining > 0">
+                <div v-if="saleType === 'credit'" class="flex items-center justify-between gap-4 rounded-2xl border border-blue-200 bg-blue-50 px-5 py-4">
+                  <div class="min-w-0">
+                    <p class="text-sm font-semibold text-blue-800">{{ t('pos.remainingCredit') }}</p>
+                    <p class="mt-0.5 text-xs text-blue-700">{{ t('pos.pay.creditHint') }}</p>
+                  </div>
+                  <p class="shrink-0 text-3xl font-bold tabular-nums text-blue-700" dir="ltr">{{ formatCurrency(settlement.remaining) }}</p>
+                </div>
+                <div v-else-if="saleType === 'reservation'" class="flex items-center justify-between gap-4 rounded-2xl border border-purple-200 bg-purple-50 px-5 py-4">
+                  <div class="min-w-0">
+                    <p class="text-sm font-semibold text-purple-800">{{ t('pos.pay.remainingAtPickup') }}</p>
+                    <p class="mt-0.5 text-xs text-purple-700">{{ t('pos.willBeReservedFor', { name: `${customer?.firstName || ''} ${customer?.lastName || ''}`.trim() }) }}</p>
+                  </div>
+                  <p class="shrink-0 text-3xl font-bold tabular-nums text-purple-700" dir="ltr">{{ formatCurrency(settlement.remaining) }}</p>
+                </div>
+                <div v-else class="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
+                  <div class="flex items-center justify-between gap-4">
+                    <p class="text-sm font-semibold text-amber-900">{{ t('payment.amountDue') }}</p>
+                    <p class="text-3xl font-bold tabular-nums text-amber-700" dir="ltr">{{ formatCurrency(settlement.remaining) }}</p>
+                  </div>
+                  <div class="mt-3 grid gap-2 sm:grid-cols-2">
+                    <label
+                      :class="[
+                        'flex cursor-pointer items-start gap-3 rounded-xl border bg-white p-3 text-sm transition-colors',
+                        giveGapAsDiscount ? 'border-amber-500 ring-1 ring-amber-500' : 'border-amber-200 hover:border-amber-300',
+                      ]"
+                    >
+                      <input v-model="giveGapAsDiscount" type="checkbox" class="mt-0.5 h-5 w-5 shrink-0 rounded border-gray-300 text-amber-600 focus:ring-amber-500" />
+                      <span>
+                        <span class="block font-semibold text-gray-900">{{ t('pos.pay.giveDiscount', { amount: formatCurrency(settlement.remaining) }) }}</span>
+                        <span class="block text-xs text-gray-500">{{ t('pos.saleGoesTo', { amount: formatCurrency(round2(amountDue - settlement.remaining)) }) }}</span>
+                      </span>
+                    </label>
+                    <button
+                      v-if="!cart.hasTradeIn && creditOption"
+                      type="button"
+                      class="flex items-start gap-3 rounded-xl border border-amber-200 bg-white p-3 text-start text-sm transition-colors hover:border-amber-300"
+                      @click="chooseSaleOption(creditOption)"
+                    >
+                      <component :is="creditOption.icon" class="mt-0.5 h-5 w-5 shrink-0 text-blue-600" />
+                      <span>
+                        <span class="block font-semibold text-gray-900">{{ t('pos.pay.toCredit') }}</span>
+                        <span class="block text-xs text-gray-500">{{ customer ? t('pos.pay.toCreditHint') : t('pos.needsCustomer') }}</span>
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              </template>
+
+              <!-- Paid exactly -->
+              <div v-else class="flex items-center justify-between gap-4 rounded-2xl border border-gray-200 bg-gray-50 px-5 py-4">
+                <div class="min-w-0">
+                  <p class="text-sm font-semibold text-gray-800">{{ t('payment.change') }}</p>
+                  <p class="mt-0.5 text-xs text-gray-500">{{ settlement.received > 0 ? t('pos.pay.paidExact') : t('pos.pay.nothingReceived') }}</p>
+                </div>
+                <p class="shrink-0 text-3xl font-bold tabular-nums text-gray-900" dir="ltr">{{ formatCurrency(0) }}</p>
+              </div>
+            </section>
+
+            <!-- Trade-ins -->
+            <div v-if="cart.hasTradeIn" class="overflow-hidden rounded-2xl border border-green-200 bg-white">
+              <div class="divide-y divide-green-100 border-b border-green-100 bg-green-50">
+                <div v-for="(d, i) in cart.tradeInDevices" :key="i" class="flex items-start justify-between gap-3 px-4 py-3">
+                  <div class="flex min-w-0 items-start gap-3">
+                    <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-green-100"><ArrowsRightLeftIcon class="h-5 w-5 text-green-700" /></div>
                     <div class="min-w-0">
                       <p v-if="i === 0" class="text-[11px] font-semibold uppercase tracking-wider text-green-700">{{ t('tradeIn.title') }}</p>
-                      <p class="font-medium text-gray-900 truncate">{{ d.brand }} {{ d.model }}</p>
-                      <div class="flex flex-wrap items-center gap-1.5 mt-1 text-xs">
-                        <span v-if="d.condition" class="px-1.5 py-0.5 rounded bg-white border border-green-200 text-green-700">{{ t(`soldUnits.conditions.${d.condition}`) }}</span>
-                        <span v-if="d.storage" class="px-1.5 py-0.5 rounded bg-white border border-gray-200 text-gray-600">{{ d.storage }}</span>
-                        <span v-if="d.color" class="px-1.5 py-0.5 rounded bg-white border border-gray-200 text-gray-600">{{ d.color }}</span>
-                        <span v-if="d.batteryHealth" class="px-1.5 py-0.5 rounded bg-white border border-gray-200 text-gray-600">🔋 {{ d.batteryHealth }}%</span>
+                      <p class="truncate font-medium text-gray-900">{{ d.brand }} {{ d.model }}</p>
+                      <div class="mt-1 flex flex-wrap items-center gap-1.5 text-xs">
+                        <span v-if="d.condition" class="rounded border border-green-200 bg-white px-1.5 py-0.5 text-green-700">{{ t(`soldUnits.conditions.${d.condition}`) }}</span>
+                        <span v-if="d.storage" class="rounded border border-gray-200 bg-white px-1.5 py-0.5 text-gray-600">{{ d.storage }}</span>
+                        <span v-if="d.color" class="rounded border border-gray-200 bg-white px-1.5 py-0.5 text-gray-600">{{ d.color }}</span>
+                        <span v-if="d.batteryHealth" class="rounded border border-gray-200 bg-white px-1.5 py-0.5 text-gray-600">🔋 {{ d.batteryHealth }}%</span>
                         <span class="font-semibold text-green-700">{{ formatCurrency(d.tradeInValue) }}</span>
                       </div>
                     </div>
                   </div>
-                  <button class="text-xs text-gray-500 hover:text-red-600 font-medium shrink-0" :title="t('common.remove')" @click="cart.removeTradeIn(i)">
-                    <XMarkIcon class="w-4 h-4" />
+                  <button type="button" class="shrink-0 rounded p-1 text-gray-500 hover:text-red-600" :aria-label="t('common.remove')" @click="cart.removeTradeIn(i)">
+                    <XMarkIcon class="h-4 w-4" />
                   </button>
                 </div>
-                <button
-                  class="w-full px-4 py-2.5 flex items-center justify-center gap-1.5 text-sm font-medium text-green-700 hover:bg-green-100 transition-colors"
-                  @click="showTradeIn = true"
-                >
-                  <PlusIcon class="w-4 h-4" /> {{ t('tradeIn.addAnother') }}
+                <button type="button" class="flex w-full items-center justify-center gap-1.5 px-4 py-2.5 text-sm font-medium text-green-700 transition-colors hover:bg-green-100" @click="showTradeIn = true">
+                  <PlusIcon class="h-4 w-4" /> {{ t('tradeIn.addAnother') }}
                 </button>
               </div>
-              <div class="px-4 py-3 space-y-1.5 text-sm">
-                <div class="flex justify-between text-gray-600"><span>{{ t('tradeIn.cartTotal') }}</span><span class="font-medium text-gray-900">{{ formatCurrency(cart.total) }}</span></div>
-                <div class="flex justify-between text-green-700"><span>{{ t('tradeIn.tradeInDeduction') }}</span><span>{{ formatCurrency(cart.totalTradeInValue, 'DH', '-') }}</span></div>
-                <div v-if="amountPaid < cart.totalAfterTradeIn && amountPaid >= 0" class="flex justify-between text-amber-700">
-                  <span>{{ t('pos.discount') }}</span><span>{{ formatCurrency(cart.totalAfterTradeIn - amountPaid, 'DH', '-') }}</span>
+              <div class="space-y-1.5 px-4 py-3 text-sm">
+                <div v-if="settlement.discount > 0" class="flex justify-between text-amber-700">
+                  <span>{{ t('pos.discount') }}</span><span class="tabular-nums">{{ formatCurrency(settlement.discount, 'DH', '-') }}</span>
                 </div>
-                <div v-else-if="amountPaid > cart.totalAfterTradeIn && overpayMode === 'supplement'" class="flex justify-between text-stone-700">
-                  <span>{{ t('pos.supplement') }}</span><span>{{ formatCurrency(amountPaid - cart.totalAfterTradeIn, 'DH', '+') }}</span>
-                </div>
-                <div class="flex items-center justify-between pt-2 mt-1 border-t border-gray-100">
-                  <span class="text-sm font-semibold text-gray-900">{{ t('tradeIn.finalAmount') }}</span>
-                  <span class="text-xl font-bold text-green-700">
-                    {{ formatCurrency(amountPaid > cart.totalAfterTradeIn && overpayMode === 'change' ? cart.totalAfterTradeIn : Math.max(0, amountPaid)) }}
-                  </span>
+                <div class="flex items-center justify-between">
+                  <span class="font-semibold text-gray-900">{{ t('tradeIn.finalAmount') }}</span>
+                  <span class="text-xl font-bold tabular-nums text-green-700">{{ formatCurrency(settlement.saleTotal) }}</span>
                 </div>
               </div>
             </div>
           </div>
-          <div class="modal-footer">
-            <button class="btn-secondary" :disabled="processing" @click="showPayment = false">{{ t('common.cancel') }}</button>
-            <button
-              :class="['btn-primary', saleType === 'reservation' && 'bg-purple-600 hover:bg-purple-700']"
-              :disabled="processing || (saleType === 'reservation' && amountPaid < 0)"
-              @click="completePayment"
-            >
-              <span v-if="processing" class="flex items-center gap-2"><span class="animate-spin rounded-full h-4 w-4 border-b-2 border-white" /> {{ t('pos.processing') }}</span>
-              <span v-else>{{ saleType === 'reservation' ? t('reservation.title') : t('payment.complete') }}</span>
-            </button>
-          </div>
-        </div>
+
+          <!-- Actions -->
+          <footer class="border-t border-gray-100 bg-white px-5 pt-3 sm:px-6" style="padding-bottom: max(1rem, env(safe-area-inset-bottom))">
+            <!-- Always in view: what to hand back, or what is still owed -->
+            <div :class="['mb-3 flex items-center justify-between gap-3 rounded-xl px-4 py-2.5', payStatus.tone]" aria-hidden="true">
+              <span class="min-w-0 truncate text-sm font-semibold">{{ payStatus.label }}</span>
+              <span v-if="payStatus.amount != null" class="shrink-0 text-xl font-bold tabular-nums" dir="ltr">{{ formatCurrency(payStatus.amount) }}</span>
+            </div>
+            <p v-if="paymentBlocker && !paymentError && !settlement.errors.length" class="mb-2 text-xs font-medium text-amber-700">{{ paymentBlocker }}</p>
+            <div class="flex gap-3">
+              <button type="button" class="btn-secondary h-12 px-5 text-base" :disabled="processing" @click="showPayment = false">{{ t('common.cancel') }}</button>
+              <button
+                type="submit"
+                :class="['btn-primary h-12 flex-1 text-base', saleType === 'reservation' && 'bg-purple-600 hover:bg-purple-700 focus:ring-purple-500']"
+                :disabled="processing || !!paymentBlocker"
+              >
+                <span v-if="processing" class="flex items-center gap-2"><span class="h-4 w-4 animate-spin rounded-full border-b-2 border-white" /> {{ t('pos.processing') }}</span>
+                <span v-else>{{ saleType === 'reservation' ? t('reservation.title') : t('payment.complete') }}</span>
+              </button>
+            </div>
+          </footer>
+        </form>
       </div>
     </Teleport>
 
@@ -1809,7 +1991,7 @@ const customerLocked = computed(() => cart.isReturnMode && !cart.isEmpty);
           </button>
           <button type="button" class="min-w-0 flex-1 rounded-lg px-2 py-1 text-end hover:bg-gray-50" :aria-label="t('pos.scanSheet.showCart')" @click="cartPanel?.scrollIntoView({ behavior: 'smooth', block: 'start' })">
             <span class="block text-[11px] font-medium text-gray-500">{{ t('pos.scanSheet.items', { n: cart.itemCount }) }}</span>
-            <span class="block truncate text-xl font-bold tabular-nums text-gray-900" aria-live="polite">{{ formatCurrency(cart.total) }}</span>
+            <span class="block truncate text-xl font-bold tabular-nums text-gray-900" aria-live="polite">{{ formatCurrency(amountDue) }}</span>
           </button>
           <button type="button" class="btn-primary h-12 shrink-0 px-5 text-base" :disabled="cart.isEmpty" @click="goCheckout">{{ t('pos.checkout') }}</button>
         </div>
@@ -1819,6 +2001,8 @@ const customerLocked = computed(() => cart.isReturnMode && !cart.isEmpty);
     <PosScanSheet
       :open="showScanSheet"
       :feedback="scanFeedback"
+      :from-scanner="cashierFromScanner"
+      @scanner="backToScanner"
       @close="showScanSheet = false"
       @code="addScannedCode"
       @pick="addPicked"

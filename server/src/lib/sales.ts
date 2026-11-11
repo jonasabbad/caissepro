@@ -125,6 +125,23 @@ async function priceLines(tx: Tx, tenantId: string, items: CheckoutInput['items'
   return lines;
 }
 
+/**
+ * Takes the change handed back out of the payments: from the cash first (change is given from the drawer, so the
+ * drawer records only the cash that stays), then from the last payments. Payments left at 0 are dropped.
+ */
+export function withoutChange<P extends { method: string; amount: number }>(payments: P[], change: number): P[] {
+  const out = payments.filter((p) => p.amount > 0).map((p) => ({ ...p }));
+  let left = r2(change);
+  const order = out.map((_, i) => i).sort((a, b) => Number(out[b].method === 'cash') - Number(out[a].method === 'cash') || b - a);
+  for (const i of order) {
+    if (left <= 0) break;
+    const take = Math.min(left, out[i].amount);
+    out[i].amount = r2(out[i].amount - take);
+    left = r2(left - take);
+  }
+  return out.filter((p) => p.amount > 0);
+}
+
 function totals(lines: PricedLine[], discountAmount: number, taxRate: number) {
   const subtotal = r2(lines.reduce((s, l) => s + l.totalPrice, 0));
   const taxAmount = r2(((subtotal - discountAmount) * taxRate) / 100);
@@ -215,14 +232,12 @@ export async function createSale(
           })),
         },
         payments: {
-          create: input.payments
-            .filter((p) => p.amount > 0)
-            .map((p, i, arr) => ({
-              method: p.method,
-              // Change is never recorded: the last payment is capped so payments add up to what is due.
-              amount: i === arr.length - 1 ? r2(p.amount - Math.max(0, paid - due)) : p.amount,
-              reference: p.reference ?? null,
-            })),
+          // Change is never recorded: payments are capped so they add up to what is due.
+          create: withoutChange(input.payments, r2(Math.max(0, paid - due))).map((p) => ({
+            method: p.method,
+            amount: p.amount,
+            reference: p.reference ?? null,
+          })),
         },
       },
     });

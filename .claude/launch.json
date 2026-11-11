@@ -18,6 +18,19 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "C:/Users/youne/code/caissepro/web", "run", "dev"],
       "port": 5173
+    },
+    {
+      "name": "caissepro-web-local",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "C:/Users/youne/code/caissepro/web", "run", "dev", "--", "--port", "5174", "--strictPort"],
+      "port": 5174
+    },
+    {
+      "name": "caissepro-web-phone",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "C:/Users/youne/code/caissepro/web", "run", "dev:phone"],
+      "port": 5173,
+      "url": "https://localhost:5173"
     }
   ]
 }

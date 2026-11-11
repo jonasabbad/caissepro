@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import {
   ArrowDownTrayIcon,
@@ -28,7 +28,9 @@ import LanguageSwitcher from '@/components/layout/LanguageSwitcher.vue';
 
 /**
  * CaissePro Scanner (/scanner): the phone app, installable on the home screen. Camera preview, a big Scan button in
- * thumb reach, the scanned code and what CaissePro knows about it (stored name, selling price and stock only).
+ * thumb reach, the scanned code and what CaissePro knows about it (stored name, selling price, stock; cost when the
+ * business shows it). Signed in, "Mobile cashier" opens the POS's own phone cashier (/app/pos?cashier=1), so sales on
+ * the phone use exactly the POS's cart, prices, stock checks and checkout.
  * - device: this phone was authorized once with a computer's QR code (Phone → Add a phone). It keeps its own secret
  *   and reconnects by itself every time; its scans go to the computer it chose (changeable here).
  * - account: CaissePro is signed in on this phone; results link to the POS and product pages.
@@ -36,6 +38,7 @@ import LanguageSwitcher from '@/components/layout/LanguageSwitcher.vue';
  */
 const { t } = useI18n();
 const router = useRouter();
+const route = useRoute();
 const auth = useAuthStore();
 const DEVICE_KEY = 'caissepro_scanner_device';
 const OLD_KEYS = ['caissepro_scanner_token', 'phone_scanner_token']; // 12-hour links of the first version
@@ -236,10 +239,46 @@ async function init() {
       notice.value = isNetwork(e) ? 'qrOffline' : reasonOf(e) || 'qrInvalid';
     }
   }
+  // Back from the phone cashier ("Scanner mode"), or a new pairing: this phone scans for a computer again.
+  if (code || route.query.mode === 'send') {
+    saveMode('send');
+    if (route.query.mode) router.replace({ path: '/scanner' });
+  }
+  // A paired phone has no sign-in of its own; the cashier needs one (sales are made by a user).
+  await auth.initializeAuth().catch(() => undefined);
+  if (!code && savedMode() === 'cashier' && auth.isAuthenticated) {
+    router.replace(CASHIER_ROUTE);
+    return;
+  }
   const token = savedSecret();
   if (token) await connect(token);
   else await useAccount();
   autoStart();
+}
+
+// ── Phone mode, remembered on this phone: 'send' (this scanner: look up, or send to a computer) or 'cashier' (the
+// POS on the phone: scans go into the phone's own cart, checkout on the phone). Pairing is kept either way. ──
+const MODE_KEY = 'caissepro_scanner_mode';
+const CASHIER_ROUTE = { path: '/app/pos', query: { cashier: '1', from: 'scanner' } };
+function savedMode() {
+  try {
+    return localStorage.getItem(MODE_KEY) === 'cashier' ? 'cashier' : 'send';
+  } catch {
+    return 'send';
+  }
+}
+function saveMode(v) {
+  try {
+    localStorage.setItem(MODE_KEY, v);
+  } catch {
+    /* asked again next time */
+  }
+}
+/** Opens the phone cashier; not signed in on this phone, the sign-in comes first and then returns there. */
+function openCashier() {
+  saveMode('cashier');
+  stop();
+  router.push(CASHIER_ROUTE);
 }
 
 // Coming back to the app: refresh the computers' status and notice a revoked phone.
@@ -308,6 +347,9 @@ onBeforeUnmount(() => {
         <p class="mt-2 text-lg font-semibold text-gray-900">{{ t('scan.app.welcome') }}</p>
         <p class="mt-1 text-sm text-gray-600">{{ t('scan.app.signinHint') }}</p>
         <RouterLink :to="{ path: '/login', query: { redirect: '/scanner' } }" class="btn-primary mt-4 h-12 w-full justify-center text-base">{{ t('scan.app.signin') }}</RouterLink>
+        <button type="button" class="btn-secondary mt-2 h-12 w-full justify-center text-base" @click="openCashier">
+          <ShoppingCartIcon class="h-5 w-5" /> {{ t('scan.app.cashierSigninButton') }}
+        </button>
         <p class="mt-4 flex items-start gap-2 text-start text-xs text-gray-500">
           <ComputerDesktopIcon class="h-4 w-4 shrink-0" /> {{ t('scan.app.pairHint') }}
         </p>
@@ -315,6 +357,29 @@ onBeforeUnmount(() => {
     </div>
 
     <main v-else class="flex flex-1 flex-col gap-3 p-4">
+      <!-- Phone mode: this scanner (look up / send to a computer) or the phone cashier (the POS on this phone) -->
+      <div class="rounded-xl border border-gray-200 bg-white p-1.5">
+        <div class="grid grid-cols-2 gap-1" role="group" :aria-label="t('scan.app.modeLabel')">
+          <button type="button" aria-pressed="true" class="flex h-12 items-center justify-center gap-2 rounded-lg bg-gray-900 px-2 text-sm font-semibold text-white">
+            <ComputerDesktopIcon v-if="paired" class="h-5 w-5 shrink-0" />
+            <ViewfinderCircleIcon v-else class="h-5 w-5 shrink-0" />
+            <span class="truncate">{{ paired ? t('scan.app.modeSend') : t('scan.app.modeLookup') }}</span>
+          </button>
+          <button
+            type="button"
+            aria-pressed="false"
+            class="flex h-12 items-center justify-center gap-2 rounded-lg px-2 text-sm font-semibold text-primary-700 hover:bg-primary-50 active:bg-primary-100"
+            @click="openCashier"
+          >
+            <ShoppingCartIcon class="h-5 w-5 shrink-0" />
+            <span class="truncate">{{ t('scan.app.cashier') }}</span>
+          </button>
+        </div>
+        <p class="px-2 pb-1 pt-2 text-xs text-gray-500">
+          {{ t('scan.app.cashierHint') }}<template v-if="!auth.isAuthenticated"> {{ t('scan.app.cashierSignin') }}</template>
+        </p>
+      </div>
+
       <p v-if="notice === 'paired'" class="flex items-center gap-1.5 rounded-xl border border-success-200 bg-success-50 p-3 text-sm text-success-800" role="status">
         <CheckCircleIcon class="h-5 w-5 shrink-0" /> {{ t('scan.phoneApp.paired') }}
       </p>
@@ -383,22 +448,23 @@ onBeforeUnmount(() => {
           <div v-for="p in result.products || []" :key="p.id" class="mt-3 border-t border-gray-100 pt-3">
             <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">{{ t('scan.product') }}<template v-if="p.category?.name || p.categoryName"> · {{ p.category?.name || p.categoryName }}</template></p>
             <p class="text-lg font-semibold text-gray-900">{{ p.name }}</p>
-            <dl class="mt-2 grid gap-2 text-sm" :class="showCost && p.costPrice != null ? 'grid-cols-3' : 'grid-cols-2'">
-              <div class="rounded-lg bg-gray-50 p-2">
-                <dt class="text-xs text-gray-500">{{ t('scan.phone.price') }}</dt>
-                <dd class="text-base font-bold text-gray-900">{{ formatCurrency(p.retailPrice) }}</dd>
+            <!-- Selling price (blue) and cost (orange) side by side, stock in its own card -->
+            <dl class="mt-2 grid grid-cols-2 gap-2 text-sm">
+              <div class="rounded-xl border border-primary-200 bg-primary-50 px-3 py-2">
+                <dt class="text-xs font-semibold text-primary-700">{{ t('scan.phone.price') }}</dt>
+                <dd class="text-xl font-bold tabular-nums text-primary-900">{{ formatCurrency(p.retailPrice) }}</dd>
               </div>
-              <div v-if="showCost && p.costPrice != null" class="rounded-lg bg-gray-50 p-2">
-                <dt class="text-xs text-gray-500">{{ t('scan.phone.cost') }}</dt>
-                <dd class="text-base font-bold text-gray-700">{{ formatCurrency(itemCost(p, false)) }}</dd>
+              <div v-if="showCost && p.costPrice != null" class="rounded-xl border border-orange-200 bg-orange-50 px-3 py-2">
+                <dt class="text-xs font-semibold text-orange-700">{{ t('scan.phone.cost') }}</dt>
+                <dd class="text-xl font-bold tabular-nums text-orange-800">{{ formatCurrency(itemCost(p, false)) }}</dd>
               </div>
-              <div class="rounded-lg bg-gray-50 p-2">
-                <dt class="text-xs text-gray-500">{{ t('scan.phone.stock') }}</dt>
-                <dd class="text-base font-bold" :class="stockClass(p.stockQuantity)">{{ p.stockQuantity }}</dd>
+              <div :class="['flex items-center justify-between gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2', showCost && p.costPrice != null && 'col-span-2']">
+                <dt class="text-xs font-semibold text-gray-600">{{ t('scan.phone.stock') }}</dt>
+                <dd class="text-xl font-bold tabular-nums" :class="stockClass(p.stockQuantity)">{{ p.stockQuantity }}</dd>
               </div>
             </dl>
             <div v-if="!paired" class="mt-3 grid grid-cols-2 gap-2">
-              <button class="btn-primary justify-center" :disabled="p.stockQuantity <= 0" @click="router.push({ path: '/app/pos', query: { scan: result.code } })">
+              <button class="btn-primary justify-center" :disabled="p.stockQuantity <= 0" @click="router.push({ path: '/app/pos', query: { cashier: '1', from: 'scanner', scan: result.code } })">
                 <ShoppingCartIcon class="h-5 w-5" /> {{ t('scan.addToCart') }}
               </button>
               <button class="btn-secondary justify-center" @click="router.push(`/app/products/${p.id}/edit`)">{{ t('scan.open') }}</button>
@@ -411,22 +477,22 @@ onBeforeUnmount(() => {
               <div><dt class="text-xs text-gray-500">{{ t('scan.phone.brand') }}</dt><dd class="font-semibold text-gray-900">{{ u.brand }}</dd></div>
               <div><dt class="text-xs text-gray-500">{{ t('scan.phone.model') }}</dt><dd class="font-semibold text-gray-900">{{ u.model }}</dd></div>
               <div v-if="u.storage || u.color" class="col-span-2 text-gray-600">{{ $ltr([u.storage, u.color].filter(Boolean).join(' · ')) }}</div>
-              <div class="rounded-lg bg-gray-50 p-2">
-                <dt class="text-xs text-gray-500">{{ t('scan.phone.price') }}</dt>
-                <dd class="text-base font-bold text-gray-900">{{ formatCurrency(u.salePrice) }}</dd>
+              <div class="rounded-xl border border-primary-200 bg-primary-50 px-3 py-2">
+                <dt class="text-xs font-semibold text-primary-700">{{ t('scan.phone.price') }}</dt>
+                <dd class="text-xl font-bold tabular-nums text-primary-900">{{ formatCurrency(u.salePrice) }}</dd>
               </div>
-              <div v-if="showCost && u.purchasePrice != null" class="rounded-lg bg-gray-50 p-2">
-                <dt class="text-xs text-gray-500">{{ t('scan.phone.cost') }}</dt>
-                <dd class="text-base font-bold text-gray-700">{{ formatCurrency(itemCost(u, true)) }}</dd>
+              <div v-if="showCost && u.purchasePrice != null" class="rounded-xl border border-orange-200 bg-orange-50 px-3 py-2">
+                <dt class="text-xs font-semibold text-orange-700">{{ t('scan.phone.cost') }}</dt>
+                <dd class="text-xl font-bold tabular-nums text-orange-800">{{ formatCurrency(itemCost(u, true)) }}</dd>
               </div>
-              <div class="rounded-lg bg-gray-50 p-2">
-                <dt class="text-xs text-gray-500">{{ t('scan.phone.stock') }}</dt>
-                <dd class="text-base font-bold" :class="u.soldAt ? 'text-danger-700' : 'text-success-700'">{{ u.soldAt ? 0 : 1 }}</dd>
+              <div :class="['flex items-center justify-between gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2', showCost && u.purchasePrice != null && 'col-span-2']">
+                <dt class="text-xs font-semibold text-gray-600">{{ t('scan.phone.stock') }}</dt>
+                <dd class="text-xl font-bold tabular-nums" :class="u.soldAt ? 'text-danger-700' : 'text-success-700'">{{ u.soldAt ? 0 : 1 }}</dd>
               </div>
             </dl>
             <p class="mt-1 font-mono text-xs text-gray-500" dir="ltr">{{ u.imei ? formatImei(u.imei) : u.serialNumber || u.ref }}</p>
             <div v-if="!paired && !u.soldAt" class="mt-3">
-              <button class="btn-primary w-full justify-center" @click="router.push({ path: '/app/pos', query: { scan: u.imei || u.ref } })"><ShoppingCartIcon class="h-5 w-5" /> {{ t('scan.sell') }}</button>
+              <button class="btn-primary w-full justify-center" @click="router.push({ path: '/app/pos', query: { cashier: '1', from: 'scanner', scan: u.imei || u.ref } })"><ShoppingCartIcon class="h-5 w-5" /> {{ t('scan.sell') }}</button>
             </div>
           </div>
 

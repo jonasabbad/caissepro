@@ -1,5 +1,7 @@
-import { describe, expect, it } from 'vitest';
-import { createScanGate, isValidScanCode, parsePrice, resolveScan } from './posScan';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { createPinia, setActivePinia } from 'pinia';
+import { useCartStore } from '@/stores/cart';
+import { createScanGate, isValidScanCode, lineFigures, parsePrice, resolveScan, scannedLineId } from './posScan';
 import { cameraErrorCode } from '@/composables/useBarcodeCamera';
 
 describe('parsePrice', () => {
@@ -67,5 +69,50 @@ describe('camera errors', () => {
     expect([cameraErrorCode(err('NotAllowedError')), cameraErrorCode(err('SecurityError'))]).toEqual(['denied', 'denied']);
     expect([cameraErrorCode(err('NotFoundError')), cameraErrorCode(err('OverconstrainedError'))]).toEqual(['nocamera', 'nocamera']);
     expect([cameraErrorCode(err('NotReadableError')), cameraErrorCode(undefined)]).toEqual(['failed', 'failed']);
+  });
+});
+
+describe('phone cashier: last scanned product', () => {
+  // The real POS cart: the phone cashier shows its lines, it never computes its own figures.
+  const cable = () => ({ id: 'p-cable', name: 'Câble USB-C', sku: 'CAB-1', barcode: '6111000000017', retailPrice: 35, costPrice: 15, stockQuantity: 40 });
+  let cart;
+  beforeEach(() => {
+    setActivePinia(createPinia());
+    cart = useCartStore();
+  });
+
+  it('follows the line of a product scanned twice: quantity, stock left, total and profit', () => {
+    cart.addItem(cable());
+    cart.addItem(cable());
+    const id = scannedLineId(cart.items, { productId: 'p-cable' });
+    expect(id).toBe('p-cable');
+    const f = lineFigures(cart.items.find((i) => i.productId === id), cart.items);
+    expect(f).toMatchObject({ sellingPrice: 35, cost: 15, stock: 40, inCart: 2, left: 38, quantity: 2, total: 70, profit: 40, perBox: null });
+  });
+
+  it('shows the price edited for this sale as the selling price; cost and product price stay the same', () => {
+    const product = cable();
+    cart.addItem(product, 2);
+    cart.updateItemPrice('p-cable', '30');
+    const f = lineFigures(cart.items[0], cart.items);
+    expect([f.sellingPrice, f.cost, f.total, f.profit]).toEqual([30, 15, 60, 30]);
+    expect([product.retailPrice, cart.items[0].product.retailPrice]).toEqual([35, 35]);
+  });
+
+  it('shows a box line per box (box price and cost), counting the pieces of the product already in the cart', () => {
+    cart.addItem(cable());
+    cart.addPackItem({ ...cable(), packSize: 10, packRetailPrice: 300 });
+    const box = cart.items.find((i) => i.productId === 'pack-p-cable');
+    expect(lineFigures(box, cart.items)).toMatchObject({ sellingPrice: 300, cost: 150, quantity: 1, perBox: 10, inCart: 11, left: 29 });
+    // The piece line is the one shown after a scan of the product.
+    expect(scannedLineId(cart.items, { productId: 'p-cable' })).toBe('p-cable');
+  });
+
+  it('follows a phone by its own line', () => {
+    cart.addItem({ id: 'unit-u1', name: 'iPhone 11', sku: '490154203237518', retailPrice: 2600, costPrice: 2000, stockQuantity: 1 }, 1, { id: 'u1', imei: '490154203237518' });
+    expect(scannedLineId(cart.items, { unitId: 'u1' })).toBe('unit-u1');
+    expect(lineFigures(cart.items[0], cart.items)).toMatchObject({ sellingPrice: 2600, cost: 2000, stock: 1, inCart: 1, profit: 600 });
+    expect(scannedLineId(cart.items, { unitId: 'gone' })).toBeNull();
+    expect(lineFigures(null)).toBeNull();
   });
 });

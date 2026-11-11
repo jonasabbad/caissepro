@@ -46,6 +46,7 @@ export default {
     selectCustomer: "اختر زبوناً",
     transactionCancelled: "المعاملة ملغاة",
     transactionAlreadyCancelled: "المعاملة ملغاة مسبقاً",
+    onlyManagerCancelsSale: "يمكن للمدير فقط إلغاء عملية بيع",
     invalidReportType: "نوع تقرير غير صالح",
     invalidImageUrl: "رابط صورة غير صالح",
     emailExists: "يوجد مستخدم بهذا البريد الإلكتروني",

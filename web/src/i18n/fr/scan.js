@@ -79,6 +79,13 @@ export default {
     },
     app: {
       name: "CaissePro Scanner",
+      cashier: "Caisse mobile",
+      cashierHint: "Scannez à la suite, gérez le panier et encaissez depuis ce téléphone.",
+      modeLabel: "Mode du téléphone",
+      modeSend: "Envoyer au PC",
+      modeLookup: "Identifier",
+      cashierSignin: "Connexion à votre compte requise.",
+      cashierSigninButton: "Caisse mobile (connexion)",
       signedInAs: "Connecté : {name}",
       openApp: "Ouvrir CaissePro",
       installTitle: "Ajoutez CaissePro Scanner à l’écran d’accueil",
