@@ -2,14 +2,16 @@ import { execSync } from 'node:child_process';
 import { rmSync } from 'node:fs';
 import path from 'node:path';
 import { PrismaClient } from '@prisma/client';
+import { assertLocalTestDatabaseUrl } from './db-guard.js';
 
 /**
- * Empties the test database (TEST_DATABASE_URL, whose name is checked in vitest.config.ts) and applies every
- * migration. Its name is checked again here, on the server's side, before anything is dropped.
+ * Empties the test database (TEST_DATABASE_URL, checked in vitest.config.ts) and applies every migration.
+ * Before connecting, the URL is checked again here (local host + "test" name); then the name is checked once more on
+ * the server's side, before anything is dropped.
  */
 export default async function setup() {
+  const url = assertLocalTestDatabaseUrl(process.env.TEST_DATABASE_URL);
   rmSync(path.resolve(__dirname, '../uploads-test'), { recursive: true, force: true });
-  const url = process.env.TEST_DATABASE_URL!;
   const db = new PrismaClient({ datasourceUrl: url });
   try {
     const [{ name }] = await db.$queryRawUnsafe<{ name: string }[]>('SELECT DATABASE() AS name');

@@ -51,7 +51,7 @@ describe('reports', () => {
 
     const csv = await api.get(`/reports/export?type=sales&format=excel&${q}`);
     expect(csv.headers['content-type']).toContain('text/csv');
-    expect(String(csv.text ?? csv.body)).toContain('Coque');
+    expect(String(csv.body)).toContain('Coque');
     expect((await api.get('/reports?type=nope')).status).toBe(400);
   });
 });

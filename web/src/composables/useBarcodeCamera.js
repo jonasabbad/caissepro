@@ -1,12 +1,15 @@
 import { nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { codeFromScan } from '@/utils/scanCode';
+import { createScanGate } from '@/utils/posScan';
 
 /**
  * Camera barcode reading (EAN-13 / EAN-8 / UPC / Code 128 / Code 39 / ITF — product, box, IMEI and serial barcodes —
  * and QR codes, whose product code is taken from what they hold: see utils/scanCode.js).
  * Uses the browser's native BarcodeDetector when it has one, otherwise ZXing (@zxing/browser, MIT, loaded on demand).
  * `start()` opens the camera into `video` and calls `onCode(code)` once, then stops the camera; call `start()` again
- * for the next code. The camera needs a secure page (https or localhost); `error` says why it could not start.
+ * for the next code. With `{ continuous: true }` the camera stays on and every new read is delivered (the same barcode
+ * held in view counts once, see createScanGate). The camera needs a secure page (https or localhost); `error` says
+ * why it could not start.
  */
 const FORMATS_NATIVE = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39', 'itf', 'qr_code'];
 const backFirst = (list) => [...list].sort((a, b) => Number(/back|rear|environment|arrière/i.test(b.label)) - Number(/back|rear|environment|arrière/i.test(a.label)));
@@ -29,7 +32,15 @@ export function scanFeedback() {
   }
 }
 
-export function useBarcodeCamera(video, onCode) {
+/** Why the camera could not start, from the browser's error: denied | nocamera | failed. */
+export function cameraErrorCode(e) {
+  const name = e?.name;
+  if (name === 'NotAllowedError' || name === 'SecurityError' || name === 'PermissionDeniedError') return 'denied';
+  if (name === 'NotFoundError' || name === 'OverconstrainedError' || name === 'DevicesNotFoundError') return 'nocamera';
+  return 'failed';
+}
+
+export function useBarcodeCamera(video, onCode, { continuous = false } = {}) {
   const status = ref('idle'); // idle | starting | scanning | error
   const error = ref(''); // insecure | denied | nocamera | failed
   const cameras = ref([]);
@@ -38,6 +49,7 @@ export function useBarcodeCamera(video, onCode) {
   let stream = null;
   let rafId = 0;
   let done = false;
+  const gate = createScanGate();
 
   function stop() {
     cancelAnimationFrame(rafId);
@@ -56,6 +68,12 @@ export function useBarcodeCamera(video, onCode) {
   function deliver(raw, isQr = false) {
     const code = isQr ? codeFromScan(raw) : String(raw || '').trim();
     if (!code || done) return;
+    if (continuous) {
+      if (!gate.accept(code)) return;
+      scanFeedback();
+      onCode(code);
+      return;
+    }
     done = true;
     scanFeedback();
     stop();
@@ -65,6 +83,7 @@ export function useBarcodeCamera(video, onCode) {
   async function start() {
     stop();
     done = false;
+    gate.reset();
     error.value = '';
     if (!window.isSecureContext) return ((status.value = 'error'), (error.value = 'insecure'));
     if (!navigator.mediaDevices?.getUserMedia) return ((status.value = 'error'), (error.value = 'nocamera'));
@@ -87,7 +106,8 @@ export function useBarcodeCamera(video, onCode) {
           if (!stream || done) return;
           try {
             const found = await detector.detect(video.value);
-            if (found[0]?.rawValue) return deliver(found[0].rawValue, found[0].format === 'qr_code');
+            if (found[0]?.rawValue) deliver(found[0].rawValue, found[0].format === 'qr_code');
+            if (done) return;
           } catch {
             /* frame not ready */
           }
@@ -108,12 +128,18 @@ export function useBarcodeCamera(video, onCode) {
     } catch (e) {
       stop();
       status.value = 'error';
-      error.value = e?.name === 'NotAllowedError' || e?.name === 'SecurityError' ? 'denied' : e?.name === 'NotFoundError' || e?.name === 'OverconstrainedError' ? 'nocamera' : 'failed';
+      error.value = cameraErrorCode(e);
     }
   }
 
-  /** A code typed or sent by a USB / Bluetooth scanner, with the same feedback and once-only rule. */
-  const submit = (code) => deliver(code);
+  /** A code typed or sent by a USB / Bluetooth scanner, with the same feedback (and, single-shot, once-only rule). */
+  const submit = (code) => {
+    if (!continuous) return deliver(code);
+    const c = String(code || '').trim();
+    if (!c) return;
+    scanFeedback();
+    onCode(c);
+  };
 
   watch(cameraId, (id, old) => old && id && id !== old && status.value === 'scanning' && start());
   onBeforeUnmount(stop);

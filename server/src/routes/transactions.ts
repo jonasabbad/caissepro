@@ -1,7 +1,8 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { prisma, Prisma } from '../lib/prisma.js';
-import { badRequest, notFound } from '../lib/errors.js';
+import { badRequest, forbidden, notFound } from '../lib/errors.js';
+import { isManager } from '../lib/auth.js';
 import { num, r2, serialize } from '../lib/serialize.js';
 import { authed, ok, type Req } from '../lib/route.js';
 import { dateRange, pageMeta, pageParams, qStr } from '../lib/pagination.js';
@@ -174,8 +175,12 @@ export default async function transactionRoutes(app: FastifyInstance) {
     return ok({ transaction: await loadTransaction(req.auth.tenantId, req.params.id) });
   });
 
-  /** Cancelling a sale puts goods back in stock, phones back in inventory and takes the cash back out. */
+  /**
+   * Cancelling a sale puts goods back in stock, phones back in inventory and takes the cash back out.
+   * Managers and admins only: a cashier must never be able to undo a recorded sale.
+   */
   app.post('/transactions/:id/cancel', async (req: Req<{ reason?: string }, unknown, { id: string }>) => {
+    if (!isManager(req.auth.roles)) throw forbidden('Seul un responsable peut annuler une vente');
     const t = await prisma.transaction.findFirst({ where: { id: req.params.id, tenantId: req.auth.tenantId }, include: { items: true, payments: true } });
     if (!t) throw notFound('Transaction', req.params.id);
     if (t.status === 'cancelled') throw badRequest('Transaction déjà annulée');

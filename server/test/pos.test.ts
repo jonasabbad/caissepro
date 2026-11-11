@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { prisma } from '../src/lib/prisma.js';
-import { newTenant } from './helpers.js';
+import bcrypt from 'bcryptjs';
+import { client, getApp, newTenant } from './helpers.js';
 
 async function setup() {
   const t = await newTenant();
@@ -203,5 +204,76 @@ describe('POS checkout', () => {
     const csv = await api.get('/transactions/export');
     expect(csv.headers['content-type']).toContain('text/csv');
     expect(String(csv.body)).toContain(tx.transactionNumber);
+  });
+});
+
+describe('POS: selling price changed at the till', () => {
+  /** A cashier account of the same business (the price is set by whoever sells). */
+  async function cashierOf(t: Awaited<ReturnType<typeof setup>>) {
+    const email = `cashier-${t.tenant.id.slice(0, 6)}@test.local`;
+    await prisma.user.create({
+      data: { tenantId: t.tenant.id, email, passwordHash: await bcrypt.hash('secret123', 4), firstName: 'Caissier', roles: JSON.stringify(['cashier']), currentStoreId: t.store.id },
+    });
+    const app = await getApp();
+    const login = await app.inject({ method: 'POST', url: '/api/v1/auth/login', payload: { email, password: 'secret123' } });
+    return client(app, login.json().data.tokens.accessToken);
+  }
+
+  it('records the edited price for this sale only, with profit from the product cost', async () => {
+    const t = await setup();
+    const cashier = await cashierOf(t);
+    const r = await cashier.post('/checkout', {
+      items: [
+        { productId: t.cable.id, quantity: 3, unitPrice: 22.5 },
+        { productId: `unit-${t.phone.id}`, soldUnitId: t.phone.id, quantity: 1, unitPrice: 2450 },
+      ],
+      payments: [{ method: 'cash', amount: 2517.5 }],
+    });
+    expect(r.status).toBe(200);
+    const tx = r.body.data.transaction;
+    const line = tx.items.find((i: any) => i.productId === t.cable.id);
+    expect([line.unitPrice, line.totalPrice, line.costPrice, line.profit]).toEqual(['22.50', '67.50', '6.00', '49.50']);
+    // (22.50 − 6) × 3 + (2450 − 2000)
+    expect([tx.subtotal, tx.totalAmount, tx.totalCost, tx.totalProfit]).toEqual(['2517.50', '2517.50', '2018.00', '499.50']);
+
+    // The products keep their own prices; stock moves as for any sale.
+    const p = (await t.api.get(`/products/${t.cable.id}`)).body.data.product;
+    expect([p.retailPrice, p.costPrice, p.stockQuantity]).toEqual(['25.00', '6.00', 17]);
+    expect((await t.api.get(`/phone-seller/sold-units/${t.phone.id}`)).body.data.unit.salePrice).toBe('2600.00');
+    // The next sale starts from the product price again.
+    const next = (await cashier.post('/checkout', { items: [{ productId: t.cable.id, quantity: 1, unitPrice: 25 }], payments: [{ method: 'cash', amount: 25 }] })).body.data.transaction;
+    expect(next.items[0].unitPrice).toBe('25.00');
+  });
+
+  it('refuses a negative price, and a cashier still cannot delete or cancel a sale', async () => {
+    const t = await setup();
+    const cashier = await cashierOf(t);
+    expect((await cashier.post('/checkout', { items: [{ productId: t.cable.id, quantity: 1, unitPrice: -5 }], payments: [{ method: 'cash', amount: 0 }] })).status).toBe(400);
+    const tx = (await cashier.post('/checkout', { items: [{ productId: t.cable.id, quantity: 1, unitPrice: 20 }], payments: [{ method: 'cash', amount: 20 }] })).body.data.transaction;
+    const del = await cashier.delete(`/transactions/${tx.id}`);
+    expect(del.status).toBeGreaterThanOrEqual(400);
+    expect((await t.api.get(`/transactions/${tx.id}`)).body.data.transaction.status).toBe('completed');
+
+    // Cancelling is for managers: the cashier is refused and nothing moves (sale, stock, drawer).
+    const caisseBefore = (await t.api.get(`/stores/${t.store.id}/caisse/balance`)).body;
+    const cancel = await cashier.post(`/transactions/${tx.id}/cancel`, { reason: 'test' });
+    expect(cancel.status).toBe(403);
+    expect((await t.api.get(`/transactions/${tx.id}`)).body.data.transaction.status).toBe('completed');
+    expect((await t.api.get(`/products/${t.cable.id}`)).body.data.product.stockQuantity).toBe(19);
+    expect((await t.api.get(`/stores/${t.store.id}/caisse/balance`)).body).toEqual(caisseBefore);
+
+    // The admin can still cancel it: stock comes back.
+    expect((await t.api.post(`/transactions/${tx.id}/cancel`, { reason: 'erreur' })).body.data.transaction.status).toBe('cancelled');
+    expect((await t.api.get(`/products/${t.cable.id}`)).body.data.product.stockQuantity).toBe(20);
+  });
+
+  it('a manager (not admin) can still cancel a sale', async () => {
+    const m = await newTenant({ roles: ['manager'] });
+    const cable = (await m.api.post('/products', { name: 'Câble', costPrice: 6, retailPrice: 25, stockQuantity: 10 })).body.data.product;
+    const tx = (await m.api.post('/checkout', { items: [{ productId: cable.id, quantity: 2, unitPrice: 25 }], payments: [{ method: 'cash', amount: 50 }] })).body.data.transaction;
+    const r = await m.api.post(`/transactions/${tx.id}/cancel`, { reason: 'erreur' });
+    expect(r.status).toBe(200);
+    expect(r.body.data.transaction.status).toBe('cancelled');
+    expect((await m.api.get(`/products/${cable.id}`)).body.data.product.stockQuantity).toBe(10);
   });
 });

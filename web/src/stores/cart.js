@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import { round2 } from '@/utils/format';
+import { parsePrice } from '@/utils/posScan';
 
 const EMPLOYEE_KEY = 'pos_selected_employee';
 
@@ -160,13 +161,30 @@ export const useCartStore = defineStore('cart', () => {
     };
   }
 
+  /** Box lines keep their box price (their unit price and rounding discount come from it); return lines are not sales. */
+  const canEditPrice = (line) => !!line && line.saleMode !== 'pack' && !isReturnMode.value;
+
+  /**
+   * Selling price of one cart line, for this sale only: the product keeps its own price. Accepts a number or what the
+   * cashier typed; returns false (nothing changed) when the price is not a positive amount.
+   */
   function updateItemPrice(lineId, unitPrice) {
     const idx = items.value.findIndex((i) => i.productId === lineId);
-    if (idx < 0) return;
+    if (idx < 0) return false;
     const line = items.value[idx];
-    const lineTotal = Math.max(0, unitPrice * line.quantity - line.discount);
-    items.value[idx] = { ...line, unitPrice, total: lineTotal, profit: lineTotal - line.product.costPrice * line.quantity };
+    const price = parsePrice(unitPrice);
+    if (price == null || !canEditPrice(line)) return false;
+    const lineTotal = round2(Math.max(0, price * line.quantity - line.discount));
+    items.value[idx] = { ...line, unitPrice: price, total: lineTotal, profit: round2(lineTotal - line.product.costPrice * line.quantity) };
+    return true;
   }
+
+  /** Back to the product's own price. */
+  const resetItemPrice = (lineId) => {
+    const line = items.value.find((i) => i.productId === lineId);
+    return line ? updateItemPrice(lineId, line.product.retailPrice) : false;
+  };
+  const isPriceChanged = (line) => !!line && line.saleMode !== 'pack' && Math.abs(line.unitPrice - Number(line.product.retailPrice)) >= 0.005;
 
   function updateItemDiscount(lineId, discount) {
     const idx = items.value.findIndex((i) => i.productId === lineId);
@@ -284,6 +302,9 @@ export const useCartStore = defineStore('cart', () => {
     addPackItem,
     updateItemQuantity,
     updateItemPrice,
+    resetItemPrice,
+    canEditPrice,
+    isPriceChanged,
     updateItemDiscount,
     removeItem,
     attachSoldUnit,

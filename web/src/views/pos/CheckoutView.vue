@@ -17,6 +17,7 @@ import {
   ShoppingCartIcon,
   TrashIcon,
   UserIcon,
+  ViewfinderCircleIcon,
   WrenchScrewdriverIcon,
   XMarkIcon,
 } from '@heroicons/vue/24/outline';
@@ -45,6 +46,9 @@ import TradeInModal from '@/components/pos/TradeInModal.vue';
 import Toast from '@/components/ui/Toast.vue';
 import Pagination from '@/components/ui/Pagination.vue';
 import ScanButton from '@/components/scan/ScanButton.vue';
+import CartLinePrice from '@/components/pos/CartLinePrice.vue';
+import PosScanSheet from '@/components/pos/PosScanSheet.vue';
+import { resolveScan } from '@/utils/posScan';
 import { usePhoneScanHandler } from '@/composables/usePhoneScanner';
 import { useRoute, useRouter } from 'vue-router';
 
@@ -539,13 +543,63 @@ async function lookup() {
     searching.value = false;
   }
 }
-// Camera scan, or a code handed over by "Scan to identify" (?scan=…): the same lookup as a hand-held scanner.
-// A paired phone's scans go through the same handler.
+// ── Scanned codes (camera, phone scan sheet, paired phone, "Scan to identify" ?scan=…) ──
+// A scanned code must match exactly (device REF / IMEI / serial, product barcode / SKU): an unknown code is reported,
+// never replaced by the closest search result. Typing in the search box keeps the search.
+const showScanSheet = ref(false);
+const cartPanel = ref(null);
+const scanFeedback = ref(null);
+const sayScan = (type, text) => {
+  scanFeedback.value = { type, text, at: Date.now() };
+  if (type === 'error' && !showScanSheet.value) scanError.value = text;
+};
+async function findProductByCode(code) {
+  try {
+    return await productsApi.getByBarcode(code);
+  } catch (e) {
+    if (e?.response?.status === 404) return null;
+    throw e;
+  }
+}
+const qtyInCart = (productId) => cart.items.filter((i) => !i.soldUnit && (i.realProductId ?? i.productId) === productId).reduce((s, i) => s + i.quantity, 0);
+/** Adds the product (or device) behind a scanned code, through the same steps as a tap on its card. */
+async function addScannedCode(raw) {
+  if (cart.isReturnMode) return;
+  scanError.value = '';
+  unknownCode.value = '';
+  const res = await resolveScan(raw, { units: isPhoneSeller.value ? (inventoryUnits.value ?? []) : [], findByCode: findProductByCode });
+  if (res.kind === 'invalid') return sayScan('error', t('pos.scanSheet.invalid', { code: res.code || '—' }));
+  if (res.kind === 'error') return sayScan('error', t('pos.lookupError'));
+  if (res.kind === 'unknown') {
+    unknownCode.value = res.code;
+    return sayScan('error', t('pos.scanSheet.unknown', { code: res.code }));
+  }
+  if (res.kind === 'unit') {
+    const before = cart.items.length;
+    selectUnit(res.unit);
+    if (cart.items.length > before) sayScan('success', t('pos.scanSheet.added', { name: `${res.unit.brand} ${res.unit.model}`, n: 1 }));
+    return;
+  }
+  addPicked(res.product);
+}
+/** A product chosen in the scan sheet's search, or found by its code. */
+function addPicked(p) {
+  const before = qtyInCart(p.id);
+  selectProduct(p);
+  const after = qtyInCart(p.id);
+  if (after > before) sayScan('success', t('pos.scanSheet.added', { name: p.name, n: after }));
+  else if (scanError.value) sayScan('error', scanError.value);
+}
+/** Checkout from the phone bar or the scan sheet; when something is missing (e.g. the seller), show the cart. */
+function goCheckout() {
+  showScanSheet.value = false;
+  openPayment();
+  if (!showPayment.value) nextTick(() => cartPanel.value?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+}
 usePhoneScanHandler((code) => onCameraScan(code));
 function onCameraScan(code) {
   if (cart.isReturnMode) return;
-  search.value = code;
-  lookup();
+  addScannedCode(code);
 }
 const route = useRoute();
 const router = useRouter();
@@ -825,7 +879,8 @@ async function completePayment() {
       items: cart.items.map((i) => ({
         id: i.productId,
         name: i.saleMode === 'pack' && i.packSize ? t('pos.packLineName', { name: i.product.name, size: i.packSize }) : i.product.name,
-        retailPrice: i.product.retailPrice,
+        // The price charged for this sale (it may differ from the product's own price); boxes as before.
+        retailPrice: i.saleMode === 'pack' ? i.product.retailPrice : i.unitPrice,
         quantity: i.quantity,
         total: i.total,
       })),
@@ -1133,7 +1188,7 @@ const customerLocked = computed(() => cart.isReturnMode && !cart.isEmpty);
     </div>
 
     <!-- Cart -->
-    <div :class="['w-full lg:w-80 xl:w-96 lg:shrink-0 flex flex-col rounded-xl shadow-lg lg:max-h-none', cart.isReturnMode ? 'bg-red-50' : 'bg-white']">
+    <div ref="cartPanel" :class="['w-full scroll-mt-20 lg:w-80 xl:w-96 lg:shrink-0 flex flex-col rounded-xl shadow-lg lg:max-h-none', cart.isReturnMode ? 'bg-red-50' : 'bg-white']">
       <div :class="['p-4 border-b flex items-center justify-between', cart.isReturnMode ? 'border-red-200' : 'border-gray-100']">
         <div class="flex items-center gap-2">
           <ArrowUturnLeftIcon v-if="cart.isReturnMode" class="w-5 h-5 text-red-600" />
@@ -1198,6 +1253,7 @@ const customerLocked = computed(() => cart.isReturnMode && !cart.isEmpty);
               <p v-if="item.soldUnit" class="text-xs text-primary-600 font-mono mt-1">
                 {{ item.soldUnit.imei ? `IMEI: ${formatImei(item.soldUnit.imei)}` : `S/N: ${item.soldUnit.serialNumber}` }}
               </p>
+              <CartLinePrice v-if="!cart.isReturnMode" :item="item" />
             </div>
             <button class="p-1 text-gray-400 hover:text-danger-500" @click="cart.removeItem(item.productId)"><TrashIcon class="w-4 h-4" /></button>
           </div>
@@ -1738,5 +1794,35 @@ const customerLocked = computed(() => cart.isReturnMode && !cart.isEmpty);
 
     <TradeInModal :is-open="showTradeIn" :cart-total="cart.total" @close="showTradeIn = false" @confirm="onTradeIn" />
     <Toast :show="toast.show" :message="toast.message" :type="toast.type" @close="toast.show = false" />
+
+    <!-- Phone / tablet: scan, running total and checkout always within thumb reach -->
+    <template v-if="!cart.isReturnMode">
+      <div class="h-24 shrink-0 lg:hidden" aria-hidden="true" />
+      <div
+        class="fixed inset-x-0 bottom-0 z-30 border-t border-gray-200 bg-white/95 px-3 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 shadow-[0_-4px_16px_-8px_rgb(0_0_0/0.2)] backdrop-blur print:hidden lg:hidden"
+        role="region"
+        :aria-label="t('pos.cart')"
+      >
+        <div class="mx-auto flex max-w-2xl items-center gap-2">
+          <button type="button" class="btn-secondary h-12 shrink-0 gap-2 px-4 text-base" @click="showScanSheet = true">
+            <ViewfinderCircleIcon class="h-6 w-6" /> <span>{{ t('pos.scanSheet.button') }}</span>
+          </button>
+          <button type="button" class="min-w-0 flex-1 rounded-lg px-2 py-1 text-end hover:bg-gray-50" :aria-label="t('pos.scanSheet.showCart')" @click="cartPanel?.scrollIntoView({ behavior: 'smooth', block: 'start' })">
+            <span class="block text-[11px] font-medium text-gray-500">{{ t('pos.scanSheet.items', { n: cart.itemCount }) }}</span>
+            <span class="block truncate text-xl font-bold tabular-nums text-gray-900" aria-live="polite">{{ formatCurrency(cart.total) }}</span>
+          </button>
+          <button type="button" class="btn-primary h-12 shrink-0 px-5 text-base" :disabled="cart.isEmpty" @click="goCheckout">{{ t('pos.checkout') }}</button>
+        </div>
+      </div>
+    </template>
+
+    <PosScanSheet
+      :open="showScanSheet"
+      :feedback="scanFeedback"
+      @close="showScanSheet = false"
+      @code="addScannedCode"
+      @pick="addPicked"
+      @checkout="goCheckout"
+    />
   </div>
 </template>

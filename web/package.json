@@ -8,6 +8,7 @@
     "dev:phone": "vite --mode phone",
     "build": "vite build",
     "preview": "vite preview",
+    "test": "vitest run",
     "i18n:check": "node scripts/i18n-check.mjs && node scripts/server-messages-check.mjs",
     "i18n:scan": "node scripts/i18n-scan.mjs"
   },
