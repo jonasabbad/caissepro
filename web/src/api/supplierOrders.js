@@ -28,11 +28,16 @@ function mapOrder(o) {
       note: p.note,
       userName: p.user ? `${p.user.firstName} ${p.user.lastName}` : p.userName,
       createdAt: p.createdAt,
+      method: p.method || 'cash',
+      voided: !!p.voided,
     })),
     subtotal: Number(o.totalAmount || 0),
     totalAmount: Number(o.totalAmount || 0),
     amountPaid: Number(o.amountPaid || 0),
     amountRemaining: Number(o.amountRemaining || 0),
+    // unpaid | partial | paid; 'invoice' once the order's invoice is confirmed (its payments are recorded there).
+    paymentStatus: o.paymentStatus || 'unpaid',
+    paidOn: o.paidOn || 'order',
     notes: o.notes,
     expectedDate: o.expectedDate,
     receivedDate: o.receivedAt || o.receivedDate,
@@ -67,8 +72,9 @@ export const supplierOrdersApi = {
     const { data } = await http.post('/supplier-orders/receive-all', { orderIds });
     return data.data;
   },
-  async addPayment(id, amount) {
-    const { data } = await http.post(`/supplier-orders/${id}/payment`, { amount });
+  /** `requestId`: one per payment form, so a repeated submit is recorded once. */
+  async addPayment(id, amount, requestId) {
+    const { data } = await http.post(`/supplier-orders/${id}/payment`, { amount, requestId });
     return mapOrder(data.data.order);
   },
   async submit(id) {

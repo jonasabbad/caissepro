@@ -4,8 +4,9 @@ import { num, parseJson, r2 } from './serialize.js';
 /**
  * What the business owes its suppliers. Two kinds of purchase documents carry a debt:
  * - confirmed supplier invoices: total − non-voided payments;
- * - submitted purchase orders that have no (non-cancelled) invoice: once an order is invoiced, its debt and its
- *   payments move to the invoice, so the same purchase is never counted twice.
+ * - submitted purchase orders that have no confirmed invoice: once an order's invoice is confirmed, the order's debt
+ *   and payments move to it, so the same purchase is never counted twice. While that invoice is still a draft (not
+ *   counted), the order keeps its debt — it never disappears from the balance.
  * Draft and cancelled documents owe nothing.
  */
 
@@ -35,10 +36,10 @@ export function invoiceState(inv: { status: string; total: unknown; amountPaid: 
   return { remaining, paymentStatus, overdue };
 }
 
-/** Purchase orders whose debt has moved to an invoice. */
+/** Purchase orders whose debt has moved to their (confirmed) invoice. */
 export async function invoicedOrderIds(tenantId: string) {
   const rows = await prisma.supplierInvoice.findMany({
-    where: { tenantId, status: { not: 'cancelled' }, supplierOrderId: { not: null } },
+    where: { tenantId, status: 'confirmed', supplierOrderId: { not: null } },
     select: { supplierOrderId: true },
   });
   return new Set(rows.map((r) => r.supplierOrderId!));

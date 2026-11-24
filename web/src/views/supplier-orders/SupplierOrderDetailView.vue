@@ -24,7 +24,7 @@ import { supplierOrdersApi } from '@/api/supplierOrders';
 import { supplierInvoicesApi } from '@/api/supplierInvoices';
 import { formatCurrency, formatDate } from '@/utils/format';
 import { apiErrorMessage } from '@/api/http';
-import { statusInfo } from '@/utils/supplierOrderStatus';
+import { payBadge, statusInfo } from '@/utils/supplierOrderStatus';
 import Toast from '@/components/ui/Toast.vue';
 import ConfirmModal from '@/components/ui/ConfirmModal.vue';
 
@@ -160,19 +160,38 @@ const cancelMutation = useMutation({
 // ── Payment ──
 const payOpen = ref(false);
 const payAmount = ref(0);
+const payRequestId = ref('');
+const payError = ref('');
+const payInvalid = computed(() => {
+  const a = Number(payAmount.value);
+  if (!(a > 0)) return t('supplierOrders.payInvalid');
+  if (order.value && Math.round(a * 100) > Math.round(order.value.amountRemaining * 100)) return t('supplierOrders.payTooMuch', { amount: formatCurrency(order.value.amountRemaining) });
+  return '';
+});
 const payMutation = useMutation({
-  mutationFn: () => supplierOrdersApi.addPayment(orderId.value, payAmount.value),
+  mutationFn: () => supplierOrdersApi.addPayment(orderId.value, Number(payAmount.value), payRequestId.value),
   onSuccess: () => {
     refresh();
+    queryClient.invalidateQueries({ queryKey: ['supplier-invoice'] });
     payOpen.value = false;
     notify(t('supplierOrders.toast.paid'));
   },
-  onError: () => notify(t('supplierOrders.toast.payError'), 'error'),
+  // The server says why (e.g. more than what is left), and the order is reloaded as it is now.
+  onError: (e) => {
+    payError.value = apiErrorMessage(e, t('supplierOrders.toast.payError'));
+    refresh();
+  },
 });
 function openPay() {
   if (!order.value) return;
   payAmount.value = order.value.amountRemaining;
+  payRequestId.value = crypto.randomUUID(); // one payment per form: a repeated submit is not paid twice
+  payError.value = '';
   payOpen.value = true;
+}
+function submitPay() {
+  if (payInvalid.value || payMutation.isPending.value) return;
+  payMutation.mutate();
 }
 
 // ── Devices to stock ──
@@ -271,19 +290,26 @@ const spinner = 'h-4 w-4 animate-spin rounded-full border-2 border-white border-
         </div>
       </div>
 
-      <p v-if="order.invoice" class="card border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">{{ t('supplierInvoices.orderInvoicedHint') }}</p>
-      <div v-else-if="order.amountRemaining > 0 && order.status !== 'cancelled' && order.status !== 'draft'" class="card border-amber-200 bg-amber-50 p-4">
+      <!-- Left to pay: always paid from here, before or after the order's invoice -->
+      <div v-if="order.amountRemaining > 0 && order.status !== 'cancelled' && order.status !== 'draft'" class="card border-amber-200 bg-amber-50 p-4">
         <div class="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
           <div class="flex items-center gap-3">
             <div class="flex h-12 w-12 items-center justify-center rounded-full bg-amber-100"><BanknotesIcon class="h-6 w-6 text-amber-600" /></div>
             <div>
-              <p class="font-semibold text-amber-900">{{ t('supplierOrders.remainingBanner') }}</p>
+              <p class="flex flex-wrap items-center gap-2 font-semibold text-amber-900">
+                {{ t('supplierOrders.remainingBanner') }}
+                <span :class="['rounded-full px-2 py-0.5 text-xs font-medium', payBadge(order.paymentStatus).cls]">{{ t(payBadge(order.paymentStatus).key) }}</span>
+              </p>
               <p class="text-2xl font-bold text-amber-700">{{ formatCurrency(order.amountRemaining) }}</p>
+              <p v-if="order.paidOn === 'invoice'" class="text-xs text-amber-800">{{ t('supplierOrders.paidOnInvoice', { number: order.invoice.number }) }}</p>
             </div>
           </div>
           <button class="btn-primary inline-flex items-center gap-2" @click="openPay"><BanknotesIcon class="h-5 w-5" /> {{ t('supplierOrders.addPayment') }}</button>
         </div>
       </div>
+      <p v-else-if="order.paymentStatus === 'paid' && order.status !== 'draft' && order.status !== 'cancelled'" class="card flex items-center gap-2 border-success-200 bg-success-50 p-4 text-sm font-medium text-success-800">
+        <CheckCircleIcon class="h-5 w-5" /> {{ t('supplierOrders.fullyPaid') }}
+      </p>
 
       <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
         <div class="card p-4">
@@ -522,11 +548,14 @@ const spinner = 'h-4 w-4 animate-spin rounded-full border-2 border-white border-
           <span class="text-sm text-gray-500">({{ order.payments.length }})</span>
         </div>
         <div class="divide-y divide-gray-100">
-          <div v-for="p in order.payments" :key="p.id" class="flex items-center gap-4 px-5 py-3">
+          <div v-for="p in order.payments" :key="p.id" :class="['flex items-center gap-4 px-5 py-3', p.voided && 'opacity-50']">
             <div class="flex h-8 w-8 items-center justify-center rounded-full bg-success-50"><CurrencyDollarIcon class="h-4 w-4 text-success-600" /></div>
             <div class="flex-1">
-              <p class="font-medium text-gray-900">{{ formatCurrency(p.amount) }}</p>
-              <p class="text-xs text-gray-500">{{ formatDate(p.createdAt) }}<span v-if="p.userName"> · {{ p.userName }}</span></p>
+              <p :class="['font-medium', p.voided ? 'text-gray-500 line-through' : 'text-gray-900']">{{ formatCurrency(p.amount) }}</p>
+              <p class="text-xs text-gray-500">
+                {{ formatDate(p.createdAt) }} · {{ t(`supplierInvoices.methods.${p.method || 'cash'}`) }}<span v-if="p.userName"> · {{ p.userName }}</span>
+                <span v-if="p.voided" class="font-medium text-danger-600"> · {{ t('supplierInvoices.voided') }}</span>
+              </p>
             </div>
             <div v-if="p.note" class="text-sm text-gray-500">{{ p.note }}</div>
           </div>
@@ -538,7 +567,7 @@ const spinner = 'h-4 w-4 animate-spin rounded-full border-2 border-white border-
       <div v-if="payOpen && order" class="modal-overlay" @click.self="payOpen = false">
         <div class="modal-content max-w-md">
           <div class="modal-header"><h3 class="text-lg font-bold text-gray-900">{{ t('supplierOrders.addPayment') }}</h3></div>
-          <form @submit.prevent="payMutation.mutate()">
+          <form @submit.prevent="submitPay">
             <div class="modal-body space-y-4">
               <div class="space-y-2 rounded-lg bg-gray-50 p-4">
                 <p class="text-sm text-gray-500">{{ t('supplierOrders.order') }} <span class="font-medium text-gray-900">{{ order.orderNumber }}</span></p>
@@ -556,9 +585,20 @@ const spinner = 'h-4 w-4 animate-spin rounded-full border-2 border-white border-
               <div>
                 <label class="label">{{ t('supplierOrders.paymentAmount') }}</label>
                 <div class="relative">
-                  <input v-model.number="payAmount" type="number" step="0.01" min="0" class="input pe-10 text-lg font-medium" required />
+                  <input
+                    v-model.number="payAmount"
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    :max="order.amountRemaining"
+                    class="input pe-10 text-lg font-medium"
+                    :aria-invalid="!!payInvalid"
+                    :aria-label="t('supplierOrders.paymentAmount')"
+                    required
+                  />
                   <span class="absolute end-3 top-1/2 -translate-y-1/2 text-gray-500">DH</span>
                 </div>
+                <p v-if="payInvalid" class="mt-1 text-xs text-danger-600">{{ payInvalid }}</p>
                 <button type="button" class="mt-1 text-xs text-primary-600 hover:text-primary-800" @click="payAmount = order.amountRemaining">
                   {{ t('supplierOrders.payTotal') }}
                 </button>
@@ -574,10 +614,11 @@ const spinner = 'h-4 w-4 animate-spin rounded-full border-2 border-white border-
                   <CheckCircleIcon v-if="payAmount >= order.amountRemaining" class="h-8 w-8 text-success-500" />
                 </div>
               </div>
+              <p v-if="payError" class="rounded-lg border border-danger-200 bg-danger-50 px-3 py-2 text-sm text-danger-700" role="alert">{{ payError }}</p>
             </div>
             <div class="modal-footer">
               <button type="button" class="btn-secondary" @click="payOpen = false">{{ t('common.cancel') }}</button>
-              <button type="submit" class="btn-primary" :disabled="payMutation.isPending.value || !payAmount || payAmount <= 0">
+              <button type="submit" class="btn-primary" :disabled="payMutation.isPending.value || !!payInvalid">
                 <span v-if="payMutation.isPending.value" class="flex items-center gap-2"><span :class="spinner" /> {{ t('supplierOrders.processing') }}</span>
                 <span v-else>{{ t('supplierOrders.confirmPayment') }}</span>
               </button>

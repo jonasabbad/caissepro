@@ -164,11 +164,19 @@ describe('supplier invoices', () => {
     expect((await api.get(`/products/${cable.id}`)).body.data.product.stockQuantity).toBe(7);
     const s = await balanceOf();
     expect([s.totalPurchased, s.totalPaid, s.currentBalance]).toEqual([1050, 300, 750]);
-    // The order is now paid through its invoice.
-    expect((await api.post(`/supplier-orders/${order.id}/payment`, { amount: 100 })).status).toBe(400);
-    expect((await api.get(`/supplier-orders/${order.id}`)).body.data.order.invoice.number).toBe(inv.number);
+    // The order shows its invoice's figures, and paying from the order records the payment on that invoice.
+    let o = (await api.get(`/supplier-orders/${order.id}`)).body.data.order;
+    expect([o.invoice.number, o.totalAmount, o.amountPaid, o.amountRemaining, o.paymentStatus]).toEqual([inv.number, '1050.00', '300.00', '750.00', 'partial']);
+    expect((await api.post(`/supplier-orders/${order.id}/payment`, { amount: 100 })).status).toBe(200);
+    inv = (await api.get(`/supplier-invoices/${inv.id}`)).body.data.invoice;
+    expect([Number(inv.amountPaid), inv.remaining, await drawer()]).toEqual([400, 650, -400]);
+    o = (await api.get(`/supplier-orders/${order.id}`)).body.data.order;
+    expect([o.amountPaid, o.amountRemaining, o.payments.map((p: any) => p.amount)]).toEqual(['400.00', '650.00', [300, 100]]);
     const st = (await api.get(`/suppliers/${supplier.id}/statement`)).body.data;
-    expect(st.entries.map((e: any) => [e.kind, e.debit, e.credit])).toEqual([['invoice', 1050, 0], ['payment', 0, 300]]);
+    expect(st.entries.map((e: any) => [e.kind, e.debit, e.credit])).toEqual([['invoice', 1050, 0], ['payment', 0, 300], ['payment', 0, 100]]);
+    // The order payment recorded on the invoice is undone there before the invoice can be cancelled.
+    const fromOrder = inv.payments.find((p: any) => !p.fromOrder);
+    await api.post(`/supplier-invoices/${inv.id}/payments/${fromOrder.id}/void`, { reason: 'test' });
 
     // Cancelling the invoice gives the debt back to the order.
     await api.post(`/supplier-invoices/${inv.id}/cancel`);

@@ -64,8 +64,12 @@ describe('suppliers & supplier orders', () => {
       [5, order.orderNumber, 'Stock received from supplier'],
     ]);
 
+    // More than what is left is refused (it used to be cut silently); the exact balance settles the order.
     r = await api.post(`/supplier-orders/${order.id}/payment`, { amount: 500 });
+    expect([r.status, r.body.message]).toEqual([400, 'Le montant dépasse le reste à payer (70.00 DH)']);
+    r = await api.post(`/supplier-orders/${order.id}/payment`, { amount: 70 });
     expect(r.body.data.order.amountRemaining).toBe('0.00');
+    expect(r.body.data.order.paymentStatus).toBe('paid');
     expect(r.body.data.order.amountPaid).toBe('120.00');
     s = (await api.get(`/suppliers/${supplier.id}`)).body.data.supplier;
     expect(s.balance).toBe(0);

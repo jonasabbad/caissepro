@@ -24,6 +24,7 @@ import { soldUnitsApi, isValidImei } from '@/api/soldUnits';
 import { apiErrorMessage } from '@/api/http';
 import { suppliersApi } from '@/api/suppliers';
 import { formatCurrency } from '@/utils/format';
+import DevicePurchaseCard from '@/components/suppliers/DevicePurchaseCard.vue';
 
 const { t } = useI18n();
 const route = useRoute();
@@ -62,6 +63,11 @@ const details = ref({
   supplierId: '',
   imageUrl: '',
   boxBarcode: '',
+  // Where it was bought: supplier (optionally one of its orders) | other | unknown. Nothing here is required to add stock.
+  purchaseSource: 'other',
+  supplierOrderId: '',
+  purchaseNote: '',
+  purchasedAt: '',
 });
 const errors = ref({});
 const saving = ref(false);
@@ -74,6 +80,34 @@ onMounted(() => {
 const { data: unit, isLoading } = useQuery({ queryKey: ['sold-unit', unitId], queryFn: () => soldUnitsApi.getById(unitId.value), enabled: isEdit });
 const { data: suppliers } = useQuery({ queryKey: ['suppliers-list'], queryFn: () => suppliersApi.getAll({ limit: 100 }) });
 const supplierOptions = computed(() => (suppliers.value?.suppliers || []).map((s) => ({ value: s.id, label: s.name })));
+const PURCHASE_SOURCES = ['supplier', 'other', 'unknown'];
+const today = new Date().toISOString().slice(0, 10);
+const bySupplier = computed(() => details.value.purchaseSource === 'supplier');
+const costRecorded = computed(() => details.value.purchaseSource !== 'unknown');
+// A device received with its order keeps that order as its purchase record (its origin is not edited here).
+const lockedOrder = ref(null);
+// Same query as the Purchase information card (shared cache): gives the linked order's number.
+const { data: purchaseInfo } = useQuery({ queryKey: ['device-purchase', unitId], queryFn: () => soldUnitsApi.purchase(unitId.value), enabled: isEdit });
+const lockedOrderNumber = computed(() => purchaseInfo.value?.order?.orderNumber || '');
+// The chosen supplier's orders that can be linked (submitted or received; not drafts or cancelled ones).
+const supplierIdForOrders = computed(() => (bySupplier.value && !lockedOrder.value ? details.value.supplierId : ''));
+const { data: supplierOrders } = useQuery({
+  queryKey: ['supplier-orders-of', supplierIdForOrders],
+  queryFn: () => suppliersApi.getOrders(supplierIdForOrders.value),
+  enabled: computed(() => !!supplierIdForOrders.value),
+});
+const orderOptions = computed(() =>
+  (supplierOrders.value || [])
+    .filter((o) => o.status !== 'draft' && o.status !== 'cancelled')
+    .map((o) => ({ value: o.id, label: `${o.orderNumber} · ${new Date(o.receivedAt || o.orderedAt).toLocaleDateString()}` })),
+);
+// Another supplier: an order of the previous one no longer applies.
+watch(
+  () => details.value.supplierId,
+  (id, old) => {
+    if (old && id !== old) details.value.supplierOrderId = '';
+  },
+);
 
 let loaded = false;
 watch(unit, (u) => {
@@ -92,10 +126,16 @@ watch(unit, (u) => {
     notes: u.notes || '',
     supplierId: u.supplierId || '',
     imageUrl: u.imageUrl || '',
+    // Devices added before the source was recorded: read from what they hold (as the server does).
+    purchaseSource: u.purchaseSource || (u.supplierOrderId || u.supplierId ? 'supplier' : Number(u.purchasePrice) > 0 || u.tradeInAt ? 'other' : 'unknown'),
+    supplierOrderId: u.supplierOrderId || '',
+    purchaseNote: u.purchaseNote || '',
+    purchasedAt: u.purchasedAt ? String(u.purchasedAt).slice(0, 10) : '',
   };
+  if (u.supplierOrderId) lockedOrder.value = { id: u.supplierOrderId };
 });
 
-const profit = computed(() => details.value.salePrice - details.value.purchasePrice);
+const profit = computed(() => details.value.salePrice - (costRecorded.value ? details.value.purchasePrice : 0));
 const profitPercent = computed(() => (details.value.salePrice <= 0 ? 0 : ((profit.value / details.value.salePrice) * 100).toFixed(1)));
 
 // Catalogue suggested price (when configured) pre-fills empty prices on new devices.
@@ -216,9 +256,10 @@ function validate() {
     if (details.value.imei && !imeiCheck.value?.valid) e.imei = imeiCheck.value?.message || t('soldUnits.imeiInvalid');
   }
   if (isComputer.value && !device.value.ram) e.ram = t('validation.required');
-  if (details.value.purchasePrice < 0) e.purchasePrice = t('validation.positive');
+  if (costRecorded.value && details.value.purchasePrice < 0) e.purchasePrice = t('validation.positive');
   if (details.value.salePrice <= 0) e.salePrice = t('validation.positive');
-  if (details.value.salePrice < details.value.purchasePrice) e.salePrice = t('validation.priceTooLow');
+  else if (costRecorded.value && details.value.salePrice < details.value.purchasePrice) e.salePrice = t('validation.priceTooLow');
+  if (bySupplier.value && !lockedOrder.value && !details.value.supplierId) e.supplierId = t('soldUnits.purchaseSource.supplierRequired');
   errors.value = e;
   return Object.keys(e).length === 0;
 }
@@ -227,6 +268,7 @@ const saveMutation = useMutation({
   mutationFn: (payload) => (isEdit.value ? soldUnitsApi.update(unitId.value, payload) : soldUnitsApi.create(payload)),
   onSuccess: () => {
     queryClient.invalidateQueries({ queryKey: ['sold-units'] });
+    queryClient.invalidateQueries({ queryKey: ['device-purchase'] });
     toast.value = { show: true, message: isEdit.value ? t('soldUnits.updateSuccess') : t('soldUnits.createSuccess'), type: 'success' };
     setTimeout(() => router.push('/app/sold-units'), 1000);
   },
@@ -235,6 +277,15 @@ const saveMutation = useMutation({
     toast.value = { show: true, message: e.response?.data?.message || t('common.error'), type: 'error' };
   },
 });
+
+function purchasePayload() {
+  const d = details.value;
+  const date = d.purchasedAt || null;
+  if (d.purchaseSource === 'supplier')
+    return { purchaseSource: 'supplier', supplierId: d.supplierId || null, supplierOrderId: d.supplierOrderId || null, purchasedAt: d.supplierOrderId ? null : date };
+  if (d.purchaseSource === 'other') return { purchaseSource: 'other', purchaseNote: d.purchaseNote.trim() || null, purchasedAt: date };
+  return { purchaseSource: 'unknown' };
+}
 
 async function submit() {
   if (!validate()) return;
@@ -251,13 +302,14 @@ async function submit() {
       serialNumber: details.value.serialNumber || undefined,
       batteryHealth: details.value.batteryHealth,
       chargeCycles: details.value.chargeCycles || undefined,
-      purchasePrice: details.value.purchasePrice,
+      purchasePrice: costRecorded.value ? details.value.purchasePrice || 0 : 0,
       salePrice: details.value.salePrice,
       hasWarranty: details.value.hasWarranty,
       warrantyDays: details.value.hasWarranty ? details.value.warrantyDays : 0,
       notes: details.value.notes || undefined,
       deviceType: deviceType.value,
-      supplierId: details.value.supplierId || null,
+      // A device received with its order keeps it: its purchase part is not sent.
+      ...(lockedOrder.value ? {} : purchasePayload()),
       imageUrl: details.value.imageUrl || null,
       boxBarcode: !isEdit.value ? details.value.boxBarcode || null : undefined,
     });
@@ -283,6 +335,9 @@ const section = 'border-b pb-2 text-lg font-semibold text-gray-900';
         <p class="text-sm text-gray-500">{{ isComputer ? t('soldUnits.formSubtitleComputer') : t('soldUnits.formSubtitle') }}</p>
       </div>
     </div>
+
+    <!-- Where this phone or device was bought: supplier, order and its purchase invoice, cost -->
+    <DevicePurchaseCard v-if="isEdit && !isLoading" :key="unitId" :unit-id="unitId" class="mb-6" />
 
     <div v-if="isLoading" class="card p-8 text-center text-gray-500">{{ t('common.loading') }}</div>
 
@@ -419,7 +474,7 @@ const section = 'border-b pb-2 text-lg font-semibold text-gray-900';
         <div class="card space-y-4 p-6">
           <h2 :class="section">{{ t('soldUnits.pricing') }}</h2>
           <div class="grid grid-cols-2 gap-4">
-            <div>
+            <div v-if="costRecorded">
               <label class="label">{{ t('soldUnits.purchasePrice') }} *</label>
               <input v-model.number="details.purchasePrice" type="number" step="1" min="0" :class="['input', { 'input-error': errors.purchasePrice }]" />
               <p v-if="errors.purchasePrice" class="mt-1 text-sm text-danger-600">{{ errors.purchasePrice }}</p>
@@ -430,7 +485,7 @@ const section = 'border-b pb-2 text-lg font-semibold text-gray-900';
               <p v-if="errors.salePrice" class="mt-1 text-sm text-danger-600">{{ errors.salePrice }}</p>
             </div>
           </div>
-          <div class="rounded-lg bg-gray-50 p-4">
+          <div v-if="costRecorded" class="rounded-lg bg-gray-50 p-4">
             <div class="flex items-center justify-between">
               <span class="text-gray-600">{{ t('soldUnits.profit') }}</span>
               <div class="text-end">
@@ -441,12 +496,51 @@ const section = 'border-b pb-2 text-lg font-semibold text-gray-900';
           </div>
         </div>
 
+        <!-- Purchase source: supplier (optionally one of its orders), another source, or not recorded. Never required. -->
         <div class="card space-y-4 p-6">
-          <h2 :class="section">{{ t('soldUnits.supplier') }}</h2>
-          <div>
-            <label class="label">{{ t('soldUnits.supplier') }} <span class="font-normal text-gray-400">({{ t('common.optional') }})</span></label>
-            <SearchableSelect v-model="details.supplierId" :options="supplierOptions" :placeholder="t('common.none')" />
-          </div>
+          <h2 :class="section">{{ t('soldUnits.purchaseSource.title') }}</h2>
+          <p v-if="lockedOrder" class="rounded-lg bg-gray-50 p-3 text-sm text-gray-600">{{ t('soldUnits.purchaseSource.locked', { order: lockedOrderNumber }) }}</p>
+          <template v-else>
+            <div class="grid grid-cols-3 gap-1 rounded-lg bg-gray-100 p-1" role="radiogroup" :aria-label="t('soldUnits.purchaseSource.title')">
+              <button
+                v-for="s in PURCHASE_SOURCES"
+                :key="s"
+                type="button"
+                role="radio"
+                :aria-checked="details.purchaseSource === s"
+                :class="['rounded-md px-2 py-2 text-sm font-medium transition-colors', details.purchaseSource === s ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900']"
+                @click="details.purchaseSource = s"
+              >
+                {{ t(`soldUnits.purchaseSource.${s}`) }}
+              </button>
+            </div>
+
+            <template v-if="details.purchaseSource === 'supplier'">
+              <div>
+                <label class="label">{{ t('soldUnits.supplier') }} *</label>
+                <SearchableSelect v-model="details.supplierId" :options="supplierOptions" :placeholder="t('common.none')" />
+                <p v-if="errors.supplierId" class="mt-1 text-sm text-danger-600">{{ errors.supplierId }}</p>
+              </div>
+              <div v-if="details.supplierId">
+                <label class="label">{{ t('soldUnits.purchaseSource.order') }} <span class="font-normal text-gray-400">({{ t('common.optional') }})</span></label>
+                <SearchableSelect v-if="orderOptions.length" v-model="details.supplierOrderId" :options="orderOptions" :placeholder="t('soldUnits.purchaseSource.orderNone')" />
+                <p v-else class="text-sm text-gray-500">{{ t('soldUnits.purchaseSource.noOrders') }}</p>
+                <p v-if="details.supplierOrderId" class="mt-1 text-xs text-gray-500">{{ t('soldUnits.purchaseSource.orderHint') }}</p>
+              </div>
+            </template>
+
+            <div v-if="details.purchaseSource === 'other'">
+              <label class="label">{{ t('soldUnits.purchaseSource.otherNote') }} <span class="font-normal text-gray-400">({{ t('common.optional') }})</span></label>
+              <input v-model="details.purchaseNote" type="text" maxlength="191" class="input" :placeholder="t('soldUnits.purchaseSource.otherNotePlaceholder')" />
+            </div>
+
+            <div v-if="details.purchaseSource === 'other' || (details.purchaseSource === 'supplier' && !details.supplierOrderId)">
+              <label class="label">{{ t('soldUnits.purchaseSource.date') }} <span class="font-normal text-gray-400">({{ t('common.optional') }})</span></label>
+              <input v-model="details.purchasedAt" type="date" class="input" :max="today" />
+            </div>
+
+            <p v-if="details.purchaseSource === 'unknown'" class="text-sm text-gray-500">{{ t('soldUnits.purchaseSource.unknownHint') }}</p>
+          </template>
         </div>
 
         <div class="card space-y-4 p-6">

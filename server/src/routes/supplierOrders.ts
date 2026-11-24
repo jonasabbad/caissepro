@@ -11,6 +11,8 @@ import { makeRef } from '../lib/refs.js';
 import { moveStock } from '../lib/stock.js';
 import { resolveStoreId } from '../lib/tenant.js';
 import { createUnit } from './soldUnits.js';
+import { canonicalName } from '../lib/deviceNames.js';
+import { lockInvoice, lockOrder, orderInvoices, orderMoney } from '../lib/orderMoney.js';
 
 interface UnitDetail {
   imei?: string;
@@ -57,27 +59,103 @@ const orderSchema = z.object({
 
 const include = { items: true } as const;
 
+/** Device lines: a brand / model already known keeps its spelling (no duplicate model); a new one is added for next time. */
+async function withKnownNames<T extends { brand?: string | null; model?: string | null }>(tenantId: string, items: T[]) {
+  return Promise.all(
+    items.map(async (i) => (i.brand?.trim() && i.model?.trim() ? { ...i, ...(await canonicalName(prisma, tenantId, i.brand, i.model)) } : i)),
+  );
+}
+
 async function loadOrder(tenantId: string, id: string, tx: Tx | typeof prisma = prisma) {
   const order = await tx.supplierOrder.findFirst({ where: { id, tenantId }, include });
   if (!order) throw notFound('Supplier order', id);
   return order;
 }
 
-async function present(order: Awaited<ReturnType<typeof loadOrder>>) {
-  const [supplier, invoice] = await Promise.all([
-    prisma.supplier.findUnique({ where: { id: order.supplierId }, select: { id: true, name: true, phone: true } }),
-    activeInvoice(order.id),
+type LoadedOrder = Awaited<ReturnType<typeof loadOrder>>;
+
+/**
+ * An order as the pages show it: its purchase invoice (one per order) and its money — total, paid, left to pay,
+ * payment status and history — taken from the invoice once it is confirmed (see lib/orderMoney.ts).
+ */
+async function presentMany(tenantId: string, orders: LoadedOrder[]) {
+  const [suppliers, invoices] = await Promise.all([
+    prisma.supplier.findMany({ where: { id: { in: [...new Set(orders.map((o) => o.supplierId))] } }, select: { id: true, name: true, phone: true } }),
+    orderInvoices(tenantId, orders.map((o) => o.id)),
   ]);
-  return serialize({ ...order, supplier, invoice, payments: parseJson<OrderPayment[]>(order.payments, []) });
+  const supplierOf = new Map(suppliers.map((s) => [s.id, s]));
+  return orders.map((order) => {
+    const inv = invoices.get(order.id);
+    const money = orderMoney(order, inv);
+    return serialize({
+      ...order,
+      orderTotal: order.totalAmount, // the order's own lines (the invoice may add charges or a discount)
+      ...money,
+      supplier: supplierOf.get(order.supplierId) ?? null,
+      invoice: inv ? { id: inv.id, number: inv.number, status: inv.status } : null,
+    });
+  });
 }
+const present = async (order: LoadedOrder) => (await presentMany(order.tenantId, [order]))[0];
 
-/** The invoice that took over this order's debt, if any (its payments are then recorded on the invoice). */
-const activeInvoice = (orderId: string) =>
-  prisma.supplierInvoice.findFirst({ where: { supplierOrderId: orderId, status: { not: 'cancelled' } }, select: { id: true, number: true, status: true } });
+/**
+ * Pays part or all of what is left on a supplier order, inside the caller's transaction (balance, history and cash
+ * drawer move together or not at all). Before its invoice is confirmed the payment is the order's; afterwards it is
+ * recorded on the invoice, which carries the order's debt (same as paying from the invoice page).
+ *  - the order row is locked first, so two payments at once are applied one after the other, never both on the
+ *    same balance;
+ *  - never more than what is left (refused with the amount left), never 0;
+ *  - `requestId` (one per payment form) makes a repeated submit a no-op instead of a second payment.
+ */
+async function payOrder(tx: Tx, tenantId: string, orderId: string, amount: number, user: { id: string; name: string }, opts: { note?: string; requestId?: string } = {}) {
+  await lockOrder(tx, orderId); // first statement: waits for any other payment on this order
+  const order = await tx.supplierOrder.findUniqueOrThrow({ where: { id: orderId } });
+  if (['draft', 'cancelled'].includes(order.status)) throw badRequest('Paiement impossible sur cette commande');
+  const pay = r2(amount);
+  if (!(pay > 0)) throw badRequest('Montant invalide');
+  const inv = (await orderInvoices(tenantId, [order.id], tx)).get(order.id);
+  const storeId = order.storeId;
 
-async function assertNotInvoiced(orderId: string) {
-  const inv = await activeInvoice(orderId);
-  if (inv) throw badRequest(`Cette commande est facturée : enregistrez le paiement sur la facture ${inv.number}`);
+  if (inv && inv.status === 'confirmed') {
+    if (opts.requestId && inv.payments.some((p) => p.id === opts.requestId)) return; // already recorded
+    await lockInvoice(tx, inv.id); // paid from its page as well
+    const agg = await tx.supplierPayment.aggregate({ where: { invoiceId: inv.id, voidedAt: null }, _sum: { amount: true } });
+    const paid = r2(num(agg._sum.amount));
+    const remaining = r2(num(inv.total) - paid);
+    if (remaining <= 0) throw badRequest('Cette commande est déjà payée');
+    if (pay > remaining) throw badRequest(`Le montant dépasse le reste à payer (${remaining.toFixed(2)} DH)`);
+    await tx.supplierPayment.create({
+      data: {
+        ...(opts.requestId ? { id: opts.requestId } : {}),
+        tenantId,
+        supplierId: order.supplierId,
+        invoiceId: inv.id,
+        amount: pay,
+        method: 'cash',
+        paidAt: new Date(),
+        reference: order.orderNumber,
+        notes: opts.note || null,
+        storeId,
+        createdBy: user.id,
+      },
+    });
+    await tx.supplierInvoice.update({ where: { id: inv.id }, data: { amountPaid: r2(paid + pay) } });
+    await moveCaisse(tx, { tenantId, storeId, delta: -pay, type: 'cash_out', reason: `Paiement fournisseur - ${inv.number} (${order.orderNumber})`, userId: user.id });
+    return;
+  }
+
+  const payments = parseJson<OrderPayment[]>(order.payments, []);
+  if (opts.requestId && payments.some((p) => p.id === opts.requestId)) return; // already recorded
+  const remaining = r2(num(order.amountRemaining));
+  if (remaining <= 0) throw badRequest('Cette commande est déjà payée');
+  if (pay > remaining) throw badRequest(`Le montant dépasse le reste à payer (${remaining.toFixed(2)} DH)`);
+  payments.push({ id: opts.requestId || randomUUID(), amount: pay, note: opts.note, userId: user.id, userName: user.name, createdAt: new Date().toISOString() });
+  await tx.supplierOrder.update({
+    where: { id: orderId },
+    data: { amountPaid: r2(num(order.amountPaid) + pay), amountRemaining: r2(remaining - pay), payments: JSON.stringify(payments) },
+  });
+  // Supplier payments are paid from the drawer (observed: cash_out "Paiement fournisseur - PO-…").
+  await moveCaisse(tx, { tenantId, storeId, delta: -pay, type: 'cash_out', reason: `Paiement fournisseur - ${order.orderNumber}`, userId: user.id });
 }
 
 /** received when every product line is fully received and every device has been added to stock. */
@@ -92,20 +170,6 @@ async function refreshStatus(tx: Tx, orderId: string) {
   });
 }
 
-async function applyPayment(tx: Tx, orderId: string, amount: number, user: { id: string; name: string }, note?: string) {
-  const order = await tx.supplierOrder.findUniqueOrThrow({ where: { id: orderId } });
-  const remaining = num(order.amountRemaining);
-  const pay = r2(Math.min(amount, remaining));
-  if (pay <= 0) return;
-  const payments = parseJson<OrderPayment[]>(order.payments, []);
-  payments.push({ id: randomUUID(), amount: pay, note, userId: user.id, userName: user.name, createdAt: new Date().toISOString() });
-  await tx.supplierOrder.update({
-    where: { id: orderId },
-    data: { amountPaid: r2(num(order.amountPaid) + pay), amountRemaining: r2(remaining - pay), payments: JSON.stringify(payments) },
-  });
-  // Supplier payments are paid from the drawer (observed: cash_out "Paiement fournisseur - PO-…").
-  await moveCaisse(tx, { tenantId: order.tenantId, storeId: order.storeId, delta: -pay, type: 'cash_out', reason: `Paiement fournisseur - ${order.orderNumber}`, userId: user.id });
-}
 
 const userName = (req: Req) => {
   const u = (req as any).user;
@@ -127,7 +191,7 @@ export default async function supplierOrderRoutes(app: FastifyInstance) {
       where.OR = [{ orderNumber: { contains: query } }, { supplierId: { in: suppliers.map((s) => s.id) } }, { items: { some: { productName: { contains: query } } } }];
     }
     const orders = await prisma.supplierOrder.findMany({ where, include, orderBy: { createdAt: 'desc' } });
-    return ok({ orders: await Promise.all(orders.map(present)) });
+    return ok({ orders: await presentMany(req.auth.tenantId, orders) });
   });
 
   app.get('/supplier-orders/:id', async (req: Req<unknown, unknown, { id: string }>) =>
@@ -136,6 +200,7 @@ export default async function supplierOrderRoutes(app: FastifyInstance) {
 
   app.post('/supplier-orders', async (req: Req<z.infer<typeof orderSchema>>, reply) => {
     const body = orderSchema.parse(req.body);
+    body.items = await withKnownNames(req.auth.tenantId, body.items);
     const supplier = await prisma.supplier.findFirst({ where: { id: body.supplierId, tenantId: req.auth.tenantId } });
     if (!supplier) throw notFound('Supplier', body.supplierId);
     const total = r2(body.items.reduce((s, i) => s + i.quantityOrdered * i.unitCost, 0));
@@ -177,6 +242,7 @@ export default async function supplierOrderRoutes(app: FastifyInstance) {
     const order = await loadOrder(req.auth.tenantId, req.params.id);
     const body = orderSchema.partial().parse(req.body);
     if (body.items && order.status !== 'draft') throw badRequest('Seule une commande en brouillon peut être modifiée');
+    if (body.items) body.items = await withKnownNames(req.auth.tenantId, body.items);
     await prisma.$transaction(async (tx) => {
       if (body.items) {
         await tx.supplierOrderItem.deleteMany({ where: { supplierOrderId: order.id } });
@@ -224,7 +290,7 @@ export default async function supplierOrderRoutes(app: FastifyInstance) {
   app.post('/supplier-orders/:id/cancel', async (req: Req<unknown, unknown, { id: string }>) => {
     const order = await loadOrder(req.auth.tenantId, req.params.id);
     if (!['draft', 'pending'].includes(order.status)) throw badRequest('Seule une commande non réceptionnée peut être annulée');
-    if (await activeInvoice(order.id)) throw badRequest('Annulez d’abord la facture de cette commande');
+    if ((await orderInvoices(req.auth.tenantId, [order.id])).has(order.id)) throw badRequest('Annulez d’abord la facture de cette commande');
     await prisma.supplierOrder.update({ where: { id: order.id }, data: { status: 'cancelled' } });
     return ok({ order: await present(await loadOrder(req.auth.tenantId, order.id)) });
   });
@@ -308,22 +374,21 @@ export default async function supplierOrderRoutes(app: FastifyInstance) {
     const body = receiveSchema.parse(req.body);
     const order = await loadOrder(req.auth.tenantId, req.params.id);
     if (['draft', 'cancelled'].includes(order.status)) throw badRequest("Cette commande ne peut pas être réceptionnée");
-    if (body.paymentAmount) await assertNotInvoiced(order.id);
     await prisma.$transaction(async (tx) => {
       await receiveLines(tx, req, order, body.items);
-      if (body.paymentAmount) await applyPayment(tx, order.id, body.paymentAmount, { id: req.auth.userId, name: userName(req) });
+      if (body.paymentAmount) await payOrder(tx, req.auth.tenantId, order.id, body.paymentAmount, { id: req.auth.userId, name: userName(req) });
       await refreshStatus(tx, order.id);
     });
     return ok({ order: await present(await loadOrder(req.auth.tenantId, order.id)) });
   });
 
-  app.post('/supplier-orders/:id/payment', async (req: Req<{ amount: number; note?: string }, unknown, { id: string }>) => {
-    const { amount, note } = z.object({ amount: z.coerce.number().positive(), note: z.string().optional() }).parse(req.body);
+  /** Pays what is left on the order (partly or in full, as many times as needed); see payOrder. */
+  app.post('/supplier-orders/:id/payment', async (req: Req<{ amount: number; note?: string; requestId?: string }, unknown, { id: string }>) => {
+    const { amount, note, requestId } = z
+      .object({ amount: z.coerce.number().finite().positive('Montant invalide'), note: z.string().max(500).optional(), requestId: z.string().uuid().optional() })
+      .parse(req.body);
     const order = await loadOrder(req.auth.tenantId, req.params.id);
-    if (['draft', 'cancelled'].includes(order.status)) throw badRequest('Paiement impossible sur cette commande');
-    if (num(order.amountRemaining) <= 0) throw badRequest('Cette commande est déjà payée');
-    await assertNotInvoiced(order.id);
-    await prisma.$transaction((tx) => applyPayment(tx, order.id, amount, { id: req.auth.userId, name: userName(req) }, note));
+    await prisma.$transaction((tx) => payOrder(tx, req.auth.tenantId, order.id, amount, { id: req.auth.userId, name: userName(req) }, { note, requestId }));
     return ok({ order: await present(await loadOrder(req.auth.tenantId, order.id)) });
   });
 

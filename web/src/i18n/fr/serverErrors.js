@@ -141,5 +141,13 @@ export default {
     pairingUsed: "Ce QR code a déjà servi : affichez-en un nouveau",
     pairingExpired: "Ce QR code a expiré : affichez-en un nouveau",
     tooManyScans: "Trop de scans, patientez un instant",
+    purchaseNoteTooLong: "Description trop longue (191 caractères max.)",
+    purchaseDateInvalid: "Date d’achat invalide",
+    purchaseOrderNotFound: "Commande fournisseur introuvable",
+    purchaseOrderNotLinkable: "Cette commande fournisseur ne peut pas être liée (brouillon ou annulée)",
+    purchaseOrderOtherSupplier: "Cette commande n’est pas de ce fournisseur",
+    supplierNotFound: "Fournisseur introuvable",
+    purchaseSupplierRequired: "Choisissez le fournisseur",
+    purchaseReceivedWithOrder: "Cet appareil a été reçu avec sa commande fournisseur : son origine ne peut pas être changée",
   },
 };

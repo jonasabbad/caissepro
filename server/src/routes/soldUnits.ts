@@ -10,6 +10,8 @@ import { resolveStoreId } from '../lib/tenant.js';
 import { isAllowedImageUrl, removeUpload } from '../lib/uploads.js';
 import { learnTac, lookupTac } from '../lib/tac.js';
 import { learnModelBarcode } from './scan.js';
+import { purchaseFields, resolvePurchase, sourceOf } from '../lib/purchaseSource.js';
+import { canonicalName, nameKey } from '../lib/deviceNames.js';
 
 const REF_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
 
@@ -82,6 +84,7 @@ const unitSchema = z.object({
   boxBarcode: z.string().trim().max(64).optional().nullable(), // retail box EAN / UPC: remembered for the model, not stored on the device
   supplierId: z.string().optional().nullable(),
   supplierOrderId: z.string().optional().nullable(),
+  ...purchaseFields,
 });
 type UnitInput = z.infer<typeof unitSchema>;
 
@@ -102,14 +105,16 @@ export async function createUnit(
   input: UnitInput,
   extra: Partial<Prisma.SoldUnitUncheckedCreateInput> = {},
 ) {
+  // A brand / model already known (other case or spacing) keeps its spelling; a new one is thereby added for next time.
+  const names = await canonicalName(tx, ctx.tenantId, input.brand, input.model);
   const unit = await tx.soldUnit.create({
     data: {
       tenantId: ctx.tenantId,
       storeId: ctx.storeId,
       ref: await newUnitRef(ctx.tenantId),
       deviceType: input.deviceType,
-      brand: input.brand,
-      model: input.model,
+      brand: names.brand,
+      model: names.model,
       storage: input.storage || null,
       ram: input.ram || null,
       color: input.color || null,
@@ -272,14 +277,71 @@ export default async function soldUnitRoutes(app: FastifyInstance) {
     return ok({ unit: serialize(full) });
   });
 
+  /**
+   * Where a phone or device was bought: supplier, its supplier order and that order's purchase invoice (one invoice
+   * per order, shared by every device of the order — never one per device), the purchase date and what this device
+   * cost. Read from the device's own supplierId / supplierOrderId / purchasePrice, so it stays after the device is sold.
+   */
+  app.get(`${base}/:id/purchase`, async (req: Req<unknown, unknown, { id: string }>) => {
+    const tenantId = req.auth.tenantId;
+    const u = await prisma.soldUnit.findFirst({
+      where: { id: req.params.id, tenantId },
+      select: {
+        supplierId: true,
+        supplierOrderId: true,
+        purchasePrice: true,
+        purchaseSource: true,
+        purchaseNote: true,
+        purchasedAt: true,
+        tradeInAt: true,
+        imei: true,
+        serialNumber: true,
+        createdAt: true,
+      },
+    });
+    if (!u) throw notFound('Sold unit', req.params.id);
+    const [supplier, order, invoice] = await Promise.all([
+      u.supplierId ? prisma.supplier.findFirst({ where: { id: u.supplierId, tenantId }, select: { id: true, name: true, phone: true } }) : null,
+      u.supplierOrderId
+        ? prisma.supplierOrder.findFirst({ where: { id: u.supplierOrderId, tenantId }, select: { id: true, orderNumber: true, orderedAt: true, receivedAt: true, status: true } })
+        : null,
+      u.supplierOrderId
+        ? prisma.supplierInvoice.findFirst({
+            where: { tenantId, supplierOrderId: u.supplierOrderId, status: { not: 'cancelled' } },
+            select: { id: true, number: true, supplierRef: true, invoiceDate: true, status: true, total: true },
+          })
+        : null,
+    ]);
+    const source = sourceOf(u);
+    // Only what is recorded: a linked order's date (received into stock, else ordered), the date entered, or the
+    // trade-in date. Nothing for a source not recorded — and no cost then either.
+    const purchaseDate = order ? (order.receivedAt ?? order.orderedAt) : (u.purchasedAt ?? u.tradeInAt ?? null);
+    return ok({
+      purchase: serialize({
+        source,
+        note: u.purchaseNote,
+        supplier,
+        order,
+        invoice,
+        purchaseDate,
+        purchasePrice: source === 'unknown' ? null : u.purchasePrice,
+        imei: u.imei,
+        serialNumber: u.serialNumber,
+        addedAt: u.createdAt,
+      }),
+    });
+  });
+
   app.post(base, async (req: Req<UnitInput>, reply) => {
     const input = unitSchema.parse(req.body);
     checkImage(req.auth.tenantId, input.imageUrl);
     await assertUniqueImei(req.auth.tenantId, input.imei);
     const storeId = await resolveStoreId(req.auth.tenantId, req.auth.storeId);
+    const purchase = await resolvePurchase(req.auth.tenantId, input);
     const unit = await prisma.$transaction(async (tx) => {
-      const { boxBarcode, ...unitInput } = input;
-      const created = await createUnit(tx, { tenantId: req.auth.tenantId, userId: req.auth.userId, storeId }, unitInput);
+      const { boxBarcode, purchaseSource: _s, purchaseNote: _n, purchasedAt: _d, ...rest } = input;
+      const unitInput = { ...rest, purchasePrice: purchase.purchasePrice !== undefined ? Number(purchase.purchasePrice) : rest.purchasePrice };
+      const created = await createUnit(tx, { tenantId: req.auth.tenantId, userId: req.auth.userId, storeId }, unitInput, purchase);
       await learnModelBarcode(tx, req.auth.tenantId, boxBarcode, created);
       return created;
     });
@@ -293,12 +355,17 @@ export default async function soldUnitRoutes(app: FastifyInstance) {
     const input = unitSchema.partial().parse(req.body);
     checkImage(req.auth.tenantId, input.imageUrl);
     await assertUniqueImei(req.auth.tenantId, input.imei, existing.id);
-    const purchase = input.purchasePrice ?? num(existing.purchasePrice);
+    const { purchasePrice: forcedPrice, ...purchaseData } = await resolvePurchase(req.auth.tenantId, input, existing);
+    const purchase = forcedPrice !== undefined ? Number(forcedPrice) : (input.purchasePrice ?? num(existing.purchasePrice));
     const sale = input.salePrice ?? num(existing.salePrice);
+    // A changed brand / model is matched to the known spelling; an unchanged one (any case) is left as it is.
+    const brandIn = input.brand ?? existing.brand;
+    const modelIn = input.model ?? existing.model;
+    const renamed = nameKey(brandIn) !== nameKey(existing.brand) || nameKey(modelIn) !== nameKey(existing.model);
+    const names = renamed ? await canonicalName(prisma, req.auth.tenantId, brandIn, modelIn) : null;
     const data: Prisma.SoldUnitUpdateInput = {
       ...(input.deviceType !== undefined && { deviceType: input.deviceType }),
-      ...(input.brand !== undefined && { brand: input.brand }),
-      ...(input.model !== undefined && { model: input.model }),
+      ...(names && { brand: names.brand, model: names.model }),
       ...(input.storage !== undefined && { storage: input.storage || null }),
       ...(input.ram !== undefined && { ram: input.ram || null }),
       ...(input.color !== undefined && { color: input.color || null }),
@@ -312,7 +379,7 @@ export default async function soldUnitRoutes(app: FastifyInstance) {
       ...(input.notes !== undefined && { notes: input.notes || null }),
       ...(input.accessories !== undefined && { accessories: toJson(input.accessories) }),
       ...(input.imageUrl !== undefined && { imageUrl: input.imageUrl || null }),
-      ...(input.supplierId !== undefined && { supplierId: input.supplierId || null }),
+      ...purchaseData,
       purchasePrice: r2(purchase),
       salePrice: r2(sale),
       profit: r2(sale - purchase - num(existing.repairCost)),

@@ -250,14 +250,14 @@ async function save(confirm = false) {
                   </template>
                   <template v-else>
                     <input v-model="l.productName" class="input" :placeholder="t('supplierInvoices.productName')" :aria-label="t('supplierInvoices.productName')" />
-                    <div class="mt-2 grid grid-cols-2 gap-2">
+                    <div v-if="!linkedOrder" class="mt-2 grid grid-cols-2 gap-2">
                       <input v-model.number="l.newRetailPrice" type="number" min="0" step="0.01" class="input text-xs" :placeholder="t('supplierInvoices.retailPrice')" :aria-label="t('supplierInvoices.retailPrice')" />
                       <select v-model="l.newCategoryId" class="input text-xs" :aria-label="t('products.category')">
                         <option value="">{{ t('products.noCategory') }}</option>
                         <option v-for="c in categories || []" :key="c.id" :value="c.id">{{ c.name }}</option>
                       </select>
                     </div>
-                    <p class="mt-1 flex items-center gap-1 text-xs text-primary-700"><SparklesIcon class="h-3.5 w-3.5" /> {{ t('supplierInvoices.newProductHint') }}</p>
+                    <p v-if="!linkedOrder" class="mt-1 flex items-center gap-1 text-xs text-primary-700"><SparklesIcon class="h-3.5 w-3.5" /> {{ t('supplierInvoices.newProductHint') }}</p>
                   </template>
                   <p v-if="l.quantityReceived" class="mt-1 flex items-center gap-1 text-xs text-gray-500"><LockClosedIcon class="h-3.5 w-3.5" /> {{ t('supplierInvoices.received') }} : {{ l.quantityReceived }}</p>
                 </td>

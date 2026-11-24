@@ -1,7 +1,8 @@
 <script setup>
 import { intlLocale, ltr } from '@/i18n';
-// Brand → model → storage / RAM / colour / condition picker backed by the device catalogue.
-// Brands and models not in the catalogue can be typed in ("Ajouter « … »").
+// Brand → model → storage / RAM / colour / condition picker backed by the device catalogue and the brands / models this
+// business already entered. A brand or model not listed can be typed in ("Ajouter « … »"): it is saved with the device
+// (or order line) and offered from then on, under its brand. One typed with another case / spacing picks the listed one.
 import { computed, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useQuery } from '@tanstack/vue-query';
@@ -31,11 +32,13 @@ const condition = ref(props.modelValue.condition);
 const { data: brands, isLoading: brandsLoading } = useQuery({
   queryKey: computed(() => ['device-brands', props.deviceType]),
   queryFn: () => deviceCatalogApi.getBrands(props.deviceType),
+  staleTime: 0, // refetched when a form opens: brands / models just saved are offered at once
 });
 const { data: models, isLoading: modelsLoading } = useQuery({
   queryKey: computed(() => ['device-models', brand.value, props.deviceType]),
   queryFn: () => deviceCatalogApi.getModelsByBrand(brand.value, props.deviceType),
   enabled: computed(() => !!brand.value),
+  staleTime: 0,
 });
 const { data: device } = useQuery({
   queryKey: computed(() => ['device-spec', brand.value, model.value, props.deviceType]),
@@ -45,6 +48,20 @@ const { data: device } = useQuery({
 
 const brandOptions = computed(() => (brands.value || []).map((b) => ({ value: b.name, label: b.name })));
 const modelOptions = computed(() => (models.value || []).map((m) => ({ value: m, label: m })));
+
+// Same comparison as the server: case, spaces and dashes ignored. A typed name matching a listed one becomes that one.
+const nameKey = (s) => String(s || '').normalize('NFKC').toLowerCase().replace(/[\s\-_]+/g, '');
+const known = (options, v) => (v ? options.find((o) => o.value !== v && nameKey(o.value) === nameKey(v))?.value : undefined);
+watch([brand, brandOptions], () => {
+  if (props.disabled) return; // a saved device keeps its spelling
+  const k = known(brandOptions.value, brand.value);
+  if (k) brand.value = k;
+});
+watch([model, modelOptions], () => {
+  if (props.disabled) return; // a saved device keeps its spelling
+  const k = known(modelOptions.value, model.value);
+  if (k) model.value = k;
+});
 
 // Fallback choices when the catalogue has no specs for a model.
 const DEFAULTS = {
@@ -154,6 +171,7 @@ const chip = (active) => [
         :disabled="disabled"
         :loading="brandsLoading"
         :allow-custom="!disabled"
+        loose-match
       />
     </div>
     <div>
@@ -165,6 +183,7 @@ const chip = (active) => [
         :disabled="disabled || !brand"
         :loading="modelsLoading && !!brand"
         :allow-custom="!disabled && !!brand"
+        loose-match
       />
     </div>
 

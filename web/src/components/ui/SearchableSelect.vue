@@ -10,6 +10,7 @@ const props = defineProps({
   disabled: Boolean,
   loading: Boolean,
   allowCustom: Boolean,
+  looseMatch: Boolean, // search and "Ajouter" ignore spaces and dashes too ("iphone15-pro" finds "iPhone 15 Pro")
 });
 const emit = defineEmits(['update:modelValue']);
 
@@ -23,15 +24,19 @@ const highlighted = ref(-1);
 const selectedLabel = computed(
   () => props.options.find((o) => o.value === props.modelValue)?.label || (props.allowCustom ? props.modelValue : ''),
 );
+const norm = (s) => {
+  const v = String(s).toLowerCase();
+  return props.looseMatch ? v.normalize('NFKC').replace(/[\s\-_]+/g, '') : v;
+};
 const filtered = computed(() => {
   if (!search.value) return props.options;
-  const q = search.value.toLowerCase();
-  return props.options.filter((o) => String(o.label).toLowerCase().includes(q));
+  const q = norm(search.value);
+  return props.options.filter((o) => norm(o.label).includes(q));
 });
 const canCreate = computed(() => {
   if (!props.allowCustom) return false;
   const v = search.value.trim();
-  return v ? !props.options.some((o) => String(o.label).toLowerCase() === v.toLowerCase()) : false;
+  return v ? !props.options.some((o) => norm(o.label) === norm(v)) : false;
 });
 watch(filtered, () => (highlighted.value = -1));
 

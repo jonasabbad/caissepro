@@ -1,30 +1,29 @@
 import type { FastifyInstance } from 'fastify';
 import { catalog, catalogFor } from '../lib/catalog.js';
+import { brandsFor, modelsFor, nameKey } from '../lib/deviceNames.js';
 import { authed, ok, type Req } from '../lib/route.js';
 
 const publicDevice = ({ deviceType: _t, ...d }: (typeof catalog)[number]) => d;
 
-/** Built-in device catalogue (brands → models → storage / colours) used by the phone entry form. */
+/**
+ * Device catalogue used by the device forms: built-in brands → models → storage / colours, plus the brands and models
+ * this business entered itself (see lib/deviceNames.ts).
+ */
 export default async function catalogRoutes(app: FastifyInstance) {
   authed(app);
 
-  app.get('/phone-seller/catalog/brands', async (req: Req<unknown, { deviceType?: string }>) => {
-    const brands = [...new Set(catalogFor(req.query.deviceType).map((d) => d.brand))].sort((a, b) => a.localeCompare(b));
-    return ok({ brands });
-  });
+  app.get('/phone-seller/catalog/brands', async (req: Req<unknown, { deviceType?: string }>) =>
+    ok({ brands: await brandsFor(req.auth.tenantId, req.query.deviceType || undefined) }),
+  );
 
-  app.get('/phone-seller/catalog/models', async (req: Req<unknown, { brand?: string; deviceType?: string }>) => {
-    const brand = (req.query.brand ?? '').toLowerCase();
-    const models = catalogFor(req.query.deviceType)
-      .filter((d) => d.brand.toLowerCase() === brand)
-      .map((d) => d.model);
-    return ok({ models });
-  });
+  app.get('/phone-seller/catalog/models', async (req: Req<unknown, { brand?: string; deviceType?: string }>) =>
+    ok({ models: await modelsFor(req.auth.tenantId, req.query.brand ?? '', req.query.deviceType || undefined) }),
+  );
 
   app.get('/phone-seller/catalog/device', async (req: Req<unknown, { brand?: string; model?: string; deviceType?: string }>) => {
-    const brand = (req.query.brand ?? '').toLowerCase();
-    const model = (req.query.model ?? '').toLowerCase();
-    const device = catalogFor(req.query.deviceType).find((d) => d.brand.toLowerCase() === brand && d.model.toLowerCase() === model);
+    const brand = nameKey(req.query.brand ?? '');
+    const model = nameKey(req.query.model ?? '');
+    const device = catalogFor(req.query.deviceType).find((d) => nameKey(d.brand) === brand && nameKey(d.model) === model);
     if (!device || (!device.year && device.storageOptions.length === 0)) {
       return ok({ device: null, storageOptions: [], ramOptions: [], colors: [], basePrice: 0 });
     }

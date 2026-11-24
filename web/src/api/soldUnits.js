@@ -74,6 +74,11 @@ export const soldUnitsApi = {
     const { data } = await http.get(`/phone-seller/sold-units/${id}`);
     return data.data.unit;
   },
+  /** Where it was bought: supplier, supplier order and that order's purchase invoice (one per order), its cost. */
+  async purchase(id) {
+    const { data } = await http.get(`/phone-seller/sold-units/${id}/purchase`);
+    return data.data.purchase;
+  },
   async getByImei(imei) {
     return (await this.getAll({ query: imei, limit: 1 })).units.find((u) => u.imei === imei) || null;
   },

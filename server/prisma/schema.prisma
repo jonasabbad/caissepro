@@ -181,6 +181,11 @@ model SoldUnit {
   productId                String?
   supplierOrderId          String?
   supplierId               String?
+  // Where it was bought: supplier | other | unknown. Null on devices added before this existed (read as derived from
+  // the order / supplier / cost — see lib/purchaseSource.ts). An order or a supplier is never required.
+  purchaseSource           String?
+  purchaseNote             String? // "other" source: who / where it was bought from (optional)
+  purchasedAt              DateTime? // when bought, if recorded; a linked order gives its own date instead
   transactionId            String?
   customerId               String?
   deviceType               String    @default("phone") // phone | tablet | laptop | macbook | watch

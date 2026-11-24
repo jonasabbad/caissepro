@@ -23,6 +23,7 @@ import { PAYMENT_METHODS, daysLate, invoiceBadge, shortDay } from '@/utils/suppl
 import { printSupplierInvoice, supplierInvoicePdf } from '@/utils/supplierDocs';
 import ConfirmModal from '@/components/ui/ConfirmModal.vue';
 import Toast from '@/components/ui/Toast.vue';
+import InvoiceDevicesList from '@/components/suppliers/InvoiceDevicesList.vue';
 
 const { t } = useI18n();
 const route = useRoute();
@@ -195,7 +196,7 @@ const pdf = () => supplierInvoicePdf(inv.value).catch((e) => notify(apiErrorMess
                 <tr v-for="i in inv.items" :key="i.id">
                   <td class="px-4 py-3">
                     <RouterLink v-if="i.productId" :to="`/app/products/${i.productId}`" class="font-medium text-gray-900 hover:underline">{{ i.productName }}</RouterLink>
-                    <span v-else class="font-medium text-gray-900">{{ i.productName }} <span class="ms-1 rounded bg-primary-50 px-1.5 py-0.5 text-[10px] font-semibold text-primary-700">{{ t('supplierInvoices.newProduct') }}</span></span>
+                    <span v-else class="font-medium text-gray-900">{{ i.productName }} <span v-if="!inv.supplierOrderId" class="ms-1 rounded bg-primary-50 px-1.5 py-0.5 text-[10px] font-semibold text-primary-700">{{ t('supplierInvoices.newProduct') }}</span></span>
                     <p v-if="i.reference" class="font-mono text-xs text-gray-500">{{ i.reference }}</p>
                   </td>
                   <td class="px-4 py-3 text-end">{{ i.quantity }}</td>
@@ -267,6 +268,9 @@ const pdf = () => supplierInvoicePdf(inv.value).catch((e) => notify(apiErrorMess
           </div>
         </div>
       </div>
+
+      <!-- Phones and devices of the order, all on this one invoice -->
+      <InvoiceDevicesList v-if="inv.devices?.length" :devices="inv.devices" />
     </template>
 
     <!-- Payment -->

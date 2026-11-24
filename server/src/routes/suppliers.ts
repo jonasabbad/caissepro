@@ -6,6 +6,7 @@ import { num, r2, serialize } from '../lib/serialize.js';
 import { authed, ok, type Req } from '../lib/route.js';
 import { dateRange, qStr } from '../lib/pagination.js';
 import { supplierBalances, supplierStatement } from '../lib/suppliers.js';
+import { orderInvoices, orderMoney } from '../lib/orderMoney.js';
 
 const supplierSchema = z.object({
   name: z.string().trim().min(1, 'Le nom est obligatoire'),
@@ -67,7 +68,17 @@ export default async function supplierRoutes(app: FastifyInstance) {
       orderBy: { createdAt: 'desc' },
       take: 20,
     });
-    return ok({ orders: serialize(orders) });
+    // Same money as the order pages: once its invoice is confirmed, an order shows the invoice's paid / left to pay.
+    const invoices = await orderInvoices(req.auth.tenantId, orders.map((o) => o.id));
+    return ok({
+      orders: serialize(
+        orders.map((o) => {
+          const inv = invoices.get(o.id);
+          const { payments, ...money } = orderMoney(o, inv);
+          return { ...o, ...money, payments, invoice: inv ? { id: inv.id, number: inv.number, status: inv.status } : null };
+        }),
+      ),
+    });
   });
 
   /** Account statement: purchases, payments, running balance, overdue invoices (dateFrom/dateTo optional). */

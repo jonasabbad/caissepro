@@ -10,3 +10,11 @@ export const ORDER_STATUS = {
 };
 
 export const statusInfo = (s) => ORDER_STATUS[s] ?? ORDER_STATUS.draft;
+
+/** Payment status of a supplier order (from what is paid and left to pay): label key and badge colours. */
+export const PAYMENT_STATUS = {
+  unpaid: { key: 'supplierInvoices.paymentStatus.unpaid', cls: 'bg-red-100 text-red-700' },
+  partial: { key: 'supplierInvoices.paymentStatus.partial', cls: 'bg-amber-100 text-amber-800' },
+  paid: { key: 'supplierInvoices.paymentStatus.paid', cls: 'bg-green-100 text-green-700' },
+};
+export const payBadge = (s) => PAYMENT_STATUS[s] ?? PAYMENT_STATUS.unpaid;

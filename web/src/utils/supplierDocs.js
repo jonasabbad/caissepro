@@ -15,6 +15,15 @@ function invoiceRows(inv) {
   return inv.items.map((i) => ({ name: i.productName, ref: i.reference || '', qty: i.quantity, unit: Number(i.unitCost), total: Number(i.lineTotal) }));
 }
 
+/** The phones and devices bought on the invoice's supplier order: name and specs, IMEI or serial, cost. */
+function deviceRows(inv) {
+  return (inv.devices || []).map((d) => ({
+    name: [[d.brand, d.model].filter(Boolean).join(' '), [d.storage, d.ram, d.color].filter(Boolean).join(' · ')].filter(Boolean).join(' — '),
+    code: d.imei || d.serialNumber || '',
+    cost: Number(d.purchasePrice || 0),
+  }));
+}
+
 function totalsRows(inv, tr) {
   const rows = [[tr('supplierInvoices.subtotal'), Number(inv.subtotal)]];
   if (Number(inv.discount)) rows.push([tr('supplierInvoices.discount'), -Number(inv.discount)]);
@@ -50,10 +59,14 @@ export function printSupplierInvoice(inv, company = {}) {
     .filter((p) => !p.voidedAt)
     .map((p) => `<tr><td class="num">${dayOf(p.paidAt, loc)}</td><td>${escapeHtml(t(`supplierInvoices.methods.${p.method}`))}${p.reference ? ` · ${escapeHtml(p.reference)}` : ''}</td><td class="num">${m(p.amount)}</td></tr>`)
     .join('');
+  const devs = deviceRows(inv)
+    .map((d) => `<tr><td>${escapeHtml(d.name)}</td><td class="num">${escapeHtml(d.code)}</td><td class="num">${m(d.cost)}</td></tr>`)
+    .join('');
   const body = `
     <div class="row"><div><h1>${escapeHtml(t('supplierInvoices.docTitle'))}</h1>
       <div>${escapeHtml(t('supplierInvoices.number'))} : <b class="num">${escapeHtml(inv.number)}</b></div>
       ${inv.supplierRef ? `<div>${escapeHtml(t('supplierInvoices.supplierRef'))} : <span class="num">${escapeHtml(inv.supplierRef)}</span></div>` : ''}
+      ${inv.supplierOrder ? `<div>${escapeHtml(t('supplierInvoices.orderRef'))} : <span class="num">${escapeHtml(inv.supplierOrder.orderNumber)}</span></div>` : ''}
       <div>${escapeHtml(t('supplierInvoices.invoiceDate'))} : <span class="num">${dayOf(inv.invoiceDate, loc)}</span></div>
       ${inv.dueDate ? `<div>${escapeHtml(t('supplierInvoices.dueDate'))} : <span class="num">${dayOf(inv.dueDate, loc)}</span></div>` : ''}
       <div>${escapeHtml(t('common.status'))} : ${escapeHtml(t(inv.status === 'confirmed' ? `supplierInvoices.paymentStatus.${inv.overdue ? 'overdue' : inv.paymentStatus}` : `supplierInvoices.status.${inv.status}`))}</div></div>
@@ -65,6 +78,7 @@ export function printSupplierInvoice(inv, company = {}) {
       <tr><td>${escapeHtml(t('supplierInvoices.paid'))}</td><td class="num">${m(inv.amountPaid)}</td></tr>
       <tr><td><b>${escapeHtml(t('supplierInvoices.remaining'))}</b></td><td class="num"><b>${m(inv.status === 'cancelled' ? 0 : inv.remaining)}</b></td></tr></tbody></table>
     ${pays ? `<h3>${escapeHtml(t('supplierInvoices.paymentHistory'))}</h3><table><tbody>${pays}</tbody></table>` : ''}
+    ${devs ? `<h3>${escapeHtml(t('supplierInvoices.devices.title'))} (${(inv.devices || []).length})</h3><table><thead><tr><th>${escapeHtml(t('supplierInvoices.devices.device'))}</th><th class="num">${escapeHtml(t('supplierInvoices.devices.code'))}</th><th class="num">${escapeHtml(t('supplierInvoices.devices.cost'))}</th></tr></thead><tbody>${devs}</tbody></table>` : ''}
     ${inv.paymentTerms ? `<p><b>${escapeHtml(t('supplierInvoices.paymentTerms'))} :</b> ${escapeHtml(inv.paymentTerms)}</p>` : ''}
     ${inv.notes ? `<p><b>${escapeHtml(t('supplierInvoices.notes'))} :</b> ${escapeHtml(inv.notes)}</p>` : ''}`;
   printHtmlDocument(htmlPage(inv.number, body));
@@ -157,6 +171,7 @@ export async function supplierInvoicePdf(inv) {
   const head = [
     `${dt('supplierInvoices.number')} : ${inv.number}`,
     inv.supplierRef ? `${dt('supplierInvoices.supplierRef')} : ${inv.supplierRef}` : null,
+    inv.supplierOrder ? `${dt('supplierInvoices.orderRef')} : ${inv.supplierOrder.orderNumber}` : null,
     `${dt('supplierInvoices.invoiceDate')} : ${dayOf(inv.invoiceDate, loc)}`,
     inv.dueDate ? `${dt('supplierInvoices.dueDate')} : ${dayOf(inv.dueDate, loc)}` : null,
   ].filter(Boolean);
@@ -185,6 +200,12 @@ export async function supplierInvoicePdf(inv) {
     y += 4;
     doc.setFont('helvetica', 'bold').setFontSize(11).text(dt('supplierInvoices.paymentHistory'), 15, y);
     y = table(doc, y + 7, [dt('supplierInvoices.paymentDate'), dt('supplierInvoices.method'), dt('supplierInvoices.amount')], [40, 100, 40], pays.map((p) => [dayOf(p.paidAt, loc), `${dt(`supplierInvoices.methods.${p.method}`)}${p.reference ? ` · ${p.reference}` : ''}`, m(p.amount)]), ['left', 'left', 'right']);
+  }
+  const devs = deviceRows(inv);
+  if (devs.length) {
+    y += 4;
+    doc.setFont('helvetica', 'bold').setFontSize(11).text(clean(`${dt('supplierInvoices.devices.title')} (${devs.length})`), 15, y);
+    y = table(doc, y + 7, [dt('supplierInvoices.devices.device'), dt('supplierInvoices.devices.code'), dt('supplierInvoices.devices.cost')], [95, 55, 30], devs.map((d) => [d.name, d.code, m(d.cost)]), ['left', 'left', 'right']);
   }
   doc.setFont('helvetica', 'normal').setFontSize(9);
   if (inv.paymentTerms) (doc.text(clean(`${dt('supplierInvoices.paymentTerms')} : ${inv.paymentTerms}`), 15, y + 6), (y += 6));

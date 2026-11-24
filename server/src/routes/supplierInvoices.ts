@@ -10,6 +10,7 @@ import { moveStock } from '../lib/stock.js';
 import { resolveStoreId } from '../lib/tenant.js';
 import { invoiceState } from '../lib/suppliers.js';
 import { createProduct } from './products.js';
+import { lockOrder } from '../lib/orderMoney.js';
 
 /**
  * Supplier (purchase) invoices.
@@ -83,10 +84,18 @@ async function load(tenantId: string, id: string, tx: Tx | typeof prisma = prism
 }
 
 async function present(inv: Loaded) {
-  const order = inv.supplierOrderId
-    ? await prisma.supplierOrder.findUnique({ where: { id: inv.supplierOrderId }, select: { id: true, orderNumber: true, status: true } })
-    : null;
-  return serialize({ ...inv, ...invoiceState(inv), supplierOrder: order });
+  const [order, devices] = inv.supplierOrderId
+    ? await Promise.all([
+        prisma.supplierOrder.findUnique({ where: { id: inv.supplierOrderId }, select: { id: true, orderNumber: true, status: true, orderedAt: true } }),
+        // The phones and devices bought on this order: each keeps its own IMEI / serial and cost, all on this invoice.
+        prisma.soldUnit.findMany({
+          where: { tenantId: inv.tenantId, supplierOrderId: inv.supplierOrderId },
+          select: { id: true, deviceType: true, brand: true, model: true, storage: true, ram: true, color: true, condition: true, imei: true, serialNumber: true, purchasePrice: true, soldAt: true },
+          orderBy: { createdAt: 'asc' },
+        }),
+      ])
+    : [null, []];
+  return serialize({ ...inv, ...invoiceState(inv), supplierOrder: order, devices });
 }
 
 /** FF-2026-0001, numbered per business and per year. */
@@ -237,8 +246,13 @@ export default async function supplierInvoiceRoutes(app: FastifyInstance) {
     const items = order.items.map((i) => ({ quantity: i.quantityOrdered, unitCost: num(i.unitCost) }));
     const t = totals(items, 0, 0, 0);
     const now = new Date();
-    const inv = await prisma.$transaction(async (tx) =>
-      tx.supplierInvoice.create({
+    // One supplier order = one purchase invoice: the order row is locked, then checked again, so two clicks at the
+    // same moment can never create two invoices.
+    const inv = await prisma.$transaction(async (tx) => {
+      await lockOrder(tx, order.id);
+      const dup = await tx.supplierInvoice.findFirst({ where: { tenantId, supplierOrderId: order.id, status: { not: 'cancelled' } }, select: { number: true } });
+      if (dup) throw conflict(`Cette commande est déjà facturée (${dup.number})`);
+      return tx.supplierInvoice.create({
         data: {
           tenantId,
           storeId: order.storeId,
@@ -262,8 +276,8 @@ export default async function supplierInvoiceRoutes(app: FastifyInstance) {
             })),
           },
         },
-      }),
-    );
+      });
+    });
     reply.status(201);
     return ok({ invoice: await present(await load(tenantId, inv.id)) });
   });

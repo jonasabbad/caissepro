@@ -3,13 +3,13 @@ import { computed, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
-import { ArchiveBoxArrowDownIcon, BanknotesIcon, ClipboardDocumentListIcon, EyeIcon, MagnifyingGlassIcon, PaperAirplaneIcon, PlusIcon, XMarkIcon } from '@heroicons/vue/24/outline';
+import { ArchiveBoxArrowDownIcon, BanknotesIcon, ClipboardDocumentListIcon, DocumentTextIcon, EyeIcon, MagnifyingGlassIcon, PaperAirplaneIcon, PlusIcon, XMarkIcon } from '@heroicons/vue/24/outline';
 import { supplierOrdersApi } from '@/api/supplierOrders';
 import { apiErrorMessage } from '@/api/http';
 import ConfirmModal from '@/components/ui/ConfirmModal.vue';
 import Toast from '@/components/ui/Toast.vue';
 import { formatCurrency, formatDate } from '@/utils/format';
-import { statusInfo } from '@/utils/supplierOrderStatus';
+import { payBadge, statusInfo } from '@/utils/supplierOrderStatus';
 
 const { t } = useI18n();
 const route = useRoute();
@@ -34,21 +34,39 @@ const summary = computed(() =>
 );
 
 const payOpen = ref(false);
-const payOrderId = ref('');
+const payOrder = ref(null);
 const payAmount = ref(0);
+const payRequestId = ref('');
+const payError = ref('');
+const payInvalid = computed(() => {
+  const a = Number(payAmount.value);
+  if (!(a > 0)) return t('supplierOrders.payInvalid');
+  if (payOrder.value && Math.round(a * 100) > Math.round(payOrder.value.amountRemaining * 100)) return t('supplierOrders.payTooMuch', { amount: formatCurrency(payOrder.value.amountRemaining) });
+  return '';
+});
 function openPay(o) {
-  payOrderId.value = o.id;
+  payOrder.value = o;
   payAmount.value = o.amountRemaining;
+  payRequestId.value = crypto.randomUUID(); // one payment per form: a repeated submit is not paid twice
+  payError.value = '';
   payOpen.value = true;
 }
 const payMutation = useMutation({
-  mutationFn: () => supplierOrdersApi.addPayment(payOrderId.value, payAmount.value),
+  mutationFn: () => supplierOrdersApi.addPayment(payOrder.value.id, Number(payAmount.value), payRequestId.value),
   onSuccess: () => {
-    queryClient.invalidateQueries({ queryKey: ['supplier-orders'] });
-    queryClient.invalidateQueries({ queryKey: ['suppliers'] });
+    for (const k of ['supplier-orders', 'supplier-order', 'supplier-invoice', 'suppliers', 'supplier']) queryClient.invalidateQueries({ queryKey: [k] });
     payOpen.value = false;
+    toast.value = { show: true, message: t('supplierOrders.toast.paid'), type: 'success' };
+  },
+  onError: (e) => {
+    payError.value = apiErrorMessage(e, t('supplierOrders.toast.payError'));
+    queryClient.invalidateQueries({ queryKey: ['supplier-orders'] }); // show the order as it is now
   },
 });
+function submitPay() {
+  if (payInvalid.value || payMutation.isPending.value) return;
+  payMutation.mutate();
+}
 const submitMutation = useMutation({
   mutationFn: (id) => supplierOrdersApi.submit(id),
   onSuccess: () => ['supplier-orders', 'suppliers'].forEach((k) => queryClient.invalidateQueries({ queryKey: [k] })),
@@ -163,6 +181,7 @@ const th = 'px-4 py-3 text-start text-sm font-medium text-gray-500';
               <td class="px-4 py-3 font-medium">{{ formatCurrency(o.totalAmount) }}</td>
               <td class="px-4 py-3">
                 <span :class="o.amountRemaining > 0 ? 'font-medium text-danger-600' : 'text-gray-400'">{{ o.amountRemaining > 0 ? formatCurrency(o.amountRemaining) : '-' }}</span>
+                <span v-if="o.status !== 'draft' && o.status !== 'cancelled'" :class="['mt-0.5 block w-fit rounded-full px-2 py-0.5 text-[11px] font-medium', payBadge(o.paymentStatus).cls]">{{ t(payBadge(o.paymentStatus).key) }}</span>
               </td>
               <td class="px-4 py-3">
                 <div class="flex items-center justify-end gap-1">
@@ -190,6 +209,15 @@ const th = 'px-4 py-3 text-start text-sm font-medium text-gray-500';
                   >
                     <BanknotesIcon class="h-5 w-5" />
                   </button>
+                  <RouterLink
+                    v-if="o.invoice"
+                    :to="`/app/supplier-invoices/${o.invoice.id}`"
+                    class="p-2 text-gray-400 hover:text-primary-600"
+                    :title="t('supplierInvoices.invoicedAs', { number: o.invoice.number })"
+                    :aria-label="t('supplierInvoices.invoicedAs', { number: o.invoice.number })"
+                  >
+                    <DocumentTextIcon class="h-5 w-5" />
+                  </RouterLink>
                 </div>
               </td>
             </tr>
@@ -209,16 +237,31 @@ const th = 'px-4 py-3 text-start text-sm font-medium text-gray-500';
             <h3 class="text-lg font-bold text-gray-900">{{ t('supplierOrders.addPayment') }}</h3>
             <button class="rounded p-1 hover:bg-gray-100" @click="payOpen = false"><XMarkIcon class="h-5 w-5" /></button>
           </div>
-          <form @submit.prevent="payAmount > 0 && payMutation.mutate()">
+          <form @submit.prevent="submitPay">
             <div class="modal-body space-y-4">
+              <p v-if="payOrder" class="text-sm text-gray-600">
+                {{ payOrder.orderNumber }} · {{ t('supplierOrders.remaining') }} <span class="font-semibold text-gray-900">{{ formatCurrency(payOrder.amountRemaining) }}</span>
+              </p>
               <div>
-                <label class="label">{{ t('supplierOrders.paymentAmount') }}</label>
-                <input v-model.number="payAmount" type="number" step="0.01" min="0" class="input text-lg font-medium" required />
+                <label for="order-pay-amount" class="label">{{ t('supplierOrders.paymentAmount') }}</label>
+                <input
+                  id="order-pay-amount"
+                  v-model.number="payAmount"
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  :max="payOrder?.amountRemaining"
+                  class="input text-lg font-medium"
+                  :aria-invalid="!!payInvalid"
+                  required
+                />
+                <p v-if="payInvalid" class="mt-1 text-xs text-danger-600">{{ payInvalid }}</p>
               </div>
+              <p v-if="payError" class="rounded-lg border border-danger-200 bg-danger-50 px-3 py-2 text-sm text-danger-700" role="alert">{{ payError }}</p>
             </div>
             <div class="modal-footer">
               <button type="button" class="btn-secondary" @click="payOpen = false">{{ t('common.cancel') }}</button>
-              <button type="submit" class="btn-primary" :disabled="payMutation.isPending.value">
+              <button type="submit" class="btn-primary" :disabled="payMutation.isPending.value || !!payInvalid">
                 {{ payMutation.isPending.value ? t('common.saving') : t('common.save') }}
               </button>
             </div>

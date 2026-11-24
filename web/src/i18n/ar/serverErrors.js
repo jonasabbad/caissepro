@@ -139,5 +139,13 @@ export default {
     pairingUsed: "رمز QR هذا استُعمل من قبل: اعرض رمزاً جديداً",
     pairingExpired: "انتهت صلاحية رمز QR هذا: اعرض رمزاً جديداً",
     tooManyScans: "عدد كبير من عمليات المسح، انتظر قليلاً",
+    purchaseNoteTooLong: "الوصف طويل جداً (191 حرفاً كحد أقصى)",
+    purchaseDateInvalid: "تاريخ الشراء غير صالح",
+    purchaseOrderNotFound: "طلبية المورد غير موجودة",
+    purchaseOrderNotLinkable: "لا يمكن ربط طلبية المورد هذه (مسودة أو ملغاة)",
+    purchaseOrderOtherSupplier: "هذه الطلبية ليست من هذا المورد",
+    supplierNotFound: "المورد غير موجود",
+    purchaseSupplierRequired: "اختر المورد",
+    purchaseReceivedWithOrder: "تم استلام هذا الجهاز مع طلبية المورد الخاصة به: لا يمكن تغيير مصدره",
   },
 };
